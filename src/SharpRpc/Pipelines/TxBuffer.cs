@@ -13,7 +13,7 @@ namespace SharpRpc
         private readonly StreamProxy _streamProxy;
         private readonly List<ArraySegment<byte>> _completeSegments = new List<ArraySegment<byte>>();
         private readonly MemoryManager _memManager;
-        private readonly int _minAllocSize = 128;
+        private readonly int _minAllocSize = 64;
         private readonly MessageMarker _marker;
         private DequeueRequest _dequeueWaitHandle;
         //private readonly Action _dataArrivedEvent;
