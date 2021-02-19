@@ -34,12 +34,22 @@ namespace SharpRpc
             _rx = new RxPipeline.OneThread(transport, _endpoint);
         }
 
-        public bool TrySend(IMessage msg)
+        public RpcResult TrySend(IMessage msg)
         {
-            return _tx.Send(msg);
+            return _tx.TrySend(msg);
         }
 
-        public ValueTask<bool> TrySendAsync(IMessage msg)
+        public ValueTask<RpcResult> TrySendAsync(IMessage msg)
+        {
+            return _tx.TrySendAsync(msg);
+        }
+
+        public void Send(IMessage msg)
+        {
+            _tx.Send(msg);
+        }
+
+        public ValueTask SendAsync(IMessage msg)
         {
             return _tx.SendAsync(msg);
         }

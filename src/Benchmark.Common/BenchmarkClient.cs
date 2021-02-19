@@ -19,12 +19,12 @@ namespace Benchmark.Common
             return Channel.ConnectAsync();
         }
 
-        public bool OnUpdate(FooEntity entity)
+        public RpcResult OnUpdate(FooEntity entity)
         {
-            return Channel.TrySend(new EntityMessage<FooEntity>(entity));
+            return TrySendMessage(new EntityMessage<FooEntity>(entity));
         }
 
-        public ValueTask<bool> OnUpdateAsync(FooEntity entity)
+        public ValueTask<RpcResult> OnUpdateAsync(FooEntity entity)
         {
             return Channel.TrySendAsync(new EntityMessage<FooEntity>(entity));
         }

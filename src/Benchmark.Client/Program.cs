@@ -13,8 +13,8 @@ namespace Benchmark.Client
         {
             //Task.Delay(TimeSpan.FromSeconds(5)).Wait();
 
-            DoTest(10000000, 1, false);
-            DoTest(10000000, 2, false);
+            //DoTest(10000000, 1, false);
+            //DoTest(10000000, 2, false);
 
             //            DoTest(1000000, 4, false);
             //DoTest(1000000, 4, true);

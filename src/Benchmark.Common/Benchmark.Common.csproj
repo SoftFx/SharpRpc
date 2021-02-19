@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>netcoreapp2.2</TargetFramework>
+	<LangVersion>preview</LangVersion>  
   </PropertyGroup>
 
   <ItemGroup>
@@ -10,7 +11,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\SharpRpc.Builder\SharpRpc.Builder.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\SharpRpc\SharpRpc.csproj" />
   </ItemGroup>
-
+  
 </Project>

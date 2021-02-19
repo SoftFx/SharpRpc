@@ -11,6 +11,10 @@ namespace SharpRpc
         //void Serialize(MessageWriter writer);
     }
 
+    public interface IRequest
+    {
+    }
+
     //internal class CommonMessage<T> : IMessage
     //{
 

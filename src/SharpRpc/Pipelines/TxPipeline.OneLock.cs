@@ -30,19 +30,19 @@ namespace SharpRpc
             private bool CanProcessNextMessage => !_isProcessingItem && HasRoomForNextMessage;
             private bool HasRoomForNextMessage => _buffer.DataSize < _bufferSizeThreshold;
 
-            public override bool Send(IMessage msg)
+            public override RpcResult TrySend(IMessage msg)
             {
                 lock (_lockObj)
                 {
                     if (_isCompleted)
-                        return false;
+                        return new RpcResult(RetCode.Error);
 
                     while (!CanProcessNextMessage)
                     {
                         Monitor.Wait(_lockObj);
 
                         if (_isCompleted)
-                            return false;
+                            return new RpcResult(RetCode.Error);
                     }
 
                     _isProcessingItem = true;
@@ -50,21 +50,21 @@ namespace SharpRpc
 
                 ProcessMessage(msg);
 
-                return true;
+                return RpcResult.Ok;
             }
 
-            public override ValueTask<bool> SendAsync(IMessage msg)
+            public override ValueTask<RpcResult> TrySendAsync(IMessage msg)
             {
                 lock (_lockObj)
                 {
                     if (_isCompleted)
-                        return new ValueTask<bool>(false);
+                        return new ValueTask<RpcResult>(new RpcResult(RetCode.Error));
 
                     if (!CanProcessNextMessage)
                     {
                         var waitItem = new PendingItemTask(msg);
                         _asyncQueue.Enqueue(waitItem);
-                        return new ValueTask<bool>(waitItem.Task);
+                        return new ValueTask<RpcResult>(waitItem.Task);
                     }
                     else
                         _isProcessingItem = true;
@@ -72,7 +72,17 @@ namespace SharpRpc
 
                 ProcessMessage(msg);
 
-                return new ValueTask<bool>(true);
+                return new ValueTask<RpcResult>(RpcResult.Ok);
+            }
+
+            public override ValueTask SendAsync(IMessage message)
+            {
+                throw new NotImplementedException();
+            }
+
+            public override void Send(IMessage message)
+            {
+                throw new NotImplementedException();
             }
 
             private void ProcessMessage(IMessage msg)
@@ -115,7 +125,7 @@ namespace SharpRpc
                     {
                         var task = (PendingItemTask)p;
                         ProcessMessage(task.ItemToEnqueue);
-                        task.SetResult(true);
+                        task.SetResult(new RpcResult(RetCode.Ok));
 
                     }, nextAsyncItem);
                 }
@@ -136,7 +146,7 @@ namespace SharpRpc
                         Monitor.PulseAll(_lockObj);
 
                         while (_asyncQueue.Count > 0)
-                            _asyncQueue.Dequeue().SetResult(false);
+                            _asyncQueue.Dequeue().SetResult(new RpcResult(RetCode.Error));
 
                         if (!_isProcessingItem)
                             _completedEvent.TrySetResult(true);
@@ -146,7 +156,7 @@ namespace SharpRpc
                 return _completedEvent.Task;
             }
 
-            private class PendingItemTask : TaskCompletionSource<bool>
+            private class PendingItemTask : TaskCompletionSource<RpcResult>
             {
                 public PendingItemTask(IMessage item)
                 {

@@ -36,8 +36,10 @@ namespace SharpRpc
         //    TxBytesLoop();
         //}
 
-        public abstract bool Send(IMessage message);
-        public abstract ValueTask<bool> SendAsync(IMessage message);
+        public abstract RpcResult TrySend(IMessage message);
+        public abstract void Send(IMessage message);
+        public abstract ValueTask<RpcResult> TrySendAsync(IMessage message);
+        public abstract ValueTask SendAsync(IMessage message);
 
         protected abstract ValueTask ReturnSegmentAndDequeue(List<ArraySegment<byte>> container);
 

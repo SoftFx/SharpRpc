@@ -76,7 +76,14 @@ namespace SharpRpc
                             }
                             else
                             {
-                                //var msg = _serializer.Deserialize(_reader);
+                                try
+                                {
+
+                                    var msg = _serializer.Deserialize(_reader);
+                                }
+                                catch (Exception ex)
+                                {
+                                }
                             }
                         }
                     }

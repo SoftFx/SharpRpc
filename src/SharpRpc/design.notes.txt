@@ -1,0 +1,24 @@
+﻿
+
+ClientEndpoint 
+-----------------
+Configuration node and connection initiator. Used to open and configure client-side channels. One instance of endpoint cannot be used by multiple channels, 
+you need a separate instance for every channel you open.
+
+ServerChannel
+-----------------
+Configuration node and connection acceptor. Used to open and configure server-side channels. One instance of endpoint cannot be used by multiple servers,
+you need to a separate instance for every server you create.
+
+Client
+-----------------
+Client is a typed API stub for remote procedure calls or sending one-way messages via channel.
+Multiple clients can be created for one channel. It can be usefull in some multi-threading scenarios to reduce thread contentions.
+
+Channel
+-----------------
+Channel represents connection or session. It is responsible for connection state management and message dispatching. It is created on both client and server sides.
+
+RpcServer
+-----------------
+
