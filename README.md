@@ -1,6 +1,6 @@
 **SharpRpc is fast and efficient RPC for .NET Framework and .NET Core.**
 
-# Freatures
+# Features
 
   * High efficiency (especialy while dealing with lot of small messages)
   * Low latency
