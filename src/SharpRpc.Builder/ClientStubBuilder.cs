@@ -20,7 +20,7 @@ namespace SharpRpc.Builder
 
         public void GenerateCode(GeneratorExecutionContext context)
         {
-            var contractType = _contract.TypeName;
+            var contractType = _contract.InterfaceName;
             var clientStubType = new TypeString(contractType.Namespace, contractType.Short + "_Client");
             var compUnit = SyntaxFactory.CompilationUnit();
             var stubNamespace = SyntaxFactory.NamespaceDeclaration(SyntaxFactory.IdentifierName(contractType.Namespace));
@@ -83,7 +83,7 @@ namespace SharpRpc.Builder
                 methodParams.Add(paramSyntax);
             }
 
-            var msgTypeName = Names.GetOnWayMessageName(_contract.TypeName.Short, callDec.MethodName);
+            var msgTypeName = Names.GetOnWayMessageName(_contract.InterfaceName.Short, callDec.MethodName);
 
             var msgCreateClause = Sf.EqualsValueClause(
                 Sf.ObjectCreationExpression(Sf.ParseTypeName(msgTypeName))

@@ -5,19 +5,7 @@ using System.Text;
 
 namespace SharpRpc.Builder
 {
-    internal class ContractDeclaration
-    {
-        public ContractDeclaration(string typeFullName)
-        {
-            TypeName = new TypeString(typeFullName);
-        }
-
-        public TypeString TypeName { get; }
-
-        public List<CallDeclaration> Calls { get; } = new List<CallDeclaration>();
-    }
-
-    internal class CallDeclaration
+    public class CallDeclaration
     {
         public CallDeclaration(string methodName, ContractCallType type)
         {
@@ -47,29 +35,5 @@ namespace SharpRpc.Builder
 
             return builder.ToString();
         }
-    }
-
-    internal class ParamDeclaration
-    {
-        public ParamDeclaration(int index, string type, string name = null)
-        {
-            Index = index;
-            ParamType = type;
-            ParamName = name;
-            MessagePropertyName = "Arg" + index;
-        }
-
-        public string ParamType { get; }
-        public string ParamName { get; }
-        public int Index { get; }
-        public string MessagePropertyName { get; }
-    }
-
-    internal enum ContractCallType
-    {
-        ClientCall,
-        ClientMessage,
-        ServerCall,
-        ServerMessage
     }
 }

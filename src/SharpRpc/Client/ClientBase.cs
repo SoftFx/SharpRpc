@@ -33,5 +33,45 @@ namespace SharpRpc
         {
             return Channel.SendAsync(message);
         }
+
+        protected void Call(IRequest request)
+        {
+            throw new NotImplementedException();
+        }
+
+        protected T Call<T>(IRequest request)
+        {
+            throw new NotImplementedException();
+        }
+
+        protected RpcResult TryCall(IRequest request, out RpcResult result)
+        {
+            throw new NotImplementedException();
+        }
+
+        protected RpcResult<T> TryCall<T>(IRequest request, out RpcResult result)
+        {
+            throw new NotImplementedException();
+        }
+
+        protected Task CallAsync(IRequest request)
+        {
+            throw new NotImplementedException();
+        }
+
+        protected Task<T> CallAsync<T>(IRequest request)
+        {
+            throw new NotImplementedException();
+        }
+
+        protected Task<RpcResult> TryCallAsync(IRequest request)
+        {
+            throw new NotImplementedException();
+        }
+
+        protected Task<RpcResult<T>> TryCallAsync<T>(IRequest request)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

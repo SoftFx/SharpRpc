@@ -8,17 +8,24 @@ namespace SharpRpc.Builder
     {
         public static readonly TypeString ContractAttributeClass = new TypeString("SharpRpc.RpcContractAttribute");
         public static readonly TypeString RpcAttributeClass = new TypeString("SharpRpc.RpcAttribute");
+        public static readonly TypeString RpcSerializerAttributeClass = new TypeString("SharpRpc.RpcSerializerAttribute");
         public static readonly TypeString RpcClientBaseClass = new TypeString("SharpRpc.ClientBase");
         public static readonly TypeString RpcClientEndpointBaseClass = new TypeString("SharpRpc.ClientEndpoint");
         public static readonly TypeString RpcMessageInterface = new TypeString("SharpRpc.IMessage");
         public static readonly TypeString RpcResultStruct = new TypeString("SharpRpc.RpcResult");
+        public static readonly TypeString RpcServiceBaseClass = new TypeString("SharpRpc.RpcServiceBase");
 
         public static readonly string MessageClassPostfix = "Message";
         public static readonly string RequestClassPostfix = "Request";
         public static readonly string ResponceClassPostfix = "Response";
 
+        public static readonly string RpcServiceBaseOnMessageMethod = "OnMessage";
+        public static readonly string RpcServiceBaseOnRequestMethod = "OnRequest";
+        public static readonly string RpcServiceBasOnUnknownMessage = "OnUnknownMessage";
+
         public static readonly string SystemTask = "System.Threading.Tasks.Task";
         public static readonly string SystemValueTask = "System.Threading.Tasks.ValueTask";
+        
 
         public static string GetOnWayMessageName(string contractName, string contractMethodName)
         {

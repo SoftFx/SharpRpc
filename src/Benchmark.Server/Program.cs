@@ -21,7 +21,8 @@ namespace Benchmark.Server
             var tcpEndpoint = new TcpServerEndpoint(812);
             tcpEndpoint.Serializer = new EntityMessageSerializer();
 
-            var server = new RpcServer();
+            var binding = new ServiceBinding(() => new BechmarkServiceImpl(), SerializerChoice.MessagePack);
+            var server = new RpcServer(binding);
             server.AddEndpoint(tcpEndpoint);
             server.SetLogger(new ConsoleLogger(true, true));
 

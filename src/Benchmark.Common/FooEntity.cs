@@ -2,16 +2,19 @@
 using ProtoBuf;
 using System;
 using System.Collections.Generic;
+using System.Runtime.Serialization;
 using System.Text;
 
 namespace Benchmark.Common
 {
+    [DataContract]
     [ProtoContract]
     [MessagePackObject]
     public class FooEntity
     {
         [ProtoMember(1)]
         [Key(1)]
+        [DataMember]
         public string Symbol { get; set; }
 
         [ProtoMember(2)]

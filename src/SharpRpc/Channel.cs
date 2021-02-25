@@ -10,18 +10,21 @@ namespace SharpRpc
         private TxPipeline _tx;
         private RxPipeline _rx;
         private readonly ClientEndpoint _endpoint;
+        private readonly MessageBlock _msgHandleBlock;
 
         public ChannelState State { get; private set; }
 
-        internal Channel(ByteTransport transport, Endpoint serverEndpoint)
+        internal Channel(ByteTransport transport, Endpoint serverEndpoint, IMessageHandler msgHandler)
         {
-            _rx = new RxPipeline.OneThread(transport, serverEndpoint);
+            _msgHandleBlock = new MessageBlock(1, msgHandler);
+            _rx = new RxPipeline.OneThread(transport, serverEndpoint, _msgHandleBlock);
             //_tx = new TxPipeline(transport);
         }
 
         internal Channel(ClientEndpoint endpoint)
         {
             _endpoint = endpoint ?? throw new ArgumentNullException("endpoint");
+            _msgHandleBlock = new MessageBlock(1, null);
         }
 
         public async Task ConnectAsync()
@@ -30,8 +33,9 @@ namespace SharpRpc
                 throw new InvalidOperationException();
 
             var transport = await _endpoint.ConnectAsync();
+            
             _tx = new TxPipeline.OneLock(transport, _endpoint);
-            _rx = new RxPipeline.OneThread(transport, _endpoint);
+            _rx = new RxPipeline.OneThread(transport, _endpoint, _msgHandleBlock);
         }
 
         public RpcResult TrySend(IMessage msg)

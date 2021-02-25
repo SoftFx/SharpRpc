@@ -10,10 +10,11 @@ using System.Text;
 namespace SharpRpc.Builder
 {
     [Generator]
-    public class StubGenerator : ISourceGenerator
+    public class SharpRpcGenerator : ISourceGenerator
     {
         private INamedTypeSymbol _contractAttrSymbol;
         private INamedTypeSymbol _rpcAttrSymbol;
+        private INamedTypeSymbol _serializerAttrSymbol;
 
         public void Initialize(GeneratorInitializationContext context)
         {
@@ -22,19 +23,25 @@ namespace SharpRpc.Builder
 
         public void Execute(GeneratorExecutionContext context)
         {
-            SyntaxReceiver syntaxReceiver = (SyntaxReceiver)context.SyntaxReceiver;
-
-            var contracts = GetRpcContracts(context);
-
-            if (!Debugger.IsAttached)
+            try
             {
-                Debugger.Launch();
+                //if (!Debugger.IsAttached)
+                //{
+                //    Debugger.Launch();
+                //}
+
+                var contracts = GetRpcContracts(context);
+
+                foreach (var contractInfo in contracts)
+                {
+                    MessageBuilder.GenerateMessages(contractInfo, context);
+                    new ClientStubBuilder(contractInfo).GenerateCode(context);
+                    new ServerStubBuilder(contractInfo).GenerateCode(context);
+                }
             }
-
-            foreach (var contractInfo in contracts)
+            catch (Exception ex)
             {
-                new MessageBuilder(contractInfo).GenerateCode(context);
-                new ClientStubBuilder(contractInfo).GenerateCode(context);
+                Trace.WriteLine("Exception in StubGenerator.Execute(): " + ex.Message);
             }
         }
 
@@ -84,6 +91,15 @@ namespace SharpRpc.Builder
             return null;
         }
 
+        private IEnumerable<AttributeData> FindAllAttributes(ISymbol declaration, INamedTypeSymbol attrTypeSymbol)
+        {
+            foreach (var attr in declaration.GetAttributes())
+            {
+                if (SymbolEqualityComparer.Default.Equals(attr.AttributeClass, attrTypeSymbol))
+                    yield return attr;
+            }
+        }
+
         private ContractDeclaration CollectContractData(InterfaceDeclarationSyntax contractTypeDec, SemanticModel sm)
         {
             var contractSmbInfo = sm.GetDeclaredSymbol(contractTypeDec);
@@ -91,6 +107,8 @@ namespace SharpRpc.Builder
                 return new ContractDeclaration("Error");
             var fullyQualifiedName = contractSmbInfo.ToDisplayString(FulluQualifiedSymbolFormat);
             var contractInfo = new ContractDeclaration(fullyQualifiedName);
+
+            CollectSerializersData(contractSmbInfo, contractInfo.SerializerBuilders);
 
             foreach (var member in contractTypeDec.Members)
             {
@@ -104,6 +122,27 @@ namespace SharpRpc.Builder
             }
 
             return contractInfo;
+        }
+
+        private void CollectSerializersData(ISymbol contractInterfaceModel, List<SerializerBuilderBase> container)
+        {
+            var serializerAttributes = FindAllAttributes(contractInterfaceModel, _serializerAttrSymbol).ToList();
+
+            foreach (var attr in serializerAttributes)
+            {
+                var typeArg = attr.ConstructorArguments[0];
+
+                if (typeArg.Kind != TypedConstantKind.Enum)
+                    throw new Exception("Invalid property type!");
+
+                switch (typeArg.Value)
+                {
+                    case 0: container.Add(new DataContractBuilder()); break;
+                    case 1: container.Add(new MessagePackBuilder()); break;
+                    case 2: container.Add(new ProtobufNetBuilder()); break;
+                    default: throw new Exception("Unknown serializer type! This may indicate that your SharpRpc.Builder.dll is outdated!");
+                }
+            }
         }
 
         private CallDeclaration CollectCallData(MethodDeclarationSyntax methodDec, SemanticModel sm)
@@ -179,6 +218,7 @@ namespace SharpRpc.Builder
         {
             _contractAttrSymbol = GetSymbolOrThrow(Names.ContractAttributeClass.Full, context);
             _rpcAttrSymbol = GetSymbolOrThrow(Names.RpcAttributeClass.Full, context);
+            _serializerAttrSymbol = GetSymbolOrThrow(Names.RpcSerializerAttributeClass.Full, context);
         }
 
         private INamedTypeSymbol GetSymbolOrThrow(string metadataName, GeneratorExecutionContext context)

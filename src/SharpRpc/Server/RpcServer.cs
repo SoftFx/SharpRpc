@@ -13,11 +13,14 @@ namespace SharpRpc
         private readonly object _stateLock = new object();
         private readonly List<ServerEndpoint> _endpoints = new List<ServerEndpoint>();
         private ServerState _state;
-        private readonly Dictionary<Guid, RpcHandler> _handlers = new Dictionary<Guid, RpcHandler>();
+        private readonly Dictionary<Guid, RpcSession> _sessions = new Dictionary<Guid, RpcSession>();
+        private readonly ServiceBinding _binding;
 
-        public RpcServer()
+        public RpcServer(ServiceBinding serviceBinding)
         {
             Name = Namer.GetInstanceName(GetType());
+
+            _binding = serviceBinding;
         }
 
         public RpcServer AddEndpoint(ServerEndpoint endpoint)
@@ -111,11 +114,11 @@ namespace SharpRpc
 
         private void Endpoint_ClientConnected(ServerEndpoint sender, ByteTransport channel)
         {
-            var handler = new RpcHandler(channel, sender);
+            var session = new RpcSession(channel, _binding, sender);
 
-            _handlers.Add(handler.Id, handler);
+            //_handlers.Add(handler.Id, handler);
 
-            Logger.Verbose(Name, "New session: " + handler.Id);
+            Logger.Verbose(Name, "New session: " + session.Id);
         }
 
         private void ThrowIfConfigProhibited()

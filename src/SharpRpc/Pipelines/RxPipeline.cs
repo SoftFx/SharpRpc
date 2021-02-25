@@ -40,11 +40,13 @@ namespace SharpRpc
             private readonly MessageParser _parser = new MessageParser();
             private readonly IRpcSerializer _serializer;
             private readonly RxMessageReader _reader = new RxMessageReader();
+            private readonly MessageBlock _msgConsumer;
 
-            public OneThread(ByteTransport transport, Endpoint config) : base(transport)
+            public OneThread(ByteTransport transport, Endpoint config, MessageBlock messageConsumer) : base(transport)
             {
                 _buffer = new RxBuffer();
                 _serializer = config.Serializer;
+                _msgConsumer = messageConsumer;
 
                 var parseBlockOptions = new ExecutionDataflowBlockOptions();
                 parseBlockOptions.BoundedCapacity = 5;
@@ -73,12 +75,12 @@ namespace SharpRpc
                             if (_parser.MessageBody.Count == 1)
                             {
                                 var msg = _serializer.Deserialize(_reader);
+                                _msgConsumer.Consume(msg);
                             }
                             else
                             {
                                 try
                                 {
-
                                     var msg = _serializer.Deserialize(_reader);
                                 }
                                 catch (Exception ex)

@@ -8,25 +8,20 @@ namespace SharpRpc
 {
     public interface IMessage
     {
-        //void Serialize(MessageWriter writer);
     }
 
-    public interface IRequest
+    public interface IRequest : IMessage
     {
     }
 
-    //internal class CommonMessage<T> : IMessage
-    //{
+    public interface IResponse : IMessage
+    {
+    }
 
-    //}
-
-    //internal class Message<T> : IMessage
-    //{
-    //}
-
-    //public abstract class PreserializedMessage<T> : IMessage
-    //{
-    //}
+    public interface IResponse<T> : IMessage
+    {
+        T Result { get; }
+    }
 
     public interface MessageWriter
     {

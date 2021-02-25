@@ -1,36 +1,41 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace SharpRpc
+﻿namespace SharpRpc
 {
     public struct RpcResult
     {
-        internal RpcResult(RetCode code, string message = null)
+        internal RpcResult(RetCode code, RpcFault fault = null)
         {
             Code = code;
-            Message = message;
+            Fault = fault;
         }
 
         public static readonly RpcResult Ok = new RpcResult(RetCode.Ok);
 
         public RetCode Code { get; }
-        public string Message { get; }
+        public RpcFault Fault { get; }
     }
 
-    public struct RetStatus<T>
+    public struct RpcResult<T>
     {
-        public RetStatus(RetCode code, T result, string message = null)
+        public RpcResult(RetCode code, T result, RpcFault fault = null)
         {
             Code = code;
             Result = result;
-            Message = message;
+            Fault = fault;
         }
 
         public RetCode Code { get; }
-        public string Message { get; }
+        public RpcFault Fault { get; }
         public T Result { get; }
+    }
+
+    public class RpcFault
+    {
+        public RpcFault(string message)
+        {
+            Message = message;
+        }
+
+        public string Message { get; protected set; }
     }
 
     public enum RetCode
