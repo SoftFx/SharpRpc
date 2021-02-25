@@ -13,7 +13,7 @@
 
 # Limitations
 
-  * SharpRpc supports only transport-level authificcation.
+  * SharpRpc supports only transport-level authentification.
   * SharpRpc is not a multi-platform protocol (.Net only).
   
 
