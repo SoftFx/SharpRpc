@@ -21,10 +21,10 @@ namespace SharpRpc
             //_tx = new TxPipeline(transport);
         }
 
-        internal Channel(ClientEndpoint endpoint)
+        internal Channel(ClientEndpoint endpoint, IMessageHandler msgHandler)
         {
             _endpoint = endpoint ?? throw new ArgumentNullException("endpoint");
-            _msgHandleBlock = new MessageBlock(1, null);
+            _msgHandleBlock = new MessageBlock(1, msgHandler);
         }
 
         public async Task ConnectAsync()

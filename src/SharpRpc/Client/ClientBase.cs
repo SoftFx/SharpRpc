@@ -9,7 +9,7 @@ namespace SharpRpc
     {
         public ClientBase(ClientEndpoint endpoint)
         {
-            Channel = new Channel(endpoint);
+            Channel = new Channel(endpoint, new MsgHandler());
         }
 
         public Channel Channel { get; }
@@ -72,6 +72,14 @@ namespace SharpRpc
         protected Task<RpcResult<T>> TryCallAsync<T>(IRequest request)
         {
             throw new NotImplementedException();
+        }
+
+        private class MsgHandler : IMessageHandler
+        {
+            public Task ProcessMessage(IMessage message)
+            {
+                return Task.CompletedTask;
+            }
         }
     }
 }

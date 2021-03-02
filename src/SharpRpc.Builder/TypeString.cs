@@ -9,15 +9,16 @@ namespace SharpRpc.Builder
         public TypeString(string typeFullName)
         {
             Full = typeFullName.Trim();
-            var nsDelimiterIndex = typeFullName.LastIndexOf(".");
+
+            var nsDelimiterIndex = Full.LastIndexOf(".");
 
             if (nsDelimiterIndex == 0 || nsDelimiterIndex >= Full.Length - 1)
                 throw new Exception();
 
             if (nsDelimiterIndex > 0)
             {
-                Namespace = typeFullName.Substring(0, nsDelimiterIndex);
-                Short = typeFullName.Substring(nsDelimiterIndex + 1);
+                Namespace = Full.Substring(0, nsDelimiterIndex);
+                Short = Full.Substring(nsDelimiterIndex + 1);
             }
             else
             {

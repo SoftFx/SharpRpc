@@ -11,35 +11,29 @@ namespace SharpRpc.Builder
         public static readonly TypeString RpcSerializerAttributeClass = new TypeString("SharpRpc.RpcSerializerAttribute");
         public static readonly TypeString RpcClientBaseClass = new TypeString("SharpRpc.ClientBase");
         public static readonly TypeString RpcClientEndpointBaseClass = new TypeString("SharpRpc.ClientEndpoint");
-        public static readonly TypeString RpcMessageInterface = new TypeString("SharpRpc.IMessage");
+        public static readonly TypeString MessageInterface = new TypeString("SharpRpc.IMessage");
         public static readonly TypeString RpcResultStruct = new TypeString("SharpRpc.RpcResult");
         public static readonly TypeString RpcServiceBaseClass = new TypeString("SharpRpc.RpcServiceBase");
+        public static readonly TypeString RpcSerializerInterface = new TypeString("SharpRpc.IRpcSerializer");
+        public static readonly TypeString MessageReaderClass = new TypeString("SharpRpc.MessageReader");
+        public static readonly TypeString MessageWriterClass = new TypeString("SharpRpc.MessageWriter");
 
         public static readonly string MessageClassPostfix = "Message";
         public static readonly string RequestClassPostfix = "Request";
-        public static readonly string ResponceClassPostfix = "Response";
+        public static readonly string ResponseClassPostfix = "Response";
 
         public static readonly string RpcServiceBaseOnMessageMethod = "OnMessage";
         public static readonly string RpcServiceBaseOnRequestMethod = "OnRequest";
-        public static readonly string RpcServiceBasOnUnknownMessage = "OnUnknownMessage";
+        public static readonly string RpcServiceBaseOnUnknownMessage = "OnUnknownMessage";
+
+        public static readonly string RpcSerializeMethod = "Serialize";
+        public static readonly string RpcDeserializeMethod = "Deserialize";
+
+        public static readonly string WriterBufferProperty = "ByteBuffer";
+        public static readonly string ReaderBufferProperty = "ByteBuffer";
 
         public static readonly string SystemTask = "System.Threading.Tasks.Task";
         public static readonly string SystemValueTask = "System.Threading.Tasks.ValueTask";
-        
-
-        public static string GetOnWayMessageName(string contractName, string contractMethodName)
-        {
-            return GetMessageName(contractName, contractMethodName, MessageClassPostfix);
-        }
-
-        public static string GetRequestName(string contractName, string contractMethodName)
-        {
-            return GetMessageName(contractName, contractMethodName, RequestClassPostfix);
-        }
-
-        public static string GetMessageName(string contractName, string contractMethodName, string postfix)
-        {
-            return contractName + "_" + contractMethodName + postfix;
-        }
+       
     }
 }

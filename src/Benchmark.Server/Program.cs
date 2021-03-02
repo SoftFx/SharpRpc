@@ -12,14 +12,21 @@ namespace Benchmark.Server
     {
         static void Main(string[] args)
         {
+            var endpoint = new TcpServerEndpoint(812);
+            var server = new RpcServer(new ServiceBinding(() => new BechmarkServiceImpl(), SerializerChoice.MessagePack));
+            server.AddEndpoint(endpoint);
+
+            server.Start();
+
+            Console.Read();
+
             //RunSerializersBenchmark();
-            RunServer();
+            //RunServer();
         }
 
         private static void RunServer()
         {
             var tcpEndpoint = new TcpServerEndpoint(812);
-            tcpEndpoint.Serializer = new EntityMessageSerializer();
 
             var binding = new ServiceBinding(() => new BechmarkServiceImpl(), SerializerChoice.MessagePack);
             var server = new RpcServer(binding);

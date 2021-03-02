@@ -89,7 +89,7 @@ namespace SharpRpc.Builder
         private MethodDeclarationSyntax GenerateOnMessageOverride()
         {
             StatementSyntax ifRoot = SF.ReturnStatement(
-                SH.ThisInvocation(Names.RpcServiceBasOnUnknownMessage, SH.IdentifierArgument("message")));
+                SH.ThisInvocation(Names.RpcServiceBaseOnUnknownMessage, SH.IdentifierArgument("message")));
 
             var index = 0;
 
@@ -97,11 +97,11 @@ namespace SharpRpc.Builder
             {
                 if (call.CallType == ContractCallType.ClientMessage)
                 {
-                    var messageType = Names.GetOnWayMessageName(_contract.InterfaceName.Full, call.MethodName);
+                    var messageType = _contract.GetOnWayMessageClassName(call.MethodName);
                     var typedMessageVarName = "m" + index++;
 
                     var isExpression = SF.IsPatternExpression(SF.IdentifierName("message"),
-                        SF.DeclarationPattern(SF.ParseTypeName(messageType), SF.SingleVariableDesignation(SF.Identifier(typedMessageVarName))));
+                        SF.DeclarationPattern(SF.ParseTypeName(messageType.Full), SF.SingleVariableDesignation(SF.Identifier(typedMessageVarName))));
 
                     var rpcMethodCall = SF.ReturnStatement(GenerateRpcInvocation(call, typedMessageVarName));
 
@@ -111,7 +111,7 @@ namespace SharpRpc.Builder
 
             var method = SF.MethodDeclaration(SF.ParseTypeName(Names.SystemTask), Names.RpcServiceBaseOnMessageMethod)
                .AddModifiers(SF.Token(SyntaxKind.ProtectedKeyword), SF.Token(SyntaxKind.OverrideKeyword))
-               .AddParameterListParameters(SH.Parameter("message", Names.RpcMessageInterface.Full))
+               .AddParameterListParameters(SH.Parameter("message", Names.MessageInterface.Full))
                .WithBody(SF.Block(ifRoot));
 
             return method;

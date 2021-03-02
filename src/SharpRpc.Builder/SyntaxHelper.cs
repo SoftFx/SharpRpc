@@ -10,6 +10,8 @@ namespace SharpRpc.Builder
 {
     internal static class SyntaxHelper
     {
+        #region Attributes
+
         public static AttributeSyntax Attribute(string typeName, params AttributeArgumentSyntax[] args)
         {
             return SyntaxFactory.Attribute(
@@ -23,11 +25,21 @@ namespace SharpRpc.Builder
             return SyntaxFactory.AttributeArgument(value);
         }
 
-        public static ClassDeclarationSyntax AddAttributes(this ClassDeclarationSyntax classDec, params AttributeSyntax[] attributeDeclarations)
+        public static ClassDeclarationSyntax AddSeparatedAttributes(this ClassDeclarationSyntax classDec, params AttributeSyntax[] attributeDeclarations)
+        {
+            return AddSeparatedAttributes(classDec, (IEnumerable<AttributeSyntax>)attributeDeclarations);
+        }
+
+        public static ClassDeclarationSyntax AddSeparatedAttributes(this ClassDeclarationSyntax classDec, IEnumerable<AttributeSyntax> attributeDeclarations)
         {
             return classDec.AddAttributeLists(
-                SyntaxFactory.AttributeList(
-                    SyntaxFactory.SeparatedList<AttributeSyntax>(attributeDeclarations)));
+                attributeDeclarations.Select(d => SyntaxFactory.AttributeList(ToSeparatedList(d))).ToArray());
+        }
+
+        private static SeparatedSyntaxList<T> ToSeparatedList<T>(T singleVal)
+            where T : SyntaxNode
+        {
+            return SyntaxFactory.SingletonSeparatedList<T>(singleVal);
         }
 
         public static PropertyDeclarationSyntax AddAttributes(this PropertyDeclarationSyntax propDec, params AttributeSyntax[] attributeDeclarations)
@@ -37,7 +49,34 @@ namespace SharpRpc.Builder
                     SyntaxFactory.SeparatedList<AttributeSyntax>(attributeDeclarations)));
         }
 
-       
+        #endregion
+
+        #region Types
+
+        public static QualifiedNameSyntax GlobalTypeName(TypeString type)
+        {
+            var fullNamespace = SyntaxFactory.AliasQualifiedName(
+                SyntaxFactory.IdentifierName(SyntaxFactory.Token(SyntaxKind.GlobalKeyword)),
+                SyntaxFactory.IdentifierName(type.Namespace));
+
+            return SyntaxFactory.QualifiedName(fullNamespace, SyntaxFactory.IdentifierName(type.Short));
+        }
+
+        public static TypeSyntax GenericType(string typeName, params string[] genericTypeArgs)
+        {
+            return SyntaxFactory.GenericName(SyntaxFactory.Identifier(typeName),
+                SyntaxFactory.TypeArgumentList(
+                    SyntaxFactory.SeparatedList(
+                        genericTypeArgs.Select(a => SyntaxFactory.ParseTypeName(a)))));
+        }
+
+        #endregion
+
+        public static PredefinedTypeSyntax VoidToken()
+        {
+            return SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.VoidKeyword));
+        }
+
         public static ParameterSyntax Parameter(string paramName, string paramType)
         {
             return SyntaxFactory.Parameter(SyntaxFactory.Identifier(paramName))
@@ -84,10 +123,10 @@ namespace SharpRpc.Builder
                 SyntaxFactory.InvocationExpression(SyntaxFactory.IdentifierName(methodName), CallArguments(arguments)));
         }
 
-        public static MemberAccessExpressionSyntax VarPropertyAccess(string variableName, string propertyName)
+        public static MemberAccessExpressionSyntax MemeberOfIdentifier(string variableName, string propertyName)
         {
             return SyntaxFactory.MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
-                SyntaxFactory.IdentifierName("message"), SyntaxFactory.IdentifierName(propertyName));
+                SyntaxFactory.IdentifierName(variableName), SyntaxFactory.IdentifierName(propertyName));
         }
 
         public static LocalDeclarationStatementSyntax AsLocalDeclaration(this VariableDeclarationSyntax variableDeclaration)
@@ -119,17 +158,14 @@ namespace SharpRpc.Builder
                 .WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken)));
         }
 
-        public static TypeSyntax GenericType(string typeName, params string[] genericTypeArgs)
-        {
-            return SyntaxFactory.GenericName(SyntaxFactory.Identifier(typeName),
-                SyntaxFactory.TypeArgumentList(
-                    SyntaxFactory.SeparatedList(
-                        genericTypeArgs.Select(a => SyntaxFactory.ParseTypeName(a)))));
-        }
-
         public static MethodDeclarationSyntax WithoutBody(this MethodDeclarationSyntax method)
         {
             return method.WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken));
+        }
+
+        public static ExpressionSyntax TypeOfExpression(string typeName)
+        {
+            return SyntaxFactory.TypeOfExpression(SyntaxFactory.ParseName(typeName));
         }
 
         public static LiteralExpressionSyntax LiteralExpression(int number)

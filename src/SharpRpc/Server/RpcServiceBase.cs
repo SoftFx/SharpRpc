@@ -8,7 +8,7 @@ namespace SharpRpc
     public abstract class RpcServiceBase : IMessageHandler
     {
         protected abstract Task OnMessage(IMessage message);
-        protected abstract Task OnRequest(IRequest request);
+        //protected abstract Task OnRequest(IRequest request);
 
         protected Task OnUnknownMessage(IMessage message)
         {

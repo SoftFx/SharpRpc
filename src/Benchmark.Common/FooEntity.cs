@@ -10,7 +10,7 @@ namespace Benchmark.Common
     [DataContract]
     [ProtoContract]
     [MessagePackObject]
-    public class FooEntity
+    public class FooEntity : global::System.IDisposable
     {
         [ProtoMember(1)]
         [Key(1)]
@@ -36,6 +36,11 @@ namespace Benchmark.Common
         [ProtoMember(6)]
         [Key(6)]
         public List<FooSubEntity> AskBook { get; set; } = new List<FooSubEntity>();
+
+        public void Dispose()
+        {
+
+        }
     }
 
     [ProtoContract]

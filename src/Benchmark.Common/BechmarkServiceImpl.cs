@@ -17,10 +17,5 @@ namespace Benchmark.Common
         {
             throw new NotImplementedException();
         }
-
-        protected override Task OnRequest(IRequest request)
-        {
-            throw new NotImplementedException();
-        }
     }
 }

@@ -42,11 +42,49 @@ namespace SharpRpc.Builder
                 if (call.CallType == ContractCallType.ClientCall || call.CallType == ContractCallType.ServerCall)
                 {
                     new MessageBuilder(contract, call, MessageType.Request).GenerateMessage(context, true, Names.RequestClassPostfix);
-                    new MessageBuilder(contract, call, MessageType.Response).GenerateMessage(context, false, Names.ResponceClassPostfix);
+                    new MessageBuilder(contract, call, MessageType.Response).GenerateMessage(context, false, Names.ResponseClassPostfix);
                 }
                 else
                     new MessageBuilder(contract, call, MessageType.OneWay).GenerateMessage(context, true, Names.MessageClassPostfix);
             }
+
+            GenerateMessageBase(contract, context, out var baseMessageClassName);
+            CompleteSerializerBuilding(contract, context, baseMessageClassName);
+        }
+
+        private static void CompleteSerializerBuilding(ContractDeclaration contract, GeneratorExecutionContext context, TypeString baseMessageClassName)
+        {
+            foreach (var builder in contract.SerializerBuilders)
+            {
+                var serializerClassName = new TypeString(contract.Namespace, contract.InterfaceName.Short + "_" + builder.Name + "_MessageSerializer");
+                builder.GenerateSerializerCode(serializerClassName, baseMessageClassName, context);
+            }
+        }
+
+        private static void GenerateMessageBase(ContractDeclaration contract, GeneratorExecutionContext context, out TypeString baseMessageClassName)
+        {
+            baseMessageClassName = contract.BaseMessageClassName;
+
+            var messageClassDeclaration = SyntaxFactory.ClassDeclaration(baseMessageClassName.Short)
+                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+                .AddBaseListTypes(SyntaxFactory.SimpleBaseType(SyntaxHelper.GlobalTypeName(Names.MessageInterface)));
+
+            foreach (var serializerBuilder in contract.SerializerBuilders)
+                serializerBuilder.CompleteMessageBuilding(ref messageClassDeclaration);
+
+            var stubNamespace = SyntaxFactory
+                .NamespaceDeclaration(SyntaxFactory.IdentifierName(baseMessageClassName.Namespace))
+                .AddMembers(messageClassDeclaration);
+
+            var compUnit = SyntaxFactory
+                .CompilationUnit()
+                .AddMembers(stubNamespace);
+
+            var srcCode = compUnit
+                .NormalizeWhitespace()
+                .ToFullString();
+
+            context.AddSource(baseMessageClassName.Full, SourceText.From(srcCode, Encoding.UTF8));
         }
 
         public void UpdatePropertyDeclaration(string propertyName, Func<PropertyDeclarationSyntax, PropertyDeclarationSyntax> updateFunc)
@@ -62,15 +100,14 @@ namespace SharpRpc.Builder
         internal void GenerateMessage(GeneratorExecutionContext context, bool direct, string namePostfix)
         {
             var contractType = ContractInfo.InterfaceName;
-            var messageName = Names.GetMessageName(contractType.Short, RpcInfo.MethodName, namePostfix);
-            MessageClassName = new TypeString(contractType.Namespace, messageName);
+            MessageClassName = ContractInfo.GetMessageClassName(RpcInfo.MethodName, namePostfix);
 
             var compUnit = SyntaxFactory.CompilationUnit();
             var stubNamespace = SyntaxFactory.NamespaceDeclaration(SyntaxFactory.IdentifierName(contractType.Namespace));
 
             _messageClassDeclaration = SyntaxFactory.ClassDeclaration(MessageClassName.Short)
                 .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
-                .AddBaseListTypes(SyntaxFactory.SimpleBaseType(SyntaxFactory.ParseTypeName(Names.RpcMessageInterface.Full)));
+                .AddBaseListTypes(SyntaxFactory.SimpleBaseType(SyntaxHelper.GlobalTypeName(ContractInfo.BaseMessageClassName)));
 
             if (direct)
             {
@@ -89,7 +126,7 @@ namespace SharpRpc.Builder
                     _properties.Add(RpcInfo.ReturnParam.MessagePropertyName, GenerateMessageProperty(RpcInfo.ReturnParam, 0));
             }
 
-            BuildSerializers();
+            NotifySerializers();
 
             _messageClassDeclaration = _messageClassDeclaration.AddMembers(_properties.Values.ToArray());
 
@@ -103,10 +140,10 @@ namespace SharpRpc.Builder
             context.AddSource(MessageClassName.Full, SourceText.From(srcCode, Encoding.UTF8));
         }
 
-        private void BuildSerializers()
+        private void NotifySerializers()
         {
             foreach (var builder in ContractInfo.SerializerBuilders)
-                builder.BuildMessageSerializer(this);
+                builder.BuildUpMessage(this);
         }
 
         private PropertyDeclarationSyntax GenerateMessageProperty(ParamDeclaration callProp, int index)
