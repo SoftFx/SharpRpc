@@ -4,17 +4,17 @@ using System.Text;
 
 namespace SharpRpc
 {
-    public class ServiceBinding
+    internal class ServiceBinding
     {
         private readonly Func<RpcServiceBase> _serivceImplFactory;
 
-        public ServiceBinding(Func<RpcServiceBase> serivceImplFactory, SerializerChoice serializer)
+        public ServiceBinding(Func<RpcServiceBase> serivceImplFactory, IRpcSerializer serializer)
         {
             _serivceImplFactory = serivceImplFactory;
             Serializer = serializer;
         }
 
-        public SerializerChoice Serializer { get; }
+        public IRpcSerializer Serializer { get; }
 
         public RpcServiceBase CreateServiceImpl()
         {

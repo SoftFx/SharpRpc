@@ -72,13 +72,8 @@ namespace SharpRpc.MsTest
             }
 
             var parsedMsgBody = ArrayExt.Join(parser.MessageBody);
-
             var expectedBody = msg.RawBytes;
-            var expedctedMsgType = MessageType.User;
-            var expectedRetCode = MessageParser.RetCodes.MessageParsed;
 
-            //Assert.AreEqual(expedctedMsgType, parser.MessageType);
-            //Assert.AreEqual(2, parsedMsgBody.Count);
             CollectionAssert.AreEqual(expectedBody, parsedMsgBody);
         }
     }

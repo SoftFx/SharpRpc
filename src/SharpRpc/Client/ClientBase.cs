@@ -7,9 +7,9 @@ namespace SharpRpc
 {
     public abstract class ClientBase
     {
-        public ClientBase(ClientEndpoint endpoint)
+        public ClientBase(ClientEndpoint endpoint, IRpcSerializer serializer)
         {
-            Channel = new Channel(endpoint, new MsgHandler());
+            Channel = new Channel(endpoint, serializer, new MsgHandler());
         }
 
         public Channel Channel { get; }
@@ -76,9 +76,9 @@ namespace SharpRpc
 
         private class MsgHandler : IMessageHandler
         {
-            public Task ProcessMessage(IMessage message)
+            public ValueTask ProcessMessage(IMessage message)
             {
-                return Task.CompletedTask;
+                return new ValueTask();
             }
         }
     }

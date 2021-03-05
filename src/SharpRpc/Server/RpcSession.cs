@@ -13,7 +13,7 @@ namespace SharpRpc
         {
             _serviceImpl = binding.CreateServiceImpl();
 
-            _msgChannel = new Channel(transport, endpoint, _serviceImpl);
+            _msgChannel = new Channel(transport, endpoint, binding.Serializer, _serviceImpl);
             
         }
 

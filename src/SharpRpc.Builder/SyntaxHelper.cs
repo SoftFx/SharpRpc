@@ -53,6 +53,11 @@ namespace SharpRpc.Builder
 
         #region Types
 
+        public static TypeSyntax ShortTypeName(TypeString type)
+        {
+            return SyntaxFactory.ParseTypeName(type.Short);
+        }
+
         public static QualifiedNameSyntax GlobalTypeName(TypeString type)
         {
             var fullNamespace = SyntaxFactory.AliasQualifiedName(
@@ -103,6 +108,15 @@ namespace SharpRpc.Builder
             return SyntaxFactory.VariableDeclaration(SyntaxFactory.ParseTypeName(type))
                 .AddVariables(SyntaxFactory.VariableDeclarator(name)
                 .WithInitializer(initializer))
+                .AsLocalDeclaration();
+        }
+
+        public static LocalDeclarationStatementSyntax VarDeclaration(string name, EqualsValueClauseSyntax initializer)
+        {
+            var varDeclarator = SyntaxFactory.VariableDeclarator(SyntaxFactory.Identifier(name))
+                .WithInitializer(initializer);
+
+            return SyntaxFactory.VariableDeclaration(SyntaxFactory.IdentifierName("var"), ToSeparatedList(varDeclarator))
                 .AsLocalDeclaration();
         }
 

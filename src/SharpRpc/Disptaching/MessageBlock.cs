@@ -1,4 +1,5 @@
-﻿using System;
+﻿using SharpRpc.Lib;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
@@ -6,27 +7,50 @@ using System.Threading.Tasks.Dataflow;
 
 namespace SharpRpc
 {
-    internal class MessageBlock
+    internal abstract partial class MessageBlock
     {
-        private readonly ActionBlock<IMessage> _actionBlock;
-        private readonly IMessageHandler handler;
-
-        public MessageBlock(int degreeOfParallelism, IMessageHandler handler)
+        public static MessageBlock Create(IMessageHandler handler, ConcurrencyMode mode)
         {
-            var options = new ExecutionDataflowBlockOptions();
-            options.MaxDegreeOfParallelism = degreeOfParallelism;
-
-            _actionBlock = new ActionBlock<IMessage>(handler.ProcessMessage, options);
+            switch (mode)
+            {
+                case ConcurrencyMode.NoQueue: return new NoThreading(handler);
+                case ConcurrencyMode.DataflowX1: return new Dataflow(1, handler);
+                case ConcurrencyMode.DataflowX2: return new Dataflow(2, handler);
+                case ConcurrencyMode.PagedQueueX1: return new OneThread(handler);
+                default: throw new InvalidOperationException();
+            }
         }
 
-        public void Consume(IMessage message)
+        protected MessageBlock(IMessageHandler handler)
         {
-            _actionBlock.Post(message);
+            MessageHandler = handler;
         }
+
+        protected IMessageHandler MessageHandler { get; }
+
+        protected void OnError(RetCode code, string message)
+        {
+            ErrorOccured?.Invoke(new RpcResult(code, message));
+        }
+
+        public event Action<RpcResult> ErrorOccured;
+
+        public abstract bool SuportsBatching { get; }
+        public abstract void Consume(IMessage message);
+        public abstract void Consume(IEnumerable<IMessage> messages);
+        public abstract Task Close(bool dropTheQueue);
     }
 
     internal interface IMessageHandler
     {
-        Task ProcessMessage(IMessage message);
+        ValueTask ProcessMessage(IMessage message);
+    }
+
+    public enum ConcurrencyMode
+    {
+        NoQueue,
+        DataflowX1,
+        DataflowX2,
+        PagedQueueX1,
     }
 }

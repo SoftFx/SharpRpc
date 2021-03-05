@@ -22,33 +22,81 @@ namespace SharpRpc.Builder
         {
             var contractType = _contract.InterfaceName;
             var clientStubType = new TypeString(contractType.Namespace, contractType.Short + "_Client");
-            var compUnit = SF.CompilationUnit();
-            var stubNamespace = SF.NamespaceDeclaration(SF.IdentifierName(contractType.Namespace));
 
             var constructorInitializer = SF.ConstructorInitializer(SyntaxKind.BaseConstructorInitializer)
-                .AddArgumentListArguments(SF.Argument(SF.IdentifierName("endpoint")));
+                .AddArgumentListArguments(SH.IdentifierArgument("endpoint"), SH.IdentifierArgument("serializer"));
+
+            var endpointConsParam = SH.Parameter("endpoint", Names.RpcClientEndpointBaseClass.Full);
+            var serializerConsParam = SH.Parameter("serializer", Names.RpcSerializerInterface.Full);
 
             var constructor = SF.ConstructorDeclaration(clientStubType.Short)
-                .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
-                .AddParameterListParameters(SyntaxHelper.Parameter("endpoint", Names.RpcClientEndpointBaseClass.Full))
+                .AddModifiers(SF.Token(SyntaxKind.ProtectedKeyword))
+                .AddParameterListParameters(endpointConsParam, serializerConsParam)
                 .WithInitializer(constructorInitializer)
                 .WithBody(SF.Block());
 
             var stubClassDeclaration = SF.ClassDeclaration(clientStubType.Short)
                 .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
                 .AddBaseListTypes(SF.SimpleBaseType(SF.ParseTypeName(Names.RpcClientBaseClass.Full)))
-                .AddMembers(constructor);
+                .AddMembers(constructor)
+                .AddMembers(GenerateFactories(clientStubType))
+                .AddMembers(GenerateCallMethods(clientStubType));
 
-            stubClassDeclaration = stubClassDeclaration.AddMembers(GenerateCallMethods(clientStubType));
+            var stubNamespace = SF.NamespaceDeclaration(SF.IdentifierName(contractType.Namespace))
+                .AddMembers(stubClassDeclaration);
 
-            stubNamespace = stubNamespace.AddMembers(stubClassDeclaration);
-            compUnit = compUnit.AddMembers(stubNamespace);
+            var compUnit = SF.CompilationUnit()
+                .AddMembers(stubNamespace);
 
             var srcCode = compUnit
                 .NormalizeWhitespace()
                 .ToFullString();
 
             context.AddSource(clientStubType.Full, SourceText.From(srcCode, Encoding.UTF8));
+        }
+
+        private MethodDeclarationSyntax[] GenerateFactories(TypeString stubClassName)
+        {
+            var factoryMethods = new List<MethodDeclarationSyntax>();
+
+            if (_contract.Serializers.Count > 1)
+            {
+                foreach (var serializerEntry in _contract.Serializers)
+                {
+                    var serializerTypeName = serializerEntry.AdapterClassName;
+                    var serializerName = serializerEntry.Builder.Name;
+
+                    factoryMethods.Add(GenerateFactoryMethod("BackedBy" + serializerName, serializerTypeName, stubClassName));
+                }
+            }
+            else
+            {
+                var serializerTypeName = _contract.Serializers[0].AdapterClassName;
+                factoryMethods.Add(GenerateFactoryMethod("", serializerTypeName, stubClassName));
+            }
+
+            return factoryMethods.ToArray();
+        }
+
+        private MethodDeclarationSyntax GenerateFactoryMethod(string suffix, TypeString serializerAdapterType, TypeString stubTypeName)
+        {
+            var serializerCreateClause = SF.EqualsValueClause(
+                SF.ObjectCreationExpression(SH.ShortTypeName(serializerAdapterType))
+                .WithArgumentList(SF.ArgumentList()));
+
+            var serializerVarStatement = SH.VarDeclaration("serializer", serializerCreateClause);
+
+            var clientCreateExpression = SF.ObjectCreationExpression(SH.ShortTypeName(stubTypeName))
+                .WithArgumentList(SH.CallArguments(SH.IdentifierArgument("endpoint"), SH.IdentifierArgument("serializer")));
+
+            var returnStatement = SF.ReturnStatement(clientCreateExpression);
+
+            var endpointParam = SH.Parameter("endpoint", Names.RpcClientEndpointBaseClass.Full);
+
+            return SF.MethodDeclaration(SF.ParseTypeName(stubTypeName.Short), "CreateInstance" + suffix)
+                .AddModifiers(SF.Token(SyntaxKind.PublicKeyword), SF.Token(SyntaxKind.StaticKeyword))
+                .AddParameterListParameters(endpointParam)
+                .WithBody(SF.Block(serializerVarStatement, returnStatement));
         }
 
         private MethodDeclarationSyntax[] GenerateCallMethods(TypeString clientStubTypeName)

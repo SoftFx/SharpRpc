@@ -25,10 +25,10 @@ namespace SharpRpc.Builder
         {
             try
             {
-                //if (!Debugger.IsAttached)
-                //{
-                //    Debugger.Launch();
-                //}
+                if (!Debugger.IsAttached)
+                {
+                    Debugger.Launch();
+                }
 
                 var contracts = GetRpcContracts(context);
 
@@ -108,7 +108,8 @@ namespace SharpRpc.Builder
             var fullyQualifiedName = contractSmbInfo.ToDisplayString(FulluQualifiedSymbolFormat);
             var contractInfo = new ContractDeclaration(fullyQualifiedName);
 
-            CollectSerializersData(contractSmbInfo, contractInfo.SerializerBuilders);
+            foreach (var builder in CollectSerializersData(contractSmbInfo))
+                contractInfo.AddSerializer(builder);
 
             foreach (var member in contractTypeDec.Members)
             {
@@ -124,8 +125,9 @@ namespace SharpRpc.Builder
             return contractInfo;
         }
 
-        private void CollectSerializersData(ISymbol contractInterfaceModel, List<SerializerBuilderBase> container)
+        private List<SerializerBuilderBase> CollectSerializersData(ISymbol contractInterfaceModel)
         {
+            var result = new List<SerializerBuilderBase>();
             var serializerAttributes = FindAllAttributes(contractInterfaceModel, _serializerAttrSymbol).ToList();
 
             foreach (var attr in serializerAttributes)
@@ -137,12 +139,14 @@ namespace SharpRpc.Builder
 
                 switch (typeArg.Value)
                 {
-                    case 0: container.Add(new DataContractBuilder()); break;
-                    case 1: container.Add(new MessagePackBuilder()); break;
-                    case 2: container.Add(new ProtobufNetBuilder()); break;
+                    case 0: result.Add(new DataContractBuilder()); break;
+                    case 1: result.Add(new MessagePackBuilder()); break;
+                    case 2: result.Add(new ProtobufNetBuilder()); break;
                     default: throw new Exception("Unknown serializer type! This may indicate that your SharpRpc.Builder.dll is outdated!");
                 }
             }
+
+            return result;
         }
 
         private CallDeclaration CollectCallData(MethodDeclarationSyntax methodDec, SemanticModel sm)

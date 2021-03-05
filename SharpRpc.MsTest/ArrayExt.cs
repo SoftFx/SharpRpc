@@ -42,7 +42,6 @@ namespace SharpRpc.MsTest
             return partitions;
         }
 
-
         public static T[] Join<T>(IReadOnlyList<ArraySegment<T>> segments)
         {
             var totalSize = 0;
@@ -60,6 +59,16 @@ namespace SharpRpc.MsTest
             }
 
             return result;
+        }
+
+        public static byte[] ByteSequence(int length)
+        {
+            var buffer = new byte[length];
+
+            for (int i = 0; i < length; i++)
+                buffer[i] = (byte)(i % byte.MaxValue);
+
+            return buffer;
         }
     }
 }

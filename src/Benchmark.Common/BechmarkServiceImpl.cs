@@ -6,16 +6,11 @@ using System.Threading.Tasks;
 
 namespace Benchmark.Common
 {
-    public class BechmarkServiceImpl : Contract_Service
+    public class BechmarkServiceImpl : BenchmarkContract_Service
     {
-        public override Task SendUpdate2Async(FooEntity entity)
+        public override ValueTask SendUpdate(FooEntity entity)
         {
-            throw new NotImplementedException();
-        }
-
-        public override Task SendUpdateAsync(FooEntity entity, int index)
-        {
-            throw new NotImplementedException();
+            return new ValueTask();
         }
     }
 }

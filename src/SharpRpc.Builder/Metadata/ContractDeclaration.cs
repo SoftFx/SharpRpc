@@ -7,6 +7,8 @@ namespace SharpRpc.Builder
 {
     public class ContractDeclaration
     {
+        private List<SerializerDeclaration> _serializers = new List<SerializerDeclaration>();
+
         public ContractDeclaration(string typeFullName)
         {
             InterfaceName = new TypeString(typeFullName);
@@ -16,8 +18,14 @@ namespace SharpRpc.Builder
         public TypeString InterfaceName { get; }
         public string Namespace => InterfaceName.Namespace;
         public TypeString BaseMessageClassName { get; }
-        public List<SerializerBuilderBase> SerializerBuilders { get; } = new List<SerializerBuilderBase>();
         public List<CallDeclaration> Calls { get; } = new List<CallDeclaration>();
+
+        internal IReadOnlyList<SerializerDeclaration> Serializers => _serializers;
+
+        internal void AddSerializer(SerializerBuilderBase serializerBuilder)
+        {
+            _serializers.Add(new SerializerDeclaration(serializerBuilder, InterfaceName));
+        }
 
         public TypeString GetOnWayMessageClassName(string contractMethodName)
         {

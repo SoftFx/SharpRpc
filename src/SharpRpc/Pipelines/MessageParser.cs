@@ -92,5 +92,32 @@ namespace SharpRpc
         private enum States { EndOfMessage, Header, Body, ChunkHeader  }
 
         public enum RetCodes { MessageParsed, EndOfSegment, Error  }
+
+#if DEBUG
+        public string MessagBodyString
+        {
+            get
+            {
+                var builder = new StringBuilder();
+
+                foreach (var fragment in MessageBody)
+                {
+                    foreach (var b in fragment)
+                    {
+                        if (builder.Length == 0)
+                            builder.Append('{');
+                        else
+                            builder.Append(',');
+
+                        builder.Append(b);
+                    }
+                }
+
+                builder.Append('}');
+
+                return builder.ToString();
+            }
+        }
+#endif
     }
 }

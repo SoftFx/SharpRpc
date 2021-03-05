@@ -12,32 +12,36 @@ namespace Benchmark.Server
     {
         static void Main(string[] args)
         {
-            var endpoint = new TcpServerEndpoint(812);
-            var server = new RpcServer(new ServiceBinding(() => new BechmarkServiceImpl(), SerializerChoice.MessagePack));
-            server.AddEndpoint(endpoint);
+            //RunSerializersBenchmark();
+            RunServers();
+        }
 
-            server.Start();
+        private static void RunServers()
+        {
+            var srv1 = RunServer(ConcurrencyMode.NoQueue, 812);
+            var srv2 = RunServer(ConcurrencyMode.DataflowX1, 813);
+            var srv3 = RunServer(ConcurrencyMode.PagedQueueX1, 814);
 
             Console.Read();
 
-            //RunSerializersBenchmark();
-            //RunServer();
+            srv1.StopAsync().Wait();
+            srv2.StopAsync().Wait();
+            srv3.StopAsync().Wait();
         }
 
-        private static void RunServer()
+        private static RpcServer RunServer(ConcurrencyMode mode, int port)
         {
-            var tcpEndpoint = new TcpServerEndpoint(812);
+            var tcpEndpoint = new TcpServerEndpoint(port);
+            tcpEndpoint.RxConcurrencyMode = mode;
 
-            var binding = new ServiceBinding(() => new BechmarkServiceImpl(), SerializerChoice.MessagePack);
-            var server = new RpcServer(binding);
+            var server = new RpcServer();
+            server.BindService(() => new BechmarkServiceImpl(), new BenchmarkContract_MessagePack_MessageSerializer());
             server.AddEndpoint(tcpEndpoint);
             server.SetLogger(new ConsoleLogger(true, true));
 
             server.Start();
 
-            Console.Read();
-
-            server.StopAsync().Wait();
+            return server;
         }
     }
 }

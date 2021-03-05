@@ -75,8 +75,8 @@ namespace SharpRpc.Builder
                 methodParams.Add(paramSyntax);
             }
 
-            var methodName = callDec.MethodName + "Async";
-            var retType = GetTaskOf(callDec.ReturnParam);
+            var methodName = callDec.MethodName;
+            var retType = GetValueTaskOf(callDec.ReturnParam);
 
             var method = SF.MethodDeclaration(retType, methodName)
                 .AddModifiers(SF.Token(SyntaxKind.PublicKeyword), SF.Token(SyntaxKind.AbstractKeyword))
@@ -109,7 +109,7 @@ namespace SharpRpc.Builder
                 }
             }
 
-            var method = SF.MethodDeclaration(SF.ParseTypeName(Names.SystemTask), Names.RpcServiceBaseOnMessageMethod)
+            var method = SF.MethodDeclaration(SF.ParseTypeName(Names.SystemValueTask), Names.RpcServiceBaseOnMessageMethod)
                .AddModifiers(SF.Token(SyntaxKind.ProtectedKeyword), SF.Token(SyntaxKind.OverrideKeyword))
                .AddParameterListParameters(SH.Parameter("message", Names.MessageInterface.Full))
                .WithBody(SF.Block(ifRoot));
@@ -129,7 +129,7 @@ namespace SharpRpc.Builder
                     SF.IdentifierName(param.MessagePropertyName))));
             }
 
-            var methodName = callDec.MethodName + "Async";
+            var methodName = callDec.MethodName;
 
             return SF.InvocationExpression(SF.IdentifierName(methodName), SH.CallArguments(args));
         }
@@ -140,6 +140,14 @@ namespace SharpRpc.Builder
                 return SF.ParseTypeName(Names.SystemTask);
             else
                 return SH.GenericType(Names.SystemTask, param.ParamType);
+        }
+
+        private TypeSyntax GetValueTaskOf(ParamDeclaration param)
+        {
+            if (param == null || param.ParamType == null)
+                return SF.ParseTypeName(Names.SystemValueTask);
+            else
+                return SH.GenericType(Names.SystemValueTask, param.ParamType);
         }
 
         private TypeSyntax GetTypeSyntax(ParamDeclaration param)

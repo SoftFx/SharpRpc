@@ -27,13 +27,12 @@ namespace SharpRpc.Lib
             for (int i = 0; i < segments.Count - 1; i++)
             {
                 var arraySeg = segments[i];
+                _cachedSegments[i].Init(arraySeg, _cachedSegments[i + 1], size);
                 size += arraySeg.Count;
-                _cachedSegments[i].Init(segments[0], _cachedSegments[i + 1], size);
             }
 
             _lastIndex = segments.Count - 1;
             var lastArrSeg = segments[_lastIndex];
-            size += lastArrSeg.Count;
             _cachedSegments[_lastIndex].Init(lastArrSeg, null, size);
         }
 

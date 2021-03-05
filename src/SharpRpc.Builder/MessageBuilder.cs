@@ -54,10 +54,9 @@ namespace SharpRpc.Builder
 
         private static void CompleteSerializerBuilding(ContractDeclaration contract, GeneratorExecutionContext context, TypeString baseMessageClassName)
         {
-            foreach (var builder in contract.SerializerBuilders)
+            foreach (var serializerDec in contract.Serializers)
             {
-                var serializerClassName = new TypeString(contract.Namespace, contract.InterfaceName.Short + "_" + builder.Name + "_MessageSerializer");
-                builder.GenerateSerializerCode(serializerClassName, baseMessageClassName, context);
+                serializerDec.Builder.GenerateSerializerCode(serializerDec.AdapterClassName, baseMessageClassName, context);
             }
         }
 
@@ -66,11 +65,11 @@ namespace SharpRpc.Builder
             baseMessageClassName = contract.BaseMessageClassName;
 
             var messageClassDeclaration = SyntaxFactory.ClassDeclaration(baseMessageClassName.Short)
-                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword), SyntaxFactory.Token(SyntaxKind.AbstractKeyword))
                 .AddBaseListTypes(SyntaxFactory.SimpleBaseType(SyntaxHelper.GlobalTypeName(Names.MessageInterface)));
 
-            foreach (var serializerBuilder in contract.SerializerBuilders)
-                serializerBuilder.CompleteMessageBuilding(ref messageClassDeclaration);
+            foreach (var serializerEtnry in contract.Serializers)
+                serializerEtnry.Builder.CompleteMessageBuilding(ref messageClassDeclaration);
 
             var stubNamespace = SyntaxFactory
                 .NamespaceDeclaration(SyntaxFactory.IdentifierName(baseMessageClassName.Namespace))
@@ -142,8 +141,8 @@ namespace SharpRpc.Builder
 
         private void NotifySerializers()
         {
-            foreach (var builder in ContractInfo.SerializerBuilders)
-                builder.BuildUpMessage(this);
+            foreach (var serializerEntry in ContractInfo.Serializers)
+                serializerEntry.Builder.BuildUpMessage(this);
         }
 
         private PropertyDeclarationSyntax GenerateMessageProperty(ParamDeclaration callProp, int index)

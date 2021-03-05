@@ -18,9 +18,9 @@ namespace SharpRpc
             private readonly Queue<PendingItemTask> _asyncQueue = new Queue<PendingItemTask>();
             private readonly TaskCompletionSource<object> _completedEvent = new TaskCompletionSource<object>();
 
-            public OneLock(ByteTransport transport, Endpoint config) : base(transport)
+            public OneLock(ByteTransport transport, IRpcSerializer serializer, Endpoint config) : base(transport)
             {
-                _buffer = new TxBuffer(_lockObj, config.TxSegmentSize, config.Serializer);
+                _buffer = new TxBuffer(_lockObj, config.TxSegmentSize, serializer);
                 _bufferSizeThreshold = config.TxSegmentSize * 5;
                 _buffer.SpaceFreed += _buffer_SpaceFreed;
 
@@ -35,14 +35,14 @@ namespace SharpRpc
                 lock (_lockObj)
                 {
                     if (_isCompleted)
-                        return new RpcResult(RetCode.Error);
+                        return new RpcResult(RetCode.Error, "");
 
                     while (!CanProcessNextMessage)
                     {
                         Monitor.Wait(_lockObj);
 
                         if (_isCompleted)
-                            return new RpcResult(RetCode.Error);
+                            return new RpcResult(RetCode.Error, "");
                     }
 
                     _isProcessingItem = true;
@@ -58,7 +58,7 @@ namespace SharpRpc
                 lock (_lockObj)
                 {
                     if (_isCompleted)
-                        return new ValueTask<RpcResult>(new RpcResult(RetCode.Error));
+                        return new ValueTask<RpcResult>(new RpcResult(RetCode.Error, ""));
 
                     if (!CanProcessNextMessage)
                     {
@@ -125,7 +125,7 @@ namespace SharpRpc
                     {
                         var task = (PendingItemTask)p;
                         ProcessMessage(task.ItemToEnqueue);
-                        task.SetResult(new RpcResult(RetCode.Ok));
+                        task.SetResult(RpcResult.Ok);
 
                     }, nextAsyncItem);
                 }
@@ -146,7 +146,7 @@ namespace SharpRpc
                         Monitor.PulseAll(_lockObj);
 
                         while (_asyncQueue.Count > 0)
-                            _asyncQueue.Dequeue().SetResult(new RpcResult(RetCode.Error));
+                            _asyncQueue.Dequeue().SetResult(new RpcResult(RetCode.Error, ""));
 
                         if (!_isProcessingItem)
                             _completedEvent.TrySetResult(true);

@@ -7,28 +7,17 @@ namespace SharpRpc
 {
     public abstract class RpcServiceBase : IMessageHandler
     {
-        protected abstract Task OnMessage(IMessage message);
+        protected abstract ValueTask OnMessage(IMessage message);
         //protected abstract Task OnRequest(IRequest request);
 
-        protected Task OnUnknownMessage(IMessage message)
+        protected ValueTask OnUnknownMessage(IMessage message)
         {
-            return Task.CompletedTask;
+            return new ValueTask();
         }
 
-        Task IMessageHandler.ProcessMessage(IMessage message)
+        ValueTask IMessageHandler.ProcessMessage(IMessage message)
         {
-            try
-            {
-                return OnMessage(message)
-                    .ContinueWith(t =>
-                    {
-
-                    });
-            }
-            catch (Exception ex)
-            {
-                return Task.CompletedTask;
-            }
+            return OnMessage(message);
         }
     }
 }

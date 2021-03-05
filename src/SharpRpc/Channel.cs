@@ -7,24 +7,35 @@ namespace SharpRpc
 {
     public class Channel
     {
+        private readonly object _stateSyncObj = new object();
         private TxPipeline _tx;
         private RxPipeline _rx;
-        private readonly ClientEndpoint _endpoint;
+        private readonly Endpoint _endpoint;
         private readonly MessageBlock _msgHandleBlock;
+        private readonly IRpcSerializer _serializer;
 
         public ChannelState State { get; private set; }
 
-        internal Channel(ByteTransport transport, Endpoint serverEndpoint, IMessageHandler msgHandler)
+        internal Channel(ClientEndpoint endpoint, IRpcSerializer serializer, IMessageHandler msgHandler)
+            : this(null, endpoint, serializer, msgHandler)
         {
-            _msgHandleBlock = new MessageBlock(1, msgHandler);
-            _rx = new RxPipeline.OneThread(transport, serverEndpoint, _msgHandleBlock);
-            //_tx = new TxPipeline(transport);
         }
 
-        internal Channel(ClientEndpoint endpoint, IMessageHandler msgHandler)
+        internal Channel(ByteTransport transport, Endpoint endpoint, IRpcSerializer serializer, IMessageHandler msgHandler)
         {
-            _endpoint = endpoint ?? throw new ArgumentNullException("endpoint");
-            _msgHandleBlock = new MessageBlock(1, msgHandler);
+            _endpoint = endpoint;
+            _serializer = serializer;
+
+            _msgHandleBlock = MessageBlock.Create(msgHandler, endpoint.RxConcurrencyMode);
+
+            if (transport != null)
+                CreatePipelines(transport);
+        }
+        
+        private void CreatePipelines(ByteTransport transport)
+        {
+            _tx = new TxPipeline.OneLock(transport, _serializer, _endpoint);
+            _rx = new RxPipeline.OneThread(transport, _endpoint, _serializer, _msgHandleBlock);
         }
 
         public async Task ConnectAsync()
@@ -32,10 +43,9 @@ namespace SharpRpc
             if (_endpoint == null)
                 throw new InvalidOperationException();
 
-            var transport = await _endpoint.ConnectAsync();
-            
-            _tx = new TxPipeline.OneLock(transport, _endpoint);
-            _rx = new RxPipeline.OneThread(transport, _endpoint, _msgHandleBlock);
+            var transport = await ((ClientEndpoint)_endpoint).ConnectAsync();
+
+            CreatePipelines(transport);
         }
 
         public RpcResult TrySend(IMessage msg)

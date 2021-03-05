@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
@@ -41,17 +42,22 @@ namespace SharpRpc
             private readonly IRpcSerializer _serializer;
             private readonly RxMessageReader _reader = new RxMessageReader();
             private readonly MessageBlock _msgConsumer;
+            private readonly List<IMessage> _page = new List<IMessage>();
 
-            public OneThread(ByteTransport transport, Endpoint config, MessageBlock messageConsumer) : base(transport)
+            public OneThread(ByteTransport transport, Endpoint config, IRpcSerializer serializer, MessageBlock messageConsumer) : base(transport)
             {
                 _buffer = new RxBuffer();
-                _serializer = config.Serializer;
+                _serializer = serializer;
                 _msgConsumer = messageConsumer;
 
                 var parseBlockOptions = new ExecutionDataflowBlockOptions();
                 parseBlockOptions.BoundedCapacity = 5;
                 parseBlockOptions.MaxDegreeOfParallelism = 1;
-                _parseBlock = new ActionBlock<RxParseTask>((Action<RxParseTask>)Parse, parseBlockOptions);
+
+                if (_msgConsumer.SuportsBatching)
+                    _parseBlock = new ActionBlock<RxParseTask>(BatchParse, parseBlockOptions);
+                else
+                    _parseBlock = new ActionBlock<RxParseTask>(Parse, parseBlockOptions);
 
                 StartTransportRx();
             }
@@ -72,24 +78,41 @@ namespace SharpRpc
                         {
                             _reader.Init(_parser.MessageBody);
 
-                            if (_parser.MessageBody.Count == 1)
-                            {
-                                var msg = _serializer.Deserialize(_reader);
-                                _msgConsumer.Consume(msg);
-                            }
-                            else
-                            {
-                                try
-                                {
-                                    var msg = _serializer.Deserialize(_reader);
-                                }
-                                catch (Exception ex)
-                                {
-                                }
-                            }
+                            var msg = _serializer.Deserialize(_reader);
+                            _msgConsumer.Consume(msg);
                         }
                     }
                 }
+
+                _buffer.ReturnSegments(task);
+            }
+
+            private void BatchParse(RxParseTask task)
+            {
+                _page.Clear();
+
+                foreach (var segment in task)
+                {
+                    _parser.SetNextSegment(segment);
+
+                    while (true)
+                    {
+                        var pCode = _parser.ParseFurther();
+
+                        if (pCode == MessageParser.RetCodes.EndOfSegment)
+                            break;
+                        else if (pCode == MessageParser.RetCodes.MessageParsed)
+                        {
+                            _reader.Init(_parser.MessageBody);
+
+                            var msg = _serializer.Deserialize(_reader);
+                            _page.Add(msg);
+                        }
+                    }
+                }
+
+                if (_page.Count > 0)
+                    _msgConsumer.Consume(_page);
 
                 _buffer.ReturnSegments(task);
             }

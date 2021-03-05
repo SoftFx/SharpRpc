@@ -14,13 +14,25 @@ namespace SharpRpc
         private readonly List<ServerEndpoint> _endpoints = new List<ServerEndpoint>();
         private ServerState _state;
         private readonly Dictionary<Guid, RpcSession> _sessions = new Dictionary<Guid, RpcSession>();
-        private readonly ServiceBinding _binding;
+        private ServiceBinding _binding;
 
-        public RpcServer(ServiceBinding serviceBinding)
+        public RpcServer()
         {
             Name = Namer.GetInstanceName(GetType());
+        }
 
-            _binding = serviceBinding;
+        public void BindService<T>(Func<T> factory, IRpcSerializer messageSerializer)
+            where T : RpcServiceBase
+        {
+            lock (_stateLock)
+            {
+                ThrowIfConfigProhibited();
+
+                if (_binding != null)
+                    throw new InvalidOperationException("Only one binding per service is supported in this version!");
+
+                _binding = new ServiceBinding(factory, messageSerializer);
+            }
         }
 
         public RpcServer AddEndpoint(ServerEndpoint endpoint)

@@ -7,9 +7,9 @@ namespace SharpRpc
     public abstract class Endpoint
     {
         protected readonly object _stateLockObj = new object();
-        private IRpcSerializer _serializer;
         private int _rxSegmentSize = ushort.MaxValue;
         private int _txSegmentSize = ushort.MaxValue;
+        private ConcurrencyMode _rxConcurrency = ConcurrencyMode.NoQueue;
 
         public Endpoint()
         {
@@ -41,16 +41,15 @@ namespace SharpRpc
             }
         }
 
-        public IRpcSerializer Serializer
+        public ConcurrencyMode RxConcurrencyMode
         {
-            get => _serializer;
+            get => _rxConcurrency;
             set
             {
                 lock (_stateLockObj)
                 {
                     CheckifConfigPossible();
-
-                    _serializer = value;
+                    _rxConcurrency = value;
                 }
             }
         }
@@ -66,8 +65,6 @@ namespace SharpRpc
 
         protected virtual void ValidateConfiguration()
         {
-            if (_serializer == null)
-                throw new Exception("Serializer is not configured!");
         }
     }
 }

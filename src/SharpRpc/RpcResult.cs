@@ -8,7 +8,17 @@
             Fault = fault;
         }
 
-        public static readonly RpcResult Ok = new RpcResult(RetCode.Ok);
+        internal RpcResult(RetCode code, string message = null)
+        {
+            Code = code;
+
+            if (code != RetCode.Ok)
+                Fault = new RpcFault(message);
+            else
+                Fault = null;
+        }
+
+        public static readonly RpcResult Ok = new RpcResult(RetCode.Ok, (RpcFault)null);
 
         public RetCode Code { get; }
         public RpcFault Fault { get; }
