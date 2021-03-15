@@ -18,7 +18,7 @@ jobs:
       with:
         dotnet-version: 3.1.*
     - name: Restore dependencies
-      run: dotnet restore
+      run: dotnet restore --verbosity d
       working-directory: src/
     - name: Build
       run: dotnet build --no-restore
