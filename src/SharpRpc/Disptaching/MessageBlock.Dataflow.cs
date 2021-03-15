@@ -47,14 +47,14 @@ namespace SharpRpc
                         return retVal.AsTask().ContinueWith(t =>
                         {
                             if (t.IsFaulted)
-                                OnError(RetCode.Error, t.Exception.Message);
+                                OnError(RpcRetCode.MessageHandlerFailure, t.Exception.Message);
                         });
                     else
                         return Task.CompletedTask;
                 }
                 catch (Exception ex)
                 {
-                    OnError(RetCode.Error, ex.Message);
+                    OnError(RpcRetCode.MessageHandlerFailure, ex.Message);
                     return Task.CompletedTask;
                 }
             }

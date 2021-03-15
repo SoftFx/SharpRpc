@@ -8,23 +8,25 @@ namespace SharpRpc
 {
     partial class TxPipeline
     {
-        public class OneLock : TxPipeline
+        public class NoQueue : TxPipeline
         {
             private readonly object _lockObj = new object();
             private readonly TxBuffer _buffer;
             private bool _isProcessingItem;
             private bool _isCompleted;
+            private bool _isInitialized;
+            private bool _isInitializing;
+            private RpcResult _fault;
             private readonly int _bufferSizeThreshold;
             private readonly Queue<PendingItemTask> _asyncQueue = new Queue<PendingItemTask>();
             private readonly TaskCompletionSource<object> _completedEvent = new TaskCompletionSource<object>();
 
-            public OneLock(ByteTransport transport, IRpcSerializer serializer, Endpoint config) : base(transport)
+            public NoQueue(IRpcSerializer serializer, Endpoint config, Func<Task<RpcResult<ByteTransport>>> transportRequestFunc)
+                : base(transportRequestFunc)
             {
                 _buffer = new TxBuffer(_lockObj, config.TxSegmentSize, serializer);
                 _bufferSizeThreshold = config.TxSegmentSize * 5;
                 _buffer.SpaceFreed += _buffer_SpaceFreed;
-
-                TxBytesLoop();
             }
 
             private bool CanProcessNextMessage => !_isProcessingItem && HasRoomForNextMessage;
@@ -34,15 +36,21 @@ namespace SharpRpc
             {
                 lock (_lockObj)
                 {
-                    if (_isCompleted)
-                        return new RpcResult(RetCode.Error, "");
+                    if (_fault.Code != RpcRetCode.Ok)
+                        return _fault;
+
+                    if (!_isInitialized && !_isInitializing)
+                    {
+                        _isInitializing = true;
+                        Initialize();
+                    }
 
                     while (!CanProcessNextMessage)
                     {
                         Monitor.Wait(_lockObj);
 
-                        if (_isCompleted)
-                            return new RpcResult(RetCode.Error, "");
+                        if (_fault.Code != RpcRetCode.Ok)
+                            return _fault;
                     }
 
                     _isProcessingItem = true;
@@ -57,8 +65,8 @@ namespace SharpRpc
             {
                 lock (_lockObj)
                 {
-                    if (_isCompleted)
-                        return new ValueTask<RpcResult>(new RpcResult(RetCode.Error, ""));
+                    if (_fault.Code != RpcRetCode.Ok)
+                        return new ValueTask<RpcResult>(_fault);
 
                     if (!CanProcessNextMessage)
                     {
@@ -82,7 +90,31 @@ namespace SharpRpc
 
             public override void Send(IMessage message)
             {
-                throw new NotImplementedException();
+                TrySend(message).ThrowIfNotOk();
+            }
+
+            private async void Initialize()
+            {
+                var ret = await GetTransport();
+
+                lock (_lockObj)
+                {
+                    _isInitialized = true;
+                    _isInitializing = false;
+
+                    Transport = ret.Result;
+
+                    if (ret.Code != RpcRetCode.Ok)
+                    {
+                        _fault = new RpcResult(ret.Code, ret.Fault);
+                        FailAllPendingItems();
+                    }
+                    else
+                    {
+                        StartTransportRead();
+                        EnqueueNextItem();
+                    }
+                }
             }
 
             private void ProcessMessage(IMessage msg)
@@ -106,13 +138,6 @@ namespace SharpRpc
                 return _buffer.ReturnAndDequeue(container);
             }
 
-            //private void SerializeMessage(IMessage item)
-            //{
-            //    _buffer.StartMessageWrite(new MessageHeader());
-            //    item.Serialize(_buffer);
-            //    _buffer.EndMessageWrite();
-            //}
-
             private void EnqueueNextItem()
             {
                 if (_asyncQueue.Count > 0)
@@ -124,9 +149,15 @@ namespace SharpRpc
                     Task.Factory.StartNew(p =>
                     {
                         var task = (PendingItemTask)p;
-                        ProcessMessage(task.ItemToEnqueue);
-                        task.SetResult(RpcResult.Ok);
-
+                        try
+                        {
+                            ProcessMessage(task.ItemToEnqueue);
+                            task.SetResult(RpcResult.Ok);
+                        }
+                        catch (Exception ex)
+                        {
+                            task.SetException(ex);
+                        }
                     }, nextAsyncItem);
                 }
                 else
@@ -135,18 +166,19 @@ namespace SharpRpc
                 }
             }
 
-            public Task CloseAsync()
+            public override Task Close(RpcResult fault)
             {
                 lock (_lockObj)
                 {
                     if (!_isCompleted)
                     {
                         _isCompleted = true;
+                        _fault = fault;
 
                         Monitor.PulseAll(_lockObj);
 
                         while (_asyncQueue.Count > 0)
-                            _asyncQueue.Dequeue().SetResult(new RpcResult(RetCode.Error, ""));
+                            _asyncQueue.Dequeue().SetResult(_fault);
 
                         if (!_isProcessingItem)
                             _completedEvent.TrySetResult(true);
@@ -154,6 +186,12 @@ namespace SharpRpc
                 }
 
                 return _completedEvent.Task;
+            }   
+
+            private void FailAllPendingItems()
+            {
+                while (_asyncQueue.Count > 0)
+                    _asyncQueue.Dequeue().SetResult(_fault);
             }
 
             private class PendingItemTask : TaskCompletionSource<RpcResult>

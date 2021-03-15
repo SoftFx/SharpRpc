@@ -13,7 +13,7 @@ namespace SharpRpc
         private readonly object _stateLock = new object();
         private readonly List<ServerEndpoint> _endpoints = new List<ServerEndpoint>();
         private ServerState _state;
-        private readonly Dictionary<Guid, RpcSession> _sessions = new Dictionary<Guid, RpcSession>();
+        private readonly Dictionary<Guid, Channel> _sessions = new Dictionary<Guid, Channel>();
         private ServiceBinding _binding;
 
         public RpcServer()
@@ -95,11 +95,6 @@ namespace SharpRpc
                 // TO DO: stop started endpoints
                 throw new Exception("Failed to start RPC server! " + ex.Message);
             }
-            //finally
-            //{
-            //    lock (_stateLock)
-            //        _state = ServerState.Online;
-            //}
         }
 
         public async Task StopAsync()
@@ -109,14 +104,13 @@ namespace SharpRpc
                 if (_state != ServerState.Online)
                     throw new InvalidOperationException("Stop is not possible at this time! State: " + _state);
 
-                _state = ServerState.Starting;
+                _state = ServerState.Stopping;
             }
 
             Logger.Info(Name, "Stopping...");
 
-            var stopTasks = _endpoints.Select(e => e.InvokeStop());
-
-            await Task.WhenAll(stopTasks.ToList());
+            await StopEndpoints();
+            await CloseAllSessions();
 
             Logger.Info(Name, "Stopped.");
 
@@ -124,13 +118,67 @@ namespace SharpRpc
                 _state = ServerState.Idle;
         }
 
-        private void Endpoint_ClientConnected(ServerEndpoint sender, ByteTransport channel)
+        private async Task StopEndpoints()
         {
-            var session = new RpcSession(channel, _binding, sender);
+            var stopTasks = _endpoints.Select(e => e.InvokeStop());
+            await Task.WhenAll(stopTasks.ToList());
+        }
 
-            //_handlers.Add(handler.Id, handler);
+        private async Task CloseAllSessions()
+        {
+            var toClose = new List<Channel>();
 
-            Logger.Verbose(Name, "New session: " + session.Id);
+            lock (_stateLock)
+            {
+                toClose.AddRange(_sessions.Values);
+                _sessions.Clear();
+            }
+
+            var closeTasks = toClose
+                .AsParallel()
+                .Select(c =>
+                    {
+                        c.Closed -= Session_Closed;
+                        return c.CloseAsync();
+                    })
+                .ToList();
+
+            await Task.WhenAll(closeTasks);
+        }
+
+        private void Endpoint_ClientConnected(ServerEndpoint sender, ByteTransport transport)
+        {
+            bool abortConnection = false;
+
+            lock (_stateLock)
+            {
+                if (_state == ServerState.Online || _state == ServerState.Starting)
+                {
+                    var serviceImpl = _binding.CreateServiceImpl();
+                    var session = new Channel(transport, sender, _binding.Serializer, serviceImpl);
+                    session.Closed += Session_Closed;
+                    _sessions.Add(session.Id, session);
+                    Logger.Verbose(Name, "New session: " + session.Id);
+                }
+                else
+                    abortConnection = true;
+            }
+
+            if (abortConnection)
+            {
+                transport.Shutdown();
+                Logger.Verbose(Name, "Incoming connection was aborted!");
+            }
+        }
+
+        private void Session_Closed(Channel channel, RpcResult fault)
+        {
+            lock (_sessions)
+            {
+                _sessions.Remove(channel.Id);
+            }
+
+            Logger.Verbose(Name, "Session " + channel.Id + " was closed.");
         }
 
         private void ThrowIfConfigProhibited()

@@ -27,6 +27,8 @@ namespace Benchmark.Server
             srv1.StopAsync().Wait();
             srv2.StopAsync().Wait();
             srv3.StopAsync().Wait();
+
+            Console.Read();
         }
 
         private static RpcServer RunServer(ConcurrencyMode mode, int port)

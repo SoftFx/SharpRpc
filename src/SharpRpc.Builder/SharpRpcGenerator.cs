@@ -25,10 +25,10 @@ namespace SharpRpc.Builder
         {
             try
             {
-                if (!Debugger.IsAttached)
-                {
-                    Debugger.Launch();
-                }
+                //if (!Debugger.IsAttached)
+                //{
+                //    Debugger.Launch();
+                //}
 
                 var contracts = GetRpcContracts(context);
 

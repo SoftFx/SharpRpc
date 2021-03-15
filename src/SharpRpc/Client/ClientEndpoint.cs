@@ -7,6 +7,6 @@ namespace SharpRpc
 {
     public abstract class ClientEndpoint : Endpoint
     {
-        public abstract Task<ByteTransport> ConnectAsync();
+        public abstract Task<RpcResult<ByteTransport>> ConnectAsync();
     }
 }

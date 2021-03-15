@@ -213,14 +213,7 @@ namespace SharpRpc
 
             lock (_lockObj)
             {
-                try
-                {
-                    _completeSegments.Add(new ArraySegment<byte>(CurrentSegment, 0, CurrentOffset));
-                }
-                catch (Exception ex)
-                {
-                    throw;
-                }
+                _completeSegments.Add(new ArraySegment<byte>(CurrentSegment, 0, CurrentOffset));
 
                 AllocNewSegment();
 

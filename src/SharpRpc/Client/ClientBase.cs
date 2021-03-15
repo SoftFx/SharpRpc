@@ -16,7 +16,7 @@ namespace SharpRpc
 
         protected void SendMessage(IMessage message)
         {
-            Channel.TrySend(message);
+            Channel.Send(message);
         }
 
         protected RpcResult TrySendMessage(IMessage message)

@@ -28,7 +28,7 @@ namespace SharpRpc
 
         protected IMessageHandler MessageHandler { get; }
 
-        protected void OnError(RetCode code, string message)
+        protected void OnError(RpcRetCode code, string message)
         {
             ErrorOccured?.Invoke(new RpcResult(code, message));
         }

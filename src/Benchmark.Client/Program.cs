@@ -14,7 +14,7 @@ namespace Benchmark.Client
             //Task.Delay(TimeSpan.FromSeconds(5)).Wait();
 
             DoTest(5000000, 1, false, ConcurrencyMode.NoQueue);
-            DoTest(5000000, 1, false, ConcurrencyMode.DataflowX1);
+            //DoTest(5000000, 1, false, ConcurrencyMode.DataflowX1);
             DoTest(5000000, 1, false, ConcurrencyMode.PagedQueueX1);
 
             //            DoTest(1000000, 4, false);
@@ -46,28 +46,50 @@ namespace Benchmark.Client
                 .ToList();
 
             var connects = clients
-                .Select(c => c.Channel.ConnectAsync())
+                .Select(c => c.Channel.TryConnectAsync().AsTask())
                 .ToArray();
 
             Task.WaitAll(connects);
 
+            Exception ex = null;
+
             var execTime = MeasureTime(() =>
             {
-                var sendLoops = clients
-                    .Zip(gens, (c, g) => SendMessages(c, msgPerClient, g, async))
-                    .ToArray();
+                try
+                {
+                    var sendLoops = clients
+                            .Zip(gens, (c, g) => SendMessages(c, msgPerClient, g, async))
+                            .ToArray();
 
-                Task.WaitAll(sendLoops);
+                    Task.WaitAll(sendLoops);
+                }
+                catch (AggregateException aex)
+                {
+                    ex = aex.InnerException;
+                }
             });
 
-            Console.WriteLine("Done!");
+            var closeTasks = clients
+                .Select(c => c.Channel.CloseAsync())
+                .ToArray();
 
-            var totalMsgCount = msgPerClient * clientCount;
+            Task.WaitAll(closeTasks);
 
-            var perSec = (double)totalMsgCount / execTime.TotalSeconds;
+            if (ex == null)
+            {
+                Console.WriteLine("Done!");
 
-            Console.WriteLine("\telapsed: {0:f1} sec", execTime.TotalSeconds);
-            Console.WriteLine("\tbandwidth: {0:f0} ", perSec);
+                var totalMsgCount = msgPerClient * clientCount;
+
+                var perSec = (double)totalMsgCount / execTime.TotalSeconds;
+
+                Console.WriteLine("\telapsed: {0:f1} sec", execTime.TotalSeconds);
+                Console.WriteLine("\tbandwidth: {0:f0} ", perSec);
+            }
+            else
+            {
+                Console.WriteLine("Test failed: " + ex.Message);
+            }
 
             Console.WriteLine();
             Console.WriteLine("Pause 10 sec...");

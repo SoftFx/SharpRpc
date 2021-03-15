@@ -39,6 +39,9 @@ namespace SharpRpc
         protected override async Task StopAsync(LoggerFacade logger)
         {
             _stopFlag = true;
+
+            _listener.Close();
+
             await _listenerTask;
         }
 
@@ -54,7 +57,10 @@ namespace SharpRpc
             }
             catch (Exception ex)
             {
-                _logger.Error(Name, ex.Message);
+                var socketEx = ex as SocketException;
+
+                if (!_stopFlag || socketEx == null || socketEx.SocketErrorCode != SocketError.OperationAborted)
+                    _logger.Error(Name, ex.Message);
             }
         }
     }

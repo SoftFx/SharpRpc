@@ -10,40 +10,49 @@ namespace SharpRpc
 {
     internal abstract partial class TxPipeline
     {
-        //private readonly BatchingActionBlock<IMessage> _msgQueue;
-        //private readonly MessageQueue _msgQueue;
-        //private readonly TxBuffer _buffer;
-        private readonly ByteTransport _transport;
+        //private readonly ByteTransport _transport;
+        private readonly Func<Task<RpcResult<ByteTransport>>> _transportRequestFunc;
+        private Task _txLoop;
 
-        public TxPipeline(ByteTransport transport)
+        public TxPipeline(Func<Task<RpcResult<ByteTransport>>> connectRequestFunc)
         {
-            _transport = transport;
+            //_transport = transport;
+            _transportRequestFunc = connectRequestFunc;
         }
 
-        //public TxPipeline(ByteTransport transport)
-        //{
-        //    _transport = transport;
+        public ByteTransport Transport { get; protected set; }
 
-        //    var options = new ExecutionDataflowBlockOptions();
-        //    options.BoundedCapacity = 100;
-        //    options.EnsureOrdered = true;
-        //    options.MaxDegreeOfParallelism = 1;
-        //    //_msgQueue = new BatchingActionBlock<IMessage>(SerializeMessages, 500, 500);
-
-        //    _buffer = new TxBuffer(ushort.MaxValue);
-        //    _msgQueue = new MessageQueue(_buffer, ushort.MaxValue * 2);
-
-        //    TxBytesLoop();
-        //}
+        public event Action<RpcResult> CommunicationFaulted;
 
         public abstract RpcResult TrySend(IMessage message);
         public abstract void Send(IMessage message);
         public abstract ValueTask<RpcResult> TrySendAsync(IMessage message);
         public abstract ValueTask SendAsync(IMessage message);
+        public abstract Task Close(RpcResult fault);
 
         protected abstract ValueTask ReturnSegmentAndDequeue(List<ArraySegment<byte>> container);
 
-        protected async void TxBytesLoop()
+        protected Task<RpcResult<ByteTransport>> GetTransport()
+        {
+            return _transportRequestFunc();
+        }
+
+        protected void SignalCommunicationError(RpcResult fault)
+        {
+            CommunicationFaulted?.Invoke(fault);
+        }
+
+        protected void StartTransportRead()
+        {
+            _txLoop = TxBytesLoop();
+        }
+
+        protected Task WaitTransportRead()
+        {
+            return _txLoop;
+        }
+
+        private async Task TxBytesLoop()
         {
             try
             {
@@ -53,46 +62,29 @@ namespace SharpRpc
                 {
                     await ReturnSegmentAndDequeue(segmentList);
                     await Task.Yield();
-                    await _transport.Send(segmentList);
+
+                    try
+                    {
+                        var sentBytes = await Transport.Send(segmentList, CancellationToken.None);
+
+                        if (sentBytes == 0)
+                        {
+                            SignalCommunicationError(new RpcResult(RpcRetCode.ConnectionShutdown, ""));
+                            return;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        var fault = Transport.TranslateException(ex);
+                        SignalCommunicationError(fault);
+                        return;
+                    }
                 }
             }
             catch (Exception ex)
             {
+                SignalCommunicationError(new RpcResult(RpcRetCode.OtherError, ex.Message));
             }
         }
-
-        //public bool Send(IMessage msg)
-        //{
-        //    return _msgQueue.TryEnqueue(msg);
-        //}
-
-        //public ValueTask<bool> SendAsync(IMessage msg)
-        //{
-        //    return _msgQueue.TryEnqueueAsync(msg);
-        //    //SerializeMessage(msg);
-        //    //return Task.CompletedTask;
-        //}
-
-        //private void SerializeMessage(IMessage msg)
-        //{
-        //    _buffer.StartMessageWrite(new MessageHeader());
-        //    msg.Serialize(_buffer);
-        //    _buffer.EndMessageWrite();
-        //}
-
-        //private void SerializeMessages(IList<IMessage> msgList)
-        //{
-        //    _buffer.LockForWrite();
-
-        //    for (int i = 0; i < msgList.Count; i++)
-        //    {
-        //        _buffer.StartMessageWrite(new MessageHeader()); 
-        //        msgList[i].Serialize(_buffer);
-        //        _buffer.EndMessageWrite();
-        //    }
-
-        //    _buffer.ReleaseLock();
-        //}
-        
     }
 }
