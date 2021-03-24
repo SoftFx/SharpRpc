@@ -5,17 +5,17 @@ using System.Threading.Tasks;
 
 namespace SharpRpc
 {
-    partial class MessageBlock
+    partial class MessageDispatcher
     {
-        private class NoThreading : MessageBlock
+        private class NoThreading : MessageDispatcher
         {
-            public NoThreading(IMessageHandler handler) : base(handler)
+            public NoThreading()
             {
             }
 
             public override bool SuportsBatching => false;
 
-            public override void Consume(IMessage message)
+            public override void OnMessage(IMessage message)
             {
                 var retVal = MessageHandler.ProcessMessage(message);
 
@@ -23,7 +23,12 @@ namespace SharpRpc
                     retVal.AsTask().Wait();
             }
 
-            public override void Consume(IEnumerable<IMessage> messages)
+            protected override void DoCall(IRequest requestMsg, ITask callTask)
+            {
+                throw new NotImplementedException();
+            }
+
+            public override void OnMessages(IEnumerable<IMessage> messages)
             {
                 throw new NotImplementedException();
             }

@@ -13,9 +13,10 @@ namespace Benchmark.Client
         {
             //Task.Delay(TimeSpan.FromSeconds(5)).Wait();
 
-            DoTest(5000000, 1, false, ConcurrencyMode.NoQueue);
+            //DoTest(5000000, 1, true, false, ConcurrencyMode.NoQueue);
             //DoTest(5000000, 1, false, ConcurrencyMode.DataflowX1);
-            DoTest(5000000, 1, false, ConcurrencyMode.PagedQueueX1);
+            //DoTest(5000000, 1, false, false, ConcurrencyMode.PagedQueueX1);
+            DoTest(100000, 1, false, false, ConcurrencyMode.PagedQueueX1);
 
             //            DoTest(1000000, 4, false);
             //DoTest(1000000, 4, true);
@@ -31,9 +32,9 @@ namespace Benchmark.Client
             Console.Read();
         }
 
-        private static void DoTest(int msgPerClient, int clientCount, bool async, ConcurrencyMode concurrency)
+        private static void DoTest(int msgCount, int clientCount, bool oneWay, bool async, ConcurrencyMode concurrency)
         {
-            Console.WriteLine("Started test size={0}, clients={1}, isAsync={2} concurrency={3}", msgPerClient, clientCount, async, concurrency);
+            Console.WriteLine("Started test size={0}, oneWay={4} clients={1}, isAsync={2} concurrency={3}", msgCount, clientCount, async, concurrency, oneWay);
 
             var gens = Enumerable
                 .Range(0, clientCount)
@@ -42,7 +43,7 @@ namespace Benchmark.Client
 
             var clients = Enumerable
                 .Range(0, clientCount)
-                .Select(i => BenchmarkContract_Client.CreateInstance(new TcpClientEndpoint("localhost", GetPort(concurrency))))
+                .Select(i => BenchmarkContract_Gen.CreateClient(new TcpClientEndpoint("localhost", GetPort(concurrency))))
                 .ToList();
 
             var connects = clients
@@ -58,7 +59,7 @@ namespace Benchmark.Client
                 try
                 {
                     var sendLoops = clients
-                            .Zip(gens, (c, g) => SendMessages(c, msgPerClient, g, async))
+                            .Zip(gens, (c, g) => oneWay ? SendMessages(c, msgCount, g, async) : DoCalls(c, msgCount, g, async))
                             .ToArray();
 
                     Task.WaitAll(sendLoops);
@@ -79,7 +80,7 @@ namespace Benchmark.Client
             {
                 Console.WriteLine("Done!");
 
-                var totalMsgCount = msgPerClient * clientCount;
+                var totalMsgCount = msgCount * clientCount;
 
                 var perSec = (double)totalMsgCount / execTime.TotalSeconds;
 
@@ -100,7 +101,7 @@ namespace Benchmark.Client
             Task.Delay(TimeSpan.FromSeconds(10));
         }
 
-        private static Task SendMessages(BenchmarkContract_Client client, int msgCount, EntityGenerator generator, bool isAsync)
+        private static Task SendMessages(BenchmarkContract_Gen.Client client, int msgCount, EntityGenerator generator, bool isAsync)
         {
             if (isAsync)
                 return SendMsgAsyncLoop(client, msgCount, generator);
@@ -108,7 +109,15 @@ namespace Benchmark.Client
                 return Task.Factory.StartNew(() => SendMessageLoop(client, msgCount, generator));
         }
 
-        private static void SendMessageLoop(BenchmarkContract_Client client, int msgCount, EntityGenerator generator)
+        private static Task DoCalls(BenchmarkContract_Gen.Client client, int msgCount, EntityGenerator generator, bool isAsync)
+        {
+            if (isAsync)
+                return AsyncCallLoop(client, msgCount, generator);
+            else
+                return Task.Factory.StartNew(() => SyncCallLoop(client, msgCount, generator));
+        }
+
+        private static void SendMessageLoop(BenchmarkContract_Gen.Client client, int msgCount, EntityGenerator generator)
         {
             for (int i = 0; i < msgCount; i++)
             {
@@ -117,7 +126,7 @@ namespace Benchmark.Client
             }
         }
 
-        private static async Task SendMsgAsyncLoop(BenchmarkContract_Client client, int msgCount, EntityGenerator generator)
+        private static async Task SendMsgAsyncLoop(BenchmarkContract_Gen.Client client, int msgCount, EntityGenerator generator)
         {
             await Task.Yield();
 
@@ -125,6 +134,24 @@ namespace Benchmark.Client
             {
                 var msg = generator.Next();
                 await client.SendUpdateAsync(msg);
+            }
+        }
+
+        private static async Task AsyncCallLoop(BenchmarkContract_Gen.Client client, int msgCount, EntityGenerator generator)
+        {
+            for (int i = 0; i < msgCount; i++)
+            {
+                var msg = generator.Next();
+                await client.TrySendUpdate2Async(msg);
+            }
+        }
+
+        private static void SyncCallLoop(BenchmarkContract_Gen.Client client, int msgCount, EntityGenerator generator)
+        {
+            for (int i = 0; i < msgCount; i++)
+            {
+                var msg = generator.Next();
+                client.SendUpdate2(msg);
             }
         }
 
@@ -141,7 +168,7 @@ namespace Benchmark.Client
             switch (mode)
             {
                 case ConcurrencyMode.NoQueue: return 812;
-                case ConcurrencyMode.DataflowX1: return 813;
+                //case ConcurrencyMode.DataflowX1: return 813;
                 case ConcurrencyMode.PagedQueueX1: return 814;
                 default: throw new InvalidOperationException();
             }

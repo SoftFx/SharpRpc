@@ -11,5 +11,8 @@ namespace Benchmark.Common
     {
         [Rpc(RpcType.ClientMessage)]
         void SendUpdate(FooEntity entity);
+
+        [Rpc(RpcType.ClientCall)]
+        void SendUpdate2(FooEntity entity);
     }
 }

@@ -68,6 +68,12 @@ namespace SharpRpc
                     if (_fault.Code != RpcRetCode.Ok)
                         return new ValueTask<RpcResult>(_fault);
 
+                    if (!_isInitialized && !_isInitializing)
+                    {
+                        _isInitializing = true;
+                        Initialize();
+                    }
+
                     if (!CanProcessNextMessage)
                     {
                         var waitItem = new PendingItemTask(msg);

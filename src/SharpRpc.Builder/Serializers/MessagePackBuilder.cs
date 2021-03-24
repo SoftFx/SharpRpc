@@ -29,13 +29,12 @@ namespace SharpRpc.Builder
             builder.UpdateClassDeclaration(
                 c => c.AddSeparatedAttributes(SH.Attribute(ContractAttributeClassName)));
 
-            foreach (var param in builder.MessageParams)
+            for (int i = 0; i < builder.MessageProperties.Count; i++)
             {
                 var keyAttr = SH.Attribute(MemberAttributeClassName,
-                    SF.AttributeArgument(SH.LiteralExpression(param.Index)));
+                    SF.AttributeArgument(SH.LiteralExpression(i + 1)));
 
-                builder.UpdatePropertyDeclaration(param.MessagePropertyName,
-                    p => p.AddAttributes(keyAttr));
+                builder.UpdatePropertyDeclaration(i, p => p.AddAttributes(keyAttr));
             }
         }
 
@@ -49,32 +48,20 @@ namespace SharpRpc.Builder
 
                 attrList.Add(SH.Attribute(UnionAttributeClassName,
                     SH.AttributeArgument(SH.LiteralExpression(i + 1)),
-                    SH.AttributeArgument(SH.TypeOfExpression(msgName.Full))));
+                    SH.AttributeArgument(SH.TypeOfExpression(msgName.Short))));
             }
 
             baseMessageClassDeclaration = baseMessageClassDeclaration.
                 AddSeparatedAttributes(attrList);
         }
 
-        public override void GenerateSerializerCode(TypeString serilizerClassName, TypeString baseMessageClassName, GeneratorExecutionContext context)
+        public override ClassDeclarationSyntax GenerateSerializerAdapter(TypeString serilizerClassName, TypeString baseMessageClassName, GeneratorExecutionContext context)
         {
-            var stubClassDeclaration = SF.ClassDeclaration(serilizerClassName.Short)
-                .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
+            return SF.ClassDeclaration(serilizerClassName.Short)
+                .AddModifiers(SF.Token(SyntaxKind.PrivateKeyword))
                 .AddBaseListTypes(SF.SimpleBaseType(SF.ParseTypeName(Names.RpcSerializerInterface.Full)))
                 .AddMembers(GenerateSerializeMehtod(baseMessageClassName))
                 .AddMembers(GenerateDeserializeMehtod(baseMessageClassName));
-
-            var stubNamespace = SF.NamespaceDeclaration(SF.IdentifierName(serilizerClassName.Namespace))
-                .AddMembers(stubClassDeclaration);
-
-            var compUnit = SF.CompilationUnit()
-                .AddMembers(stubNamespace);
-
-            var srcCode = compUnit
-                .NormalizeWhitespace()
-                .ToFullString();
-
-            context.AddSource(serilizerClassName.Full, SourceText.From(srcCode, Encoding.UTF8));
         }
 
         private MethodDeclarationSyntax GenerateSerializeMehtod(TypeString baseMessageClassName)

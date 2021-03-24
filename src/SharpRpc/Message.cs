@@ -12,10 +12,14 @@ namespace SharpRpc
 
     public interface IRequest : IMessage
     {
+        string CallId { get; set; }
+        //int? FromRecipient { get; set; }
     }
 
     public interface IResponse : IMessage
     {
+        string CallId { get; set; }
+        //int? ToRecipient { get; }
     }
 
     public interface IResponse<T> : IMessage

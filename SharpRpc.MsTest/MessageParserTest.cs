@@ -22,7 +22,7 @@ namespace SharpRpc.MsTest
             var parsedMsgBody = parser.MessageBody;
 
             var expectedBody = msg.RawBytes;
-            var expedctedMsgType = MessageType.User;
+            //var expedctedMsgType = MessageType.User;
             var expectedRetCode = MessageParser.RetCodes.MessageParsed;
 
             Assert.AreEqual(expectedRetCode, rCode);

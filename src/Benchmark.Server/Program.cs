@@ -19,13 +19,13 @@ namespace Benchmark.Server
         private static void RunServers()
         {
             var srv1 = RunServer(ConcurrencyMode.NoQueue, 812);
-            var srv2 = RunServer(ConcurrencyMode.DataflowX1, 813);
+            //var srv2 = RunServer(ConcurrencyMode.DataflowX1, 813);
             var srv3 = RunServer(ConcurrencyMode.PagedQueueX1, 814);
 
             Console.Read();
 
             srv1.StopAsync().Wait();
-            srv2.StopAsync().Wait();
+            //srv2.StopAsync().Wait();
             srv3.StopAsync().Wait();
 
             Console.Read();
@@ -37,9 +37,10 @@ namespace Benchmark.Server
             tcpEndpoint.RxConcurrencyMode = mode;
 
             var server = new RpcServer();
-            server.BindService(() => new BechmarkServiceImpl(), new BenchmarkContract_MessagePack_MessageSerializer());
             server.AddEndpoint(tcpEndpoint);
             server.SetLogger(new ConsoleLogger(true, true));
+
+            BenchmarkContract_Gen.BindService(server, () => new BechmarkServiceImpl());
 
             server.Start();
 

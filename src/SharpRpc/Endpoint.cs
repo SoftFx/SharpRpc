@@ -9,7 +9,7 @@ namespace SharpRpc
         protected readonly object _stateLockObj = new object();
         private int _rxSegmentSize = ushort.MaxValue;
         private int _txSegmentSize = ushort.MaxValue;
-        private ConcurrencyMode _rxConcurrency = ConcurrencyMode.NoQueue;
+        private ConcurrencyMode _rxConcurrency = ConcurrencyMode.PagedQueueX1;
 
         public Endpoint()
         {

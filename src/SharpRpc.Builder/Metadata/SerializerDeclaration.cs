@@ -6,10 +6,10 @@ namespace SharpRpc.Builder
 {
     internal class SerializerDeclaration
     {
-        public SerializerDeclaration(SerializerBuilderBase builder, TypeString contractTypeName)
+        public SerializerDeclaration(SerializerBuilderBase builder, TypeString facadeClassName)
         {
             Builder = builder;
-            AdapterClassName = new TypeString(contractTypeName.Full + "_" + builder.Name + "_MessageSerializer");
+            AdapterClassName = new TypeString(facadeClassName.Full, builder.Name + "Adapter");
         }
 
         public TypeString AdapterClassName { get; }

@@ -77,6 +77,18 @@ namespace SharpRpc.Builder
 
         #endregion
 
+        #region Names
+
+        public static GenericNameSyntax GenericName(string baseName, params string[] genericTypeArgs)
+        {
+            return SyntaxFactory.GenericName(SyntaxFactory.Identifier(baseName),
+                SyntaxFactory.TypeArgumentList(
+                    SyntaxFactory.SeparatedList(
+                        genericTypeArgs.Select(a => SyntaxFactory.ParseTypeName(a)))));
+        }
+
+        #endregion
+
         public static PredefinedTypeSyntax VoidToken()
         {
             return SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.VoidKeyword));
@@ -88,9 +100,27 @@ namespace SharpRpc.Builder
                 .WithType(SyntaxFactory.ParseTypeName(paramType));
         }
 
+        public static ParameterSyntax Parameter(string paramName, TypeSyntax paramType)
+        {
+            return SyntaxFactory.Parameter(SyntaxFactory.Identifier(paramName))
+                .WithType(paramType);
+        }
+
+        #region Arguments
+
         public static ArgumentSyntax IdentifierArgument(string name)
         {
             return SyntaxFactory.Argument(SyntaxFactory.IdentifierName(name));
+        }
+
+        public static InvocationExpressionSyntax WithArguments(this InvocationExpressionSyntax invoke, params ArgumentSyntax[] arguments)
+        {
+            return invoke.WithArgumentList(CallArguments(arguments));
+        }
+
+        public static ObjectCreationExpressionSyntax WithoutArguments(this ObjectCreationExpressionSyntax objCreation)
+        {
+            return objCreation.AddArgumentListArguments();
         }
 
         public static ArgumentListSyntax CallArguments(params ArgumentSyntax[] arguments)
@@ -103,6 +133,8 @@ namespace SharpRpc.Builder
             return SyntaxFactory.ArgumentList(SyntaxFactory.SeparatedList<ArgumentSyntax>(arguments));
         }
 
+        #endregion
+
         public static LocalDeclarationStatementSyntax VariableDeclaration(string type, string name, EqualsValueClauseSyntax initializer = null)
         {
             return SyntaxFactory.VariableDeclaration(SyntaxFactory.ParseTypeName(type))
@@ -111,10 +143,10 @@ namespace SharpRpc.Builder
                 .AsLocalDeclaration();
         }
 
-        public static LocalDeclarationStatementSyntax VarDeclaration(string name, EqualsValueClauseSyntax initializer)
+        public static LocalDeclarationStatementSyntax VarDeclaration(string name, ExpressionSyntax initializer)
         {
             var varDeclarator = SyntaxFactory.VariableDeclarator(SyntaxFactory.Identifier(name))
-                .WithInitializer(initializer);
+                .WithInitializer(SyntaxFactory.EqualsValueClause(initializer));
 
             return SyntaxFactory.VariableDeclaration(SyntaxFactory.IdentifierName("var"), ToSeparatedList(varDeclarator))
                 .AsLocalDeclaration();
@@ -137,10 +169,21 @@ namespace SharpRpc.Builder
                 SyntaxFactory.InvocationExpression(SyntaxFactory.IdentifierName(methodName), CallArguments(arguments)));
         }
 
-        public static MemberAccessExpressionSyntax MemeberOfIdentifier(string variableName, string propertyName)
+        public static InvocationExpressionSyntax InvocationExpression(string methodName, params ArgumentSyntax[] arguments)
+        {
+            return SyntaxFactory.InvocationExpression(SyntaxFactory.IdentifierName(methodName), CallArguments(arguments));
+        }
+
+        public static MemberAccessExpressionSyntax MemeberOfIdentifier(string variableName, string memberName)
         {
             return SyntaxFactory.MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
-                SyntaxFactory.IdentifierName(variableName), SyntaxFactory.IdentifierName(propertyName));
+                SyntaxFactory.IdentifierName(variableName), SyntaxFactory.IdentifierName(memberName));
+        }
+
+        public static MemberAccessExpressionSyntax MemberOf(ExpressionSyntax expression, string memberName)
+        {
+            return SyntaxFactory.MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
+                expression, SyntaxFactory.IdentifierName(memberName));
         }
 
         public static LocalDeclarationStatementSyntax AsLocalDeclaration(this VariableDeclarationSyntax variableDeclaration)
@@ -185,6 +228,19 @@ namespace SharpRpc.Builder
         public static LiteralExpressionSyntax LiteralExpression(int number)
         {
             return SyntaxFactory.LiteralExpression(SyntaxKind.NumericLiteralExpression, SyntaxFactory.Literal(number));
+        }
+
+        public static LiteralExpressionSyntax LiteralExpression(string str)
+        {
+            return SyntaxFactory.LiteralExpression(SyntaxKind.StringLiteralExpression, SyntaxFactory.Literal(str));
+        }
+
+        public static MemberAccessExpressionSyntax EnumValue(string enumType, string valueName)
+        {
+            return SyntaxFactory.MemberAccessExpression(
+                                    SyntaxKind.SimpleMemberAccessExpression,
+                                    SyntaxFactory.ParseTypeName(enumType),
+                                    SyntaxFactory.IdentifierName(valueName));
         }
     }
 }

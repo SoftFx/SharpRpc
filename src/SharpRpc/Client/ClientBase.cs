@@ -16,69 +16,58 @@ namespace SharpRpc
 
         protected void SendMessage(IMessage message)
         {
-            Channel.Send(message);
+            Channel.Tx.Send(message);
         }
 
         protected RpcResult TrySendMessage(IMessage message)
         {
-            return Channel.TrySend(message);
+            return Channel.Tx.TrySend(message);
         }
 
         protected ValueTask<RpcResult> TrySendMessageAsync(IMessage message)
         {
-            return Channel.TrySendAsync(message);
+            return Channel.Tx.TrySendAsync(message);
         }
 
         protected ValueTask SendMessageAsync(IMessage message)
         {
-            return Channel.SendAsync(message);
+            return Channel.Tx.SendAsync(message);
         }
 
-        protected void Call(IRequest request)
+        protected Task CallAsync<TResp>(IRequest requestMessage)
+            where TResp : IResponse
         {
-            throw new NotImplementedException();
+            return Channel.Dispatcher.Call<TResp>(requestMessage);
         }
 
-        protected T Call<T>(IRequest request)
+        protected Task<T> CallAsync<T, TResp>(IRequest requestMessage)
+            where TResp : IResponse
         {
-            throw new NotImplementedException();
+            return Channel.Dispatcher.Call<TResp, T>(requestMessage);
         }
 
-        protected RpcResult TryCall(IRequest request, out RpcResult result)
+        protected Task<RpcResult> TryCallAsync<TResp>(IRequest requestMsg)
+            where TResp : IResponse
         {
-            throw new NotImplementedException();
+            return Channel.Dispatcher.TryCall<TResp>(requestMsg);
         }
 
-        protected RpcResult<T> TryCall<T>(IRequest request, out RpcResult result)
+        protected Task<RpcResult<T>> TryCallAsync<T, TResp>(IRequest requestMsg)
+            where TResp : IResponse
         {
-            throw new NotImplementedException();
+            return Channel.Dispatcher.TryCall<TResp, T>(requestMsg);
         }
 
-        protected Task CallAsync(IRequest request)
-        {
-            throw new NotImplementedException();
-        }
-
-        protected Task<T> CallAsync<T>(IRequest request)
-        {
-            throw new NotImplementedException();
-        }
-
-        protected Task<RpcResult> TryCallAsync(IRequest request)
-        {
-            throw new NotImplementedException();
-        }
-
-        protected Task<RpcResult<T>> TryCallAsync<T>(IRequest request)
-        {
-            throw new NotImplementedException();
-        }
-
-        private class MsgHandler : IMessageHandler
+        private class MsgHandler : IUserMessageHandler
         {
             public ValueTask ProcessMessage(IMessage message)
             {
                 return new ValueTask();
+            }
+
+            public ValueTask<IResponse> ProcessRequest(IRequest message)
+            {
+                throw new NotImplementedException();
             }
         }
     }

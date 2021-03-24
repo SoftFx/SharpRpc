@@ -16,6 +16,7 @@ namespace SharpRpc.Builder
         public string MethodName { get; }
         public ContractCallType CallType { get; }
         public bool IsRequestResponceCall => CallType == ContractCallType.ServerCall || CallType == ContractCallType.ClientCall;
+        public bool ReturnsData => ReturnParam != null && !string.IsNullOrEmpty(ReturnParam.ParamType);
         public List<ParamDeclaration> Params { get; } = new List<ParamDeclaration>();
         public ParamDeclaration ReturnParam { get; set; }
 

@@ -1,11 +1,14 @@
 ﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Text;
+using SF = Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
 namespace SharpRpc.Builder
 {
@@ -25,24 +28,71 @@ namespace SharpRpc.Builder
         {
             try
             {
-                //if (!Debugger.IsAttached)
-                //{
-                //    Debugger.Launch();
-                //}
-
-                var contracts = GetRpcContracts(context);
+#if DEBUG_BUILDER
+                if (!Debugger.IsAttached)
+                {
+                    Debugger.Launch();
+                }
+#endif
+                var contracts = GetRpcContracts(context).ToList();
 
                 foreach (var contractInfo in contracts)
-                {
-                    MessageBuilder.GenerateMessages(contractInfo, context);
-                    new ClientStubBuilder(contractInfo).GenerateCode(context);
-                    new ServerStubBuilder(contractInfo).GenerateCode(context);
-                }
+                    GenerateStubs(contractInfo, context);
             }
             catch (Exception ex)
             {
                 Trace.WriteLine("Exception in StubGenerator.Execute(): " + ex.Message);
             }
+        }
+
+        private void GenerateStubs(ContractDeclaration contractInfo, GeneratorExecutionContext context)
+        {
+            var contractGenClassName = contractInfo.FacadeClassName;
+
+            var clientBuilder = new ClientStubBuilder(contractInfo);
+            var serverBuilder = new ServerStubBuilder(contractInfo);
+
+            var messageClasses = MessageBuilder
+                .GenerateMessages(contractInfo, context)
+                .ToArray();
+
+            var sAdapterClasses = MessageBuilder
+                .GenerateSerializationAdapters(contractInfo, context)
+                .ToArray();
+
+            var messageBundleClass = SF.ClassDeclaration(contractInfo.MessageBundleClassName.Short)
+                .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
+                .AddMembers(messageClasses);
+
+            var clientFactoryMethod = clientBuilder.GenerateFactoryMethod();
+            var sAdapterFactoryMethod = SerializerBuilderBase.GenerateSerializerFactory(contractInfo);
+            var serviceFactoryMethod = serverBuilder.GenerateBindMethod();
+
+            var contractGenClass = SF.ClassDeclaration(contractGenClassName.Short)
+               .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
+               .AddMembers(clientFactoryMethod, serviceFactoryMethod, sAdapterFactoryMethod)
+               .AddMembers(clientBuilder.GenerateCode(), serverBuilder.GenerateCode())
+               .AddMembers(sAdapterClasses)
+               .AddMembers(messageBundleClass);
+
+            var stubNamespace = SF.NamespaceDeclaration(SF.IdentifierName(contractInfo.Namespace))
+                .AddMembers(contractGenClass);
+
+            var compUnit = SF.CompilationUnit()
+                .AddMembers(stubNamespace);
+
+            var srcCode = compUnit
+                .NormalizeWhitespace()
+                .ToFullString();
+
+            context.AddSource(contractGenClassName.Full, SourceText.From(srcCode, Encoding.UTF8));
+
+            //#if DEBUG_BUILDER 
+            //            var dbgFolder = Path.Combine("C:\\Temp\\SharpRpc Debug\\", context.Compilation.Assembly.Name);
+            //            var pathToSave = Path.Combine(dbgFolder, contractGenClassName.Full + ".cs");
+            //            Directory.CreateDirectory(dbgFolder);
+            //            File.WriteAllText(pathToSave, srcCode);
+            //#endif
         }
 
         private static readonly SymbolDisplayFormat FulluQualifiedSymbolFormat = new SymbolDisplayFormat(
@@ -139,9 +189,9 @@ namespace SharpRpc.Builder
 
                 switch (typeArg.Value)
                 {
-                    case 0: result.Add(new DataContractBuilder()); break;
-                    case 1: result.Add(new MessagePackBuilder()); break;
-                    case 2: result.Add(new ProtobufNetBuilder()); break;
+                    case 0: result.Add(new DataContractBuilder() { EnumVal = "DataContract" }); break;
+                    case 1: result.Add(new MessagePackBuilder() { EnumVal = "MessagePack" }); break;
+                    case 2: result.Add(new ProtobufNetBuilder() { EnumVal = "ProtobufNet" }); break;
                     default: throw new Exception("Unknown serializer type! This may indicate that your SharpRpc.Builder.dll is outdated!");
                 }
             }

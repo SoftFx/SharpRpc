@@ -30,6 +30,11 @@
             if (Code != RpcRetCode.Ok)
                 throw new RpcException(Fault.Message, Code);
         }
+
+        internal RpcException ToException()
+        {
+            return new RpcException(Fault.Message, Code);
+        }
     }
 
     public struct RpcResult<T>

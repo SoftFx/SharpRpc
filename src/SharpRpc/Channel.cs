@@ -11,7 +11,7 @@ namespace SharpRpc
         private TxPipeline _tx;
         private RxPipeline _rx;
         private readonly Endpoint _endpoint;
-        private readonly MessageBlock _msgHandleBlock;
+        private readonly MessageDispatcher _dispatcher;
         private readonly IRpcSerializer _serializer;
         private readonly TaskCompletionSource<RpcResult> _connectEvent = new TaskCompletionSource<RpcResult>();
         private readonly TaskCompletionSource<RpcResult<ByteTransport>> _requestConnectEvent = new TaskCompletionSource<RpcResult<ByteTransport>>();
@@ -25,23 +25,26 @@ namespace SharpRpc
         public RpcResult Fault => _channelDisplayFault;
         public Guid Id { get; } = Guid.NewGuid();
 
+        internal MessageDispatcher Dispatcher => _dispatcher;
+        internal TxPipeline Tx => _tx;
+
         internal event Action<Channel, RpcResult> Closed;
 
-        internal Channel(ClientEndpoint endpoint, IRpcSerializer serializer, IMessageHandler msgHandler)
+        internal Channel(ClientEndpoint endpoint, IRpcSerializer serializer, IUserMessageHandler msgHandler)
             : this(null, endpoint, serializer, msgHandler)
         {
         }
 
-        internal Channel(ByteTransport transport, Endpoint endpoint, IRpcSerializer serializer, IMessageHandler msgHandler)
+        internal Channel(ByteTransport transport, Endpoint endpoint, IRpcSerializer serializer, IUserMessageHandler msgHandler)
         {
             _transport = transport;
             _endpoint = endpoint;
             _serializer = serializer;
 
-            _msgHandleBlock = MessageBlock.Create(msgHandler, endpoint.RxConcurrencyMode);
-
             _tx = new TxPipeline.NoQueue(serializer, endpoint, OnConnectionRequest);
             _tx.CommunicationFaulted += OnCommunicationError;
+
+            _dispatcher = MessageDispatcher.Create(_tx, msgHandler, endpoint.RxConcurrencyMode);
 
             if (transport != null)
             {
@@ -52,7 +55,7 @@ namespace SharpRpc
 
         private void StartRxPipeline(ByteTransport transport)
         {
-            _rx = new RxPipeline.OneThread(transport, _endpoint, _serializer, _msgHandleBlock);
+            _rx = new RxPipeline.OneThread(transport, _endpoint, _serializer, _dispatcher);
             _rx.CommunicationFaulted += OnCommunicationError;
             _rx.Start();
         }
@@ -76,26 +79,6 @@ namespace SharpRpc
                 DoConnect();
 
             return new ValueTask<RpcResult>(_connectEvent.Task);
-        }
-
-        public RpcResult TrySend(IMessage msg)
-        {
-            return _tx.TrySend(msg);
-        }
-
-        public ValueTask<RpcResult> TrySendAsync(IMessage msg)
-        {
-            return _tx.TrySendAsync(msg);
-        }
-
-        public void Send(IMessage msg)
-        {
-            _tx.Send(msg);
-        }
-
-        public ValueTask SendAsync(IMessage msg)
-        {
-            return _tx.SendAsync(msg);
         }
 
         public Task CloseAsync()
@@ -213,8 +196,9 @@ namespace SharpRpc
                     await rxCloseTask;
                 await txCloseTask;
             }
-            catch (Exception ex)
+            catch (Exception)
             {
+                //TO DO : log
             }
 
             _transport?.Dispose();

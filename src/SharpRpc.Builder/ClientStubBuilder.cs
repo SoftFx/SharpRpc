@@ -18,10 +18,9 @@ namespace SharpRpc.Builder
             _contract = contract;
         }
 
-        public void GenerateCode(GeneratorExecutionContext context)
+        public ClassDeclarationSyntax GenerateCode()
         {
-            var contractType = _contract.InterfaceName;
-            var clientStubType = new TypeString(contractType.Namespace, contractType.Short + "_Client");
+            var clientStubType = _contract.ClientStubClassName;
 
             var constructorInitializer = SF.ConstructorInitializer(SyntaxKind.BaseConstructorInitializer)
                 .AddArgumentListArguments(SH.IdentifierArgument("endpoint"), SH.IdentifierArgument("serializer"));
@@ -30,72 +29,37 @@ namespace SharpRpc.Builder
             var serializerConsParam = SH.Parameter("serializer", Names.RpcSerializerInterface.Full);
 
             var constructor = SF.ConstructorDeclaration(clientStubType.Short)
-                .AddModifiers(SF.Token(SyntaxKind.ProtectedKeyword))
+                .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
                 .AddParameterListParameters(endpointConsParam, serializerConsParam)
                 .WithInitializer(constructorInitializer)
                 .WithBody(SF.Block());
 
-            var stubClassDeclaration = SF.ClassDeclaration(clientStubType.Short)
+            return SF.ClassDeclaration(clientStubType.Short)
                 .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
                 .AddBaseListTypes(SF.SimpleBaseType(SF.ParseTypeName(Names.RpcClientBaseClass.Full)))
                 .AddMembers(constructor)
-                .AddMembers(GenerateFactories(clientStubType))
                 .AddMembers(GenerateCallMethods(clientStubType));
-
-            var stubNamespace = SF.NamespaceDeclaration(SF.IdentifierName(contractType.Namespace))
-                .AddMembers(stubClassDeclaration);
-
-            var compUnit = SF.CompilationUnit()
-                .AddMembers(stubNamespace);
-
-            var srcCode = compUnit
-                .NormalizeWhitespace()
-                .ToFullString();
-
-            context.AddSource(clientStubType.Full, SourceText.From(srcCode, Encoding.UTF8));
         }
 
-        private MethodDeclarationSyntax[] GenerateFactories(TypeString stubClassName)
+        public MethodDeclarationSyntax GenerateFactoryMethod()
         {
-            var factoryMethods = new List<MethodDeclarationSyntax>();
+            var serializerCreateClause = SH.InvocationExpression(Names.FacadeSerializerAdapterFactoryMethod, SF.Argument(SF.IdentifierName("serializer")));
+            var serializerVarStatement = SH.VarDeclaration("adapter", serializerCreateClause);
 
-            if (_contract.Serializers.Count > 1)
-            {
-                foreach (var serializerEntry in _contract.Serializers)
-                {
-                    var serializerTypeName = serializerEntry.AdapterClassName;
-                    var serializerName = serializerEntry.Builder.Name;
-
-                    factoryMethods.Add(GenerateFactoryMethod("BackedBy" + serializerName, serializerTypeName, stubClassName));
-                }
-            }
-            else
-            {
-                var serializerTypeName = _contract.Serializers[0].AdapterClassName;
-                factoryMethods.Add(GenerateFactoryMethod("", serializerTypeName, stubClassName));
-            }
-
-            return factoryMethods.ToArray();
-        }
-
-        private MethodDeclarationSyntax GenerateFactoryMethod(string suffix, TypeString serializerAdapterType, TypeString stubTypeName)
-        {
-            var serializerCreateClause = SF.EqualsValueClause(
-                SF.ObjectCreationExpression(SH.ShortTypeName(serializerAdapterType))
-                .WithArgumentList(SF.ArgumentList()));
-
-            var serializerVarStatement = SH.VarDeclaration("serializer", serializerCreateClause);
-
-            var clientCreateExpression = SF.ObjectCreationExpression(SH.ShortTypeName(stubTypeName))
-                .WithArgumentList(SH.CallArguments(SH.IdentifierArgument("endpoint"), SH.IdentifierArgument("serializer")));
+            var clientCreateExpression = SF.ObjectCreationExpression(SH.ShortTypeName(_contract.ClientStubClassName))
+                .WithArgumentList(SH.CallArguments(SH.IdentifierArgument("endpoint"), SH.IdentifierArgument("adapter")));
 
             var returnStatement = SF.ReturnStatement(clientCreateExpression);
 
             var endpointParam = SH.Parameter("endpoint", Names.RpcClientEndpointBaseClass.Full);
 
-            return SF.MethodDeclaration(SF.ParseTypeName(stubTypeName.Short), "CreateInstance" + suffix)
+            var serializerDefValue = SH.EnumValue(Names.SerializerChoiceEnum.Full, _contract.GetDefaultSerializerChoice());
+            var serializerParam = SH.Parameter("serializer", Names.SerializerChoiceEnum.Full)
+                .WithDefault(SF.EqualsValueClause(serializerDefValue));
+
+            return SF.MethodDeclaration(SF.ParseTypeName(_contract.ClientStubClassName.Short), "CreateClient")
                 .AddModifiers(SF.Token(SyntaxKind.PublicKeyword), SF.Token(SyntaxKind.StaticKeyword))
-                .AddParameterListParameters(endpointParam)
+                .AddParameterListParameters(endpointParam, serializerParam)
                 .WithBody(SF.Block(serializerVarStatement, returnStatement));
         }
 
@@ -112,15 +76,81 @@ namespace SharpRpc.Builder
                     methods.Add(GenerateOneWayCall(callDec, clientStubTypeName, false, true));
                     methods.Add(GenerateOneWayCall(callDec, clientStubTypeName, true, true));
                 }
+                else if (callDec.CallType == ContractCallType.ClientCall)
+                {
+                    methods.Add(GenerateCall(callDec, clientStubTypeName, false, false));
+                    methods.Add(GenerateCall(callDec, clientStubTypeName, true, false));
+                    methods.Add(GenerateCall(callDec, clientStubTypeName, false, true));
+                    methods.Add(GenerateCall(callDec, clientStubTypeName, true, true));
+                }
             }
 
             return methods.ToArray();
         }
 
         private MethodDeclarationSyntax GenerateOneWayCall(CallDeclaration callDec, TypeString clientStubTypeName, bool isAsync, bool isTry)
+        {            
+            var bodyStatements = new List<StatementSyntax>();
+            var methodParams = GenerateMethodParams(callDec);
+
+            var msgClassName = _contract.GetOnWayMessageClassName(callDec.MethodName);
+
+            bodyStatements.AddRange(GenerateCreateAndFillMessageStatements(callDec, msgClassName));
+            bodyStatements.Add(GenerateSendMessageStatement(isAsync, isTry, out var retType));
+
+            var methodName = AtttributeMethodName(callDec, isAsync, isTry);
+
+            var method = SF.MethodDeclaration(retType, methodName)
+                .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
+                .AddParameterListParameters(methodParams.ToArray())
+                .WithBody(SF.Block(bodyStatements));
+
+            return method;
+        }
+
+        private MethodDeclarationSyntax GenerateCall(CallDeclaration callDec, TypeString clientStubTypeName, bool isAsync, bool isTry)
+        {
+            var bodyStatements = new List<StatementSyntax>();
+            var methodParams = GenerateMethodParams(callDec);
+
+            var requestMsgClassName = _contract.GetRequestClassName(callDec.MethodName);
+            var responseMsgClassName = _contract.GetResponseClassName(callDec.MethodName);
+
+            bodyStatements.AddRange(GenerateCreateAndFillMessageStatements(callDec, requestMsgClassName));
+
+            TypeSyntax methodRetType;
+
+            if (!callDec.ReturnsData)
+                bodyStatements.Add(GenerateRemoteCallStatement(responseMsgClassName, isAsync, isTry, out methodRetType));
+            else
+                bodyStatements.Add(GenerateRemoteCallStatement(responseMsgClassName, callDec.ReturnParam.ParamType, isAsync, isTry, out methodRetType));
+
+            var methodName = AtttributeMethodName(callDec, isAsync, isTry);
+
+            var method = SF.MethodDeclaration(methodRetType, methodName)
+                .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
+                .AddParameterListParameters(methodParams.ToArray())
+                .WithBody(SF.Block(bodyStatements));
+
+            return method;
+        }
+
+        private string AtttributeMethodName(CallDeclaration callDec, bool isAsync, bool isTry)
+        {
+            var methodName = callDec.MethodName;
+
+            if (isAsync)
+                methodName += "Async";
+
+            if (isTry)
+                methodName = "Try" + methodName;
+
+            return methodName;
+        }
+
+        private List<ParameterSyntax> GenerateMethodParams(CallDeclaration callDec)
         {
             var methodParams = new List<ParameterSyntax>();
-            var bodyStatements = new List<StatementSyntax>();
 
             foreach (var param in callDec.Params)
             {
@@ -131,40 +161,108 @@ namespace SharpRpc.Builder
                 methodParams.Add(paramSyntax);
             }
 
-            var msgTypeName = _contract.GetOnWayMessageClassName(callDec.MethodName);
+            return methodParams;
+        }
 
+        private IEnumerable<StatementSyntax> GenerateCreateAndFillMessageStatements(CallDeclaration callDec, TypeString msgClassName)
+        {
             var msgCreateClause = SF.EqualsValueClause(
-                SF.ObjectCreationExpression(SF.ParseTypeName(msgTypeName.Full))
+                SF.ObjectCreationExpression(SF.ParseTypeName(msgClassName.Full))
                 .WithArgumentList(SF.ArgumentList()));
 
-            bodyStatements.Add(SH.VariableDeclaration(msgTypeName.Full, "message", msgCreateClause));
+            yield return SH.VariableDeclaration(msgClassName.Full, "message", msgCreateClause);
 
             foreach (var paramDec in callDec.Params)
             {
-                bodyStatements.Add(SH.AssignmentStatement(
+                yield return SH.AssignmentStatement(
                     SH.MemeberOfIdentifier("message", paramDec.MessagePropertyName),
-                    SF.IdentifierName(paramDec.ParamName)));
+                    SF.IdentifierName(paramDec.ParamName));
             }
-
-            bodyStatements.Add(GenerateSendMessageInvoke(isAsync, isTry, out var retType));
-
-            var methodName = callDec.MethodName;
-
-            if (isAsync)
-                methodName += "Async";
-
-            if (isTry)
-                methodName = "Try" + methodName;
-
-            var method = SF.MethodDeclaration(retType, methodName)
-                .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
-                .AddParameterListParameters(methodParams.ToArray())
-                .WithBody(SF.Block(bodyStatements));
-
-            return method;
         }
 
-        private StatementSyntax GenerateSendMessageInvoke(bool isAsync, bool isTry, out TypeSyntax retType)
+        private StatementSyntax GenerateSendMessageStatement(bool isAsync, bool isTry, out TypeSyntax retType)
+        {
+            var msgArgument = SF.Argument(SF.IdentifierName("message"));
+
+            if (isAsync)
+            {
+                if (isTry)
+                {
+                    retType = SH.GenericType(Names.SystemValueTask, Names.RpcResultStruct.Full);
+
+                    return SF.ReturnStatement(
+                        SF.InvocationExpression(SF.IdentifierName("TrySendMessageAsync"), SH.CallArguments(msgArgument)));
+                }
+                else
+                {
+                    retType = SF.ParseTypeName(Names.SystemValueTask);
+
+                    return SF.ReturnStatement(
+                        SF.InvocationExpression(SF.IdentifierName("SendMessageAsync"), SH.CallArguments(msgArgument)));
+                }
+            }
+            else
+            {
+                if (isTry)
+                {
+                    retType = SF.ParseTypeName(Names.RpcResultStruct.Full);
+
+                    return SF.ReturnStatement(
+                        SF.InvocationExpression(SF.IdentifierName("TrySendMessage"), SH.CallArguments(msgArgument)));
+                }
+                else
+                {
+                    retType = SF.PredefinedType(SF.Token(SyntaxKind.VoidKeyword));
+
+                    return SH.ThisCallStatement("SendMessage", SH.IdentifierArgument("message"));
+                }
+            }
+        }
+
+        private StatementSyntax GenerateRemoteCallStatement(TypeString respMessageType, bool isAsync, bool isTry, out TypeSyntax retType)
+        {
+            var msgArgument = SF.Argument(SF.IdentifierName("message"));
+
+            var methodToInvoke = isTry ? SH.GenericName("TryCallAsync", respMessageType.Full)
+                : SH.GenericName("CallAsync", respMessageType.Full);
+
+            if (isAsync)
+            {
+                if (isTry)
+                {
+                    retType = SH.GenericType(Names.SystemTask, Names.RpcResultStruct.Full);
+
+                    return SF.ReturnStatement(
+                        SF.InvocationExpression(methodToInvoke, SH.CallArguments(msgArgument)));
+                }
+                else
+                {
+                    retType = SF.ParseTypeName(Names.SystemTask);
+
+                    return SF.ReturnStatement(
+                        SF.InvocationExpression(methodToInvoke, SH.CallArguments(msgArgument)));
+                }
+            }
+            else
+            {
+                if (isTry)
+                {
+                    retType = SF.ParseTypeName(Names.RpcResultStruct.Full);
+
+                    var baseMethodInvokeExp = SF.InvocationExpression(methodToInvoke, SH.CallArguments(msgArgument));
+                    return SF.ReturnStatement(SH.MemberOf(baseMethodInvokeExp, "Result"));
+                }
+                else
+                {
+                    retType = SF.PredefinedType(SF.Token(SyntaxKind.VoidKeyword));
+
+                    var baseMethodInvokeExp = SF.InvocationExpression(methodToInvoke, SH.CallArguments(msgArgument));
+                    return SF.ExpressionStatement(SF.InvocationExpression(SH.MemberOf(baseMethodInvokeExp, "Wait")));
+                }
+            }
+        }
+
+        private StatementSyntax GenerateRemoteCallStatement(TypeString respMessageType, string returnDataType, bool isAsync, bool isTry, out TypeSyntax retType)
         {
             var msgArgument = SF.Argument(SF.IdentifierName("message"));
 

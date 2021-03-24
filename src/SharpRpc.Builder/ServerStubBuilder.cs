@@ -4,6 +4,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using SF = Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 using SH = SharpRpc.Builder.SyntaxHelper;
@@ -19,37 +20,40 @@ namespace SharpRpc.Builder
             _contract = contract;
         }
 
-        public void GenerateCode(GeneratorExecutionContext context)
+        public ClassDeclarationSyntax GenerateCode()
         {
             var contractType = _contract.InterfaceName;
-            var serverStubType = new TypeString(contractType.Namespace, contractType.Short + "_Service");
+            var serverStubType = new TypeString(contractType.Namespace, "Service");
 
-            //var constructorInitializer = Sf.ConstructorInitializer(SyntaxKind.BaseConstructorInitializer)
-            //    .AddArgumentListArguments(Sf.Argument(SyntaxFactory.IdentifierName("endpoint")));
-
-            //var constructor = Sf.ConstructorDeclaration(clientStubType.Short)
-            //    .AddModifiers(Sf.Token(SyntaxKind.PublicKeyword))
-            //    .AddParameterListParameters(SyntaxHelper.Parameter("endpoint", Names.RpcClientEndpointBaseClass.Full))
-            //    .WithInitializer(constructorInitializer)
-            //    .WithBody(Sf.Block());
-
-            var stubClassDeclaration = SF.ClassDeclaration(serverStubType.Short)
+            return SF.ClassDeclaration(serverStubType.Short)
                 .AddModifiers(SF.Token(SyntaxKind.PublicKeyword), SF.Token(SyntaxKind.AbstractKeyword))
                 .AddBaseListTypes(SF.SimpleBaseType(SF.ParseTypeName(Names.RpcServiceBaseClass.Full)))
                 .AddMembers(GenerateRpcMethods(serverStubType))
-                .AddMembers(GenerateOnMessageOverride());
+                .AddMembers(GenerateOnMessageOverride(), GenerateOnRequestOverride());
+        }
 
-            var stubNamespace = SF.NamespaceDeclaration(SF.IdentifierName(contractType.Namespace))
-                .AddMembers(stubClassDeclaration);
+        public MethodDeclarationSyntax GenerateBindMethod()
+        {
+            var serializerCreateClause = SH.InvocationExpression(Names.FacadeSerializerAdapterFactoryMethod, SF.Argument(SF.IdentifierName("serializer")));
+            var serializerVarStatement = SH.VarDeclaration("adapter", serializerCreateClause);
 
-            var compUnit = SF.CompilationUnit()
-                .AddMembers(stubNamespace);
+            var serverBindInvokeStatement = SF.ExpressionStatement(SF.InvocationExpression(
+                SH.MemeberOfIdentifier("rpcServer", "BindService"),
+                SH.CallArguments(SH.IdentifierArgument("serviceImplFactory"), SH.IdentifierArgument("adapter"))));
 
-            var srcCode = compUnit
-                .NormalizeWhitespace()
-                .ToFullString();
+            var serverParam = SH.Parameter("rpcServer", Names.RpcServerClass.Full);
 
-            context.AddSource(serverStubType.Full, SourceText.From(srcCode, Encoding.UTF8));
+            var serviceFactoryFunc = SH.GenericType("System.Func", _contract.ServiceStubClassName.Short);
+            var serviceBindParam = SH.Parameter("serviceImplFactory", serviceFactoryFunc);
+
+            var serializerDefValue = SH.EnumValue(Names.SerializerChoiceEnum.Full, _contract.GetDefaultSerializerChoice());
+            var serializerParam = SH.Parameter("serializer", Names.SerializerChoiceEnum.Full)
+                .WithDefault(SF.EqualsValueClause(serializerDefValue));
+
+            return SF.MethodDeclaration(SH.VoidToken(), "BindService")
+                .AddModifiers(SF.Token(SyntaxKind.PublicKeyword), SF.Token(SyntaxKind.StaticKeyword))
+                .AddParameterListParameters(serverParam, serviceBindParam, serializerParam)
+                .WithBody(SF.Block(serializerVarStatement, serverBindInvokeStatement));
         }
 
         private MethodDeclarationSyntax[] GenerateRpcMethods(TypeString clientStubTypeName)
@@ -57,8 +61,16 @@ namespace SharpRpc.Builder
             var methods = new List<MethodDeclarationSyntax>();
 
             foreach (var callDec in _contract.Calls)
+            {
                 methods.Add(GenerateStubMethod(callDec));
 
+                if (callDec.IsRequestResponceCall)
+                {
+                    methods.Add(GenerateRequestWrapMethod(callDec));
+                    //methods.Add(GenerateOnRequestFailMethod(callDec));
+                }
+            }
+            
             return methods.ToArray();
         }
 
@@ -84,6 +96,45 @@ namespace SharpRpc.Builder
                 .WithoutBody();
 
             return method;
+        }
+
+        private MethodDeclarationSyntax GenerateRequestWrapMethod(CallDeclaration callDec)
+        {
+            var methodName = "Invoke" + callDec.MethodName;
+            var requetsMessageType = _contract.GetRequestClassName(callDec.MethodName);
+
+            var handlerInvokationExp = SF.AwaitExpression(GenerateRpcInvocation(callDec, "request"));
+
+            StatementSyntax handlerInvokationStatement;
+            StatementSyntax catchStatement;
+
+            if (callDec.ReturnsData)
+            {
+                handlerInvokationStatement = SH.VarDeclaration("result", handlerInvokationExp);
+                catchStatement = SF.ReturnStatement();
+            }
+            else
+            {
+                handlerInvokationStatement = SF.ExpressionStatement(handlerInvokationExp);
+                catchStatement = SF.ReturnStatement(
+                    SH.InvocationExpression(Names.ServiceCreateFaultResponseMethod, SH.IdentifierArgument("ex")));
+            }
+
+            var respStatements = GenerateResponseCreationStatements(callDec).ToArray();
+
+            var defaultCatch = SF.CatchClause(SF.CatchDeclaration(SF.ParseTypeName(Names.SystemException), SF.Identifier("ex")),
+                null, SF.Block(catchStatement));
+
+            var tryCtachBlock = SF.TryStatement()
+                .AddCatches(defaultCatch)
+                .WithBlock(SF.Block(handlerInvokationStatement).AddStatements(respStatements));
+
+            var retType = SH.GenericType(Names.SystemValueTask, Names.ResponseInterface.Full);
+
+            return SF.MethodDeclaration(retType, methodName)
+               .AddModifiers(SF.Token(SyntaxKind.PrivateKeyword), SF.Token(SyntaxKind.AsyncKeyword))
+               .AddParameterListParameters(SH.Parameter("request", requetsMessageType.Full))
+               .WithBody(SF.Block(tryCtachBlock));
         }
 
         private MethodDeclarationSyntax GenerateOnMessageOverride()
@@ -117,6 +168,41 @@ namespace SharpRpc.Builder
             return method;
         }
 
+        private MethodDeclarationSyntax GenerateOnRequestOverride()
+        {
+            StatementSyntax ifRoot = SF.ReturnStatement(
+                SH.ThisInvocation(Names.RpcServiceBaseOnUnknownRequest, SH.IdentifierArgument("request")));
+
+            var index = 0;
+
+            foreach (var call in _contract.Calls)
+            {
+                if (call.CallType == ContractCallType.ClientCall)
+                {
+                    var messageType = _contract.GetRequestClassName(call.MethodName);
+                    var typedMessageVarName = "r" + index++;
+
+                    var isExpression = SF.IsPatternExpression(SF.IdentifierName("request"),
+                        SF.DeclarationPattern(SF.ParseTypeName(messageType.Full), SF.SingleVariableDesignation(SF.Identifier(typedMessageVarName))));
+
+                    var methodToInvoke = "Invoke" + call.MethodName;
+
+                    var rpcMethodCall = SF.ReturnStatement(
+                        SF.InvocationExpression(SF.IdentifierName(methodToInvoke))
+                        .WithArguments(SH.IdentifierArgument(typedMessageVarName)));
+
+                    ifRoot = SF.IfStatement(isExpression, rpcMethodCall, SF.ElseClause(ifRoot));
+                }
+            }
+
+            var retType = SH.GenericType(Names.SystemValueTask, Names.ResponseInterface.Full);
+
+            return SF.MethodDeclaration(retType, Names.RpcServiceBaseOnRequestMethod)
+               .AddModifiers(SF.Token(SyntaxKind.ProtectedKeyword), SF.Token(SyntaxKind.OverrideKeyword))
+               .AddParameterListParameters(SH.Parameter("request", Names.RequestInterface.Full))
+               .WithBody(SF.Block(ifRoot));
+        }
+
         private ExpressionSyntax GenerateRpcInvocation(CallDeclaration callDec, string typedMessageVarName)
         {
             var args = new List<ArgumentSyntax>();
@@ -134,12 +220,22 @@ namespace SharpRpc.Builder
             return SF.InvocationExpression(SF.IdentifierName(methodName), SH.CallArguments(args));
         }
 
-        private TypeSyntax GetTaskOf(ParamDeclaration param)
+        private IEnumerable<StatementSyntax> GenerateResponseCreationStatements(CallDeclaration callDec)
         {
-            if (param == null || param.ParamType == null)
-                return SF.ParseTypeName(Names.SystemTask);
-            else
-                return SH.GenericType(Names.SystemTask, param.ParamType);
+            var responseClassName = _contract.GetResponseClassName(callDec.MethodName);
+            var respomseCreationExp = SF.ObjectCreationExpression(SF.ParseTypeName(responseClassName.Full)).WithoutArguments();
+
+            yield return SH.VarDeclaration("response", respomseCreationExp);
+
+            if (callDec.ReturnsData)
+            {
+                yield return SF.ExpressionStatement(
+                    SF.AssignmentExpression(SyntaxKind.SimpleAssignmentExpression,
+                        SH.MemeberOfIdentifier("response", Names.ResponseResultProperty),
+                        SF.IdentifierName("result")));
+            }
+
+            yield return SF.ReturnStatement(SF.IdentifierName("response"));
         }
 
         private TypeSyntax GetValueTaskOf(ParamDeclaration param)

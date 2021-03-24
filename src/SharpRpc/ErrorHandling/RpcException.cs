@@ -33,8 +33,8 @@ namespace SharpRpc
 
     public class RpcConfigurationException : RpcException
     {
-        public RpcConfigurationException(string message, RpcRetCode errorCode)
-            : base(message, errorCode)
+        public RpcConfigurationException(string message)
+            : base(message, RpcRetCode.ConfigurationError)
         {
         }
     }

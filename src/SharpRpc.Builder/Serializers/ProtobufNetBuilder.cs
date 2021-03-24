@@ -19,13 +19,12 @@ namespace SharpRpc.Builder
             builder.UpdateClassDeclaration(
                 c => c.AddSeparatedAttributes(SyntaxHelper.Attribute(ContractAttributeClassName)));
 
-            foreach (var param in builder.MessageParams)
+            for (int i = 0; i < builder.MessageProperties.Count; i++)
             {
                 var memberAttr = SyntaxHelper.Attribute(MemberAttributeClassName,
-                    SyntaxFactory.AttributeArgument(SyntaxHelper.LiteralExpression(param.Index)));
+                    SyntaxFactory.AttributeArgument(SyntaxHelper.LiteralExpression(i + 1)));
 
-                builder.UpdatePropertyDeclaration(param.MessagePropertyName,
-                    p => p.AddAttributes(memberAttr));
+                builder.UpdatePropertyDeclaration(i, p => p.AddAttributes(memberAttr));
             }
         }
 
@@ -33,8 +32,9 @@ namespace SharpRpc.Builder
         {
         }
 
-        public override void GenerateSerializerCode(TypeString serilizerClassName, TypeString baseMessageClassName, GeneratorExecutionContext context)
+        public override ClassDeclarationSyntax GenerateSerializerAdapter(TypeString serilizerClassName, TypeString baseMessageClassName, GeneratorExecutionContext context)
         {
+            throw new NotImplementedException();
         }
     }
 }

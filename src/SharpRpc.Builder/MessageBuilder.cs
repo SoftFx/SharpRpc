@@ -18,8 +18,8 @@ namespace SharpRpc.Builder
 
     public class MessageBuilder
     {
-        private readonly SortedList<string, PropertyDeclarationSyntax> _properties = new SortedList<string, PropertyDeclarationSyntax>();
-        private readonly List<ParamDeclaration> _usedParams = new List<ParamDeclaration>();
+        private readonly List<PropertyDeclarationSyntax> _properties = new List<PropertyDeclarationSyntax>();
+        //private readonly List<ParameterSyntax> _msgProps = new List<ParameterSyntax>();
         private ClassDeclarationSyntax _messageClassDeclaration;
 
         internal MessageBuilder(ContractDeclaration contract, CallDeclaration callDec, MessageType type)
@@ -32,37 +32,36 @@ namespace SharpRpc.Builder
         public TypeString MessageClassName { get; private set; }
         public CallDeclaration RpcInfo { get; }
         public ContractDeclaration ContractInfo { get; }
-        public IReadOnlyList<ParamDeclaration> MessageParams => _usedParams;
+        public IReadOnlyList<PropertyDeclarationSyntax> MessageProperties => _properties;
         public MessageType MessageType { get; }
 
-        internal static void GenerateMessages(ContractDeclaration contract, GeneratorExecutionContext context)
+        internal static IEnumerable<ClassDeclarationSyntax> GenerateMessages(ContractDeclaration contract, GeneratorExecutionContext context)
         {
             foreach (var call in contract.Calls)
             {
                 if (call.CallType == ContractCallType.ClientCall || call.CallType == ContractCallType.ServerCall)
                 {
-                    new MessageBuilder(contract, call, MessageType.Request).GenerateMessage(context, true, Names.RequestClassPostfix);
-                    new MessageBuilder(contract, call, MessageType.Response).GenerateMessage(context, false, Names.ResponseClassPostfix);
+                    yield return new MessageBuilder(contract, call, MessageType.Request).GenerateMessage(context, true, Names.RequestClassPostfix);
+                    yield return new MessageBuilder(contract, call, MessageType.Response).GenerateMessage(context, false, Names.ResponseClassPostfix);
                 }
                 else
-                    new MessageBuilder(contract, call, MessageType.OneWay).GenerateMessage(context, true, Names.MessageClassPostfix);
+                    yield return new MessageBuilder(contract, call, MessageType.OneWay).GenerateMessage(context, true, Names.MessageClassPostfix);
             }
 
-            GenerateMessageBase(contract, context, out var baseMessageClassName);
-            CompleteSerializerBuilding(contract, context, baseMessageClassName);
+            yield return GenerateMessageBase(contract, context);
         }
 
-        private static void CompleteSerializerBuilding(ContractDeclaration contract, GeneratorExecutionContext context, TypeString baseMessageClassName)
+        internal static IEnumerable<ClassDeclarationSyntax> GenerateSerializationAdapters(ContractDeclaration contract, GeneratorExecutionContext context)
         {
             foreach (var serializerDec in contract.Serializers)
             {
-                serializerDec.Builder.GenerateSerializerCode(serializerDec.AdapterClassName, baseMessageClassName, context);
+                yield return serializerDec.Builder.GenerateSerializerAdapter(serializerDec.AdapterClassName, contract.BaseMessageClassName, context);
             }
         }
 
-        private static void GenerateMessageBase(ContractDeclaration contract, GeneratorExecutionContext context, out TypeString baseMessageClassName)
+        private static ClassDeclarationSyntax GenerateMessageBase(ContractDeclaration contract, GeneratorExecutionContext context)
         {
-            baseMessageClassName = contract.BaseMessageClassName;
+            var baseMessageClassName = contract.BaseMessageClassName;
 
             var messageClassDeclaration = SyntaxFactory.ClassDeclaration(baseMessageClassName.Short)
                 .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword), SyntaxFactory.Token(SyntaxKind.AbstractKeyword))
@@ -71,24 +70,12 @@ namespace SharpRpc.Builder
             foreach (var serializerEtnry in contract.Serializers)
                 serializerEtnry.Builder.CompleteMessageBuilding(ref messageClassDeclaration);
 
-            var stubNamespace = SyntaxFactory
-                .NamespaceDeclaration(SyntaxFactory.IdentifierName(baseMessageClassName.Namespace))
-                .AddMembers(messageClassDeclaration);
-
-            var compUnit = SyntaxFactory
-                .CompilationUnit()
-                .AddMembers(stubNamespace);
-
-            var srcCode = compUnit
-                .NormalizeWhitespace()
-                .ToFullString();
-
-            context.AddSource(baseMessageClassName.Full, SourceText.From(srcCode, Encoding.UTF8));
+            return messageClassDeclaration;
         }
 
-        public void UpdatePropertyDeclaration(string propertyName, Func<PropertyDeclarationSyntax, PropertyDeclarationSyntax> updateFunc)
+        public void UpdatePropertyDeclaration(int index, Func<PropertyDeclarationSyntax, PropertyDeclarationSyntax> updateFunc)
         {
-            _properties[propertyName] = updateFunc(_properties[propertyName]);
+            _properties[index] = updateFunc(_properties[index]);
         }
 
         public void UpdateClassDeclaration(Func<ClassDeclarationSyntax, ClassDeclarationSyntax> updateFunc)
@@ -96,53 +83,62 @@ namespace SharpRpc.Builder
             _messageClassDeclaration = updateFunc(_messageClassDeclaration);
         }
 
-        internal void GenerateMessage(GeneratorExecutionContext context, bool direct, string namePostfix)
+        internal ClassDeclarationSyntax GenerateMessage(GeneratorExecutionContext context, bool direct, string namePostfix)
         {
-            var contractType = ContractInfo.InterfaceName;
             MessageClassName = ContractInfo.GetMessageClassName(RpcInfo.MethodName, namePostfix);
 
-            var compUnit = SyntaxFactory.CompilationUnit();
-            var stubNamespace = SyntaxFactory.NamespaceDeclaration(SyntaxFactory.IdentifierName(contractType.Namespace));
+            var baseTypes = new List<BaseTypeSyntax>();
+            baseTypes.Add(SyntaxFactory.SimpleBaseType(SyntaxHelper.ShortTypeName(ContractInfo.BaseMessageClassName)));
+
+            if (MessageType == MessageType.Request)
+                baseTypes.Add(SyntaxFactory.SimpleBaseType(SyntaxHelper.GlobalTypeName(Names.RequestInterface)));
+            else if (MessageType == MessageType.Response)
+            {
+                if (RpcInfo.ReturnsData)
+                    baseTypes.Add(SyntaxFactory.SimpleBaseType(SyntaxHelper.GenericType(Names.RequestInterface.Full, RpcInfo.ReturnParam.ParamType)));
+                else
+                    baseTypes.Add(SyntaxFactory.SimpleBaseType(SyntaxHelper.GlobalTypeName(Names.ResponseInterface)));
+            }
 
             _messageClassDeclaration = SyntaxFactory.ClassDeclaration(MessageClassName.Short)
                 .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
-                .AddBaseListTypes(SyntaxFactory.SimpleBaseType(SyntaxHelper.GlobalTypeName(ContractInfo.BaseMessageClassName)));
+                .AddBaseListTypes(baseTypes.ToArray());
+
+            if (MessageType == MessageType.Request || MessageType == MessageType.Response)
+            {
+                _properties.Add(GenerateMessageProperty("string", "CallId"));
+            }
 
             if (direct)
             {
                 var index = 1;
 
-                _usedParams.AddRange(RpcInfo.Params);
-
-                foreach (var param in _usedParams)
-                    _properties.Add(param.MessagePropertyName, GenerateMessageProperty(param, index++));
+                foreach (var param in RpcInfo.Params)
+                    _properties.Add(GenerateMessageProperty(param, index++));
             }
             else
             {
-                _usedParams.Add(RpcInfo.ReturnParam);
-
-                if (RpcInfo.ReturnParam != null)
-                    _properties.Add(RpcInfo.ReturnParam.MessagePropertyName, GenerateMessageProperty(RpcInfo.ReturnParam, 0));
+                if (RpcInfo.ReturnsData)
+                    _properties.Add(GenerateMessageProperty(RpcInfo.ReturnParam.ParamType, Names.ResponseResultProperty));
             }
 
             NotifySerializers();
 
-            _messageClassDeclaration = _messageClassDeclaration.AddMembers(_properties.Values.ToArray());
-
-            stubNamespace = stubNamespace.AddMembers(_messageClassDeclaration);
-            compUnit = compUnit.AddMembers(stubNamespace);
-
-            var srcCode = compUnit
-                .NormalizeWhitespace()
-                .ToFullString();
-
-            context.AddSource(MessageClassName.Full, SourceText.From(srcCode, Encoding.UTF8));
+            return _messageClassDeclaration.AddMembers(_properties.ToArray());
         }
 
         private void NotifySerializers()
         {
             foreach (var serializerEntry in ContractInfo.Serializers)
                 serializerEntry.Builder.BuildUpMessage(this);
+        }
+
+        private PropertyDeclarationSyntax GenerateMessageProperty(string type, string name)
+        {
+            return SyntaxFactory.PropertyDeclaration(SyntaxFactory.ParseTypeName(type), name)
+                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+                .AddAutoGetter()
+                .AddAutoSetter();
         }
 
         private PropertyDeclarationSyntax GenerateMessageProperty(ParamDeclaration callProp, int index)

@@ -12,15 +12,31 @@ namespace SharpRpc.Builder
         public ContractDeclaration(string typeFullName)
         {
             InterfaceName = new TypeString(typeFullName);
-            BaseMessageClassName = new TypeString(InterfaceName.Namespace, InterfaceName.Short + "_RpcMessageBase");
+            FacadeClassName = new TypeString(InterfaceName.Namespace, InterfaceName.Short + "_Gen");
+            MessageBundleClassName = new TypeString(FacadeClassName.Full, "Messages");
+            BaseMessageClassName = new TypeString(MessageBundleClassName.Full, "MessageBase");
+            ClientStubClassName = new TypeString(FacadeClassName.Full, "Client");
+            ServiceStubClassName = new TypeString(FacadeClassName.Full, "Service");
         }
 
         public TypeString InterfaceName { get; }
+        public TypeString FacadeClassName { get; }
+        public TypeString MessageBundleClassName { get; }
+        public TypeString ClientStubClassName { get; }
+        public TypeString ServiceStubClassName { get; }
         public string Namespace => InterfaceName.Namespace;
         public TypeString BaseMessageClassName { get; }
         public List<CallDeclaration> Calls { get; } = new List<CallDeclaration>();
 
         internal IReadOnlyList<SerializerDeclaration> Serializers => _serializers;
+
+        internal string GetDefaultSerializerChoice()
+        {
+            if (Serializers.Count > 0)
+                return Serializers[0].Builder.EnumVal;
+            else
+                return "DataContract";
+        }
 
         internal void AddSerializer(SerializerBuilderBase serializerBuilder)
         {
@@ -44,7 +60,7 @@ namespace SharpRpc.Builder
 
         public TypeString GetMessageClassName(string contractMethodName, string postfix)
         {
-            return new TypeString(InterfaceName.Namespace, InterfaceName.Short + "_" + contractMethodName + postfix);
+            return new TypeString(MessageBundleClassName.Short, contractMethodName + postfix);
         }
     }
 }

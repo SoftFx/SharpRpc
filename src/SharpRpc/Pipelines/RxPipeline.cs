@@ -15,11 +15,11 @@ namespace SharpRpc
         private readonly RxMessageReader _reader = new RxMessageReader();
         private readonly ByteTransport _transport;
         private readonly IRpcSerializer _serializer;
-        private readonly MessageBlock _msgConsumer;
+        private readonly MessageDispatcher _msgConsumer;
         private readonly List<IMessage> _page = new List<IMessage>();
         private Task _rxLoop;
 
-        public RxPipeline(ByteTransport transport, IRpcSerializer serializer, MessageBlock messageConsumer)
+        public RxPipeline(ByteTransport transport, IRpcSerializer serializer, MessageDispatcher messageConsumer)
         {
             _transport = transport;
             _serializer = serializer;
@@ -28,7 +28,7 @@ namespace SharpRpc
 
         //protected abstract IList<ArraySegment<byte>> GetByteBuffer();
         protected abstract ValueTask<bool> OnBytesArrived(int count);
-        protected MessageBlock MessageConsumer => _msgConsumer;
+        protected MessageDispatcher MessageConsumer => _msgConsumer;
 
         public event Action<RpcResult> CommunicationFaulted;
 
@@ -102,7 +102,7 @@ namespace SharpRpc
                         _reader.Init(_parser.MessageBody);
 
                         var msg = _serializer.Deserialize(_reader);
-                        _msgConsumer.Consume(msg);
+                        _msgConsumer.OnMessage(msg);
                     }
                 }
             }
@@ -135,7 +135,7 @@ namespace SharpRpc
             }
 
             if (_page.Count > 0)
-                _msgConsumer.Consume(_page);
+                _msgConsumer.OnMessages(_page);
 
             _buffer.ReturnSegments(task);
         }
@@ -145,7 +145,7 @@ namespace SharpRpc
             private readonly ActionBlock<RxParseTask> _parseBlock;
             private readonly CancellationTokenSource _stopSrc = new CancellationTokenSource();
 
-            public OneThread(ByteTransport transport, Endpoint config, IRpcSerializer serializer, MessageBlock messageConsumer)
+            public OneThread(ByteTransport transport, Endpoint config, IRpcSerializer serializer, MessageDispatcher messageConsumer)
                 : base(transport, serializer, messageConsumer)
             {
                 var parseBlockOptions = new ExecutionDataflowBlockOptions();
@@ -196,7 +196,7 @@ namespace SharpRpc
         {
             private volatile bool _isClosed;
 
-            public NoThreading(ByteTransport transport, Endpoint config, IRpcSerializer serializer, MessageBlock messageConsumer)
+            public NoThreading(ByteTransport transport, Endpoint config, IRpcSerializer serializer, MessageDispatcher messageConsumer)
                 : base(transport, serializer, messageConsumer)
             {
                 StartTransportRx();
