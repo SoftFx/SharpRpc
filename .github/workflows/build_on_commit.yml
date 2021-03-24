@@ -1,4 +1,4 @@
-name: .NET
+name: Build On Commit
 
 on:
   push:
@@ -18,7 +18,7 @@ jobs:
       with:
         dotnet-version: 5.0.*
     - name: Restore dependencies
-      run: dotnet restore --verbosity n
+      run: dotnet restore
       working-directory: src/
     - name: Build
       run: dotnet build --no-restore
