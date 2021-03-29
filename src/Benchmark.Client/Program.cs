@@ -13,21 +13,11 @@ namespace Benchmark.Client
         {
             //Task.Delay(TimeSpan.FromSeconds(5)).Wait();
 
-            //DoTest(5000000, 1, true, false, ConcurrencyMode.NoQueue);
-            //DoTest(5000000, 1, false, ConcurrencyMode.DataflowX1);
-            //DoTest(5000000, 1, false, false, ConcurrencyMode.PagedQueueX1);
+            DoTest(5000000, 1, true, false, ConcurrencyMode.PagedQueueX1);
+            DoTest(5000000, 1, true, true, ConcurrencyMode.PagedQueueX1);
+
             DoTest(100000, 1, false, false, ConcurrencyMode.PagedQueueX1);
-
-            //            DoTest(1000000, 4, false);
-            //DoTest(1000000, 4, true);
-
-            //DoTest(1000000, 1, false);
-            //DoTest(5000000, 1, false);
-            //DoTest(10000000, 1, false);
-            //DoTest(20000000, 1, false);
-            //DoTest(50000000, 1, false);
-            //DoTest(5000000, 1, false);
-            //DoTest(1000000, 1, false);
+            DoTest(100000, 1, false, true, ConcurrencyMode.PagedQueueX1);
 
             Console.Read();
         }

@@ -7,8 +7,8 @@ namespace SharpRpc
     public abstract class Endpoint
     {
         protected readonly object _stateLockObj = new object();
-        private int _rxSegmentSize = ushort.MaxValue;
-        private int _txSegmentSize = ushort.MaxValue;
+        private int _rxSegmentSize = ushort.MaxValue * 10;
+        private int _txSegmentSize = ushort.MaxValue * 10;
         private ConcurrencyMode _rxConcurrency = ConcurrencyMode.PagedQueueX1;
 
         public Endpoint()

@@ -18,7 +18,7 @@ namespace SharpRpc
             private bool _isInitializing;
             private RpcResult _fault;
             private readonly int _bufferSizeThreshold;
-            private readonly Queue<PendingItemTask> _asyncQueue = new Queue<PendingItemTask>();
+            private readonly Queue<IPendingItem> _asyncQueue = new Queue<IPendingItem>();
             private readonly TaskCompletionSource<object> _completedEvent = new TaskCompletionSource<object>();
 
             public NoQueue(IRpcSerializer serializer, Endpoint config, Func<Task<RpcResult<ByteTransport>>> transportRequestFunc)
@@ -29,21 +29,17 @@ namespace SharpRpc
                 _buffer.SpaceFreed += _buffer_SpaceFreed;
             }
 
-            private bool CanProcessNextMessage => !_isProcessingItem && HasRoomForNextMessage;
+            private bool CanProcessNextMessage => _isInitialized &&!_isProcessingItem && HasRoomForNextMessage;
             private bool HasRoomForNextMessage => _buffer.DataSize < _bufferSizeThreshold;
 
-            public override RpcResult TrySend(IMessage msg)
+            public override RpcResult TrySend(IMessage message)
             {
                 lock (_lockObj)
                 {
                     if (_fault.Code != RpcRetCode.Ok)
                         return _fault;
 
-                    if (!_isInitialized && !_isInitializing)
-                    {
-                        _isInitializing = true;
-                        Initialize();
-                    }
+                    LazyInit();
 
                     while (!CanProcessNextMessage)
                     {
@@ -54,44 +50,62 @@ namespace SharpRpc
                     }
 
                     _isProcessingItem = true;
+                    _buffer.Lock();
                 }
 
-                ProcessMessage(msg);
-
-                return RpcResult.Ok;
+                return ProcessMessage(message);
             }
 
-            public override ValueTask<RpcResult> TrySendAsync(IMessage msg)
+            public override ValueTask<RpcResult> TrySendAsync(IMessage message)
             {
                 lock (_lockObj)
                 {
                     if (_fault.Code != RpcRetCode.Ok)
                         return new ValueTask<RpcResult>(_fault);
 
-                    if (!_isInitialized && !_isInitializing)
-                    {
-                        _isInitializing = true;
-                        Initialize();
-                    }
+                    LazyInit();
 
                     if (!CanProcessNextMessage)
                     {
-                        var waitItem = new PendingItemTask(msg);
+                        var waitItem = new AsyncTryItem(message);
                         _asyncQueue.Enqueue(waitItem);
                         return new ValueTask<RpcResult>(waitItem.Task);
                     }
                     else
+                    {
                         _isProcessingItem = true;
+                        _buffer.Lock();
+                    }
                 }
 
-                ProcessMessage(msg);
-
-                return new ValueTask<RpcResult>(RpcResult.Ok);
+                return new ValueTask<RpcResult>(ProcessMessage(message));
             }
 
             public override ValueTask SendAsync(IMessage message)
             {
-                throw new NotImplementedException();
+                lock (_lockObj)
+                {
+                    if (_fault.Code != RpcRetCode.Ok)
+                        return new ValueTask();
+
+                    LazyInit();
+
+                    if (!CanProcessNextMessage)
+                    {
+                        var waitItem = new AsyncThrowItem(message);
+                        _asyncQueue.Enqueue(waitItem);
+                        return new ValueTask(waitItem.Task);
+                    }
+                    else
+                    {
+                        _isProcessingItem = true;
+                        _buffer.Lock();
+                    }
+                }
+
+                ProcessMessage(message).ThrowIfNotOk();
+
+                return new ValueTask();
             }
 
             public override void Send(IMessage message)
@@ -99,8 +113,21 @@ namespace SharpRpc
                 TrySend(message).ThrowIfNotOk();
             }
 
+
+            private void LazyInit()
+            {
+                if (!_isInitialized && !_isInitializing)
+                {
+                    _isInitializing = true;
+                    Initialize();
+                }
+            }
+
             private async void Initialize()
             {
+                // exit lock
+                await Task.Yield();
+
                 var ret = await GetTransport();
 
                 lock (_lockObj)
@@ -123,11 +150,20 @@ namespace SharpRpc
                 }
             }
 
-            private void ProcessMessage(IMessage msg)
+            private RpcResult ProcessMessage(IMessage msg)
             {
                 try
                 {
                     _buffer.WriteMessage(new MessageHeader { MsgType = MessageType.User }, msg);
+                    return RpcResult.Ok;
+                }
+                catch (RpcException rex)
+                {
+                    return rex.ToRpcResult();
+                }
+                catch (Exception ex)
+                {
+                    return new RpcResult(RpcRetCode.SerializationError, ex.Message);
                 }
                 finally
                 {
@@ -149,21 +185,14 @@ namespace SharpRpc
                 if (_asyncQueue.Count > 0)
                 {
                     _isProcessingItem = true;
+                    _buffer.Lock();
 
                     var nextAsyncItem = _asyncQueue.Dequeue();
 
                     Task.Factory.StartNew(p =>
                     {
-                        var task = (PendingItemTask)p;
-                        try
-                        {
-                            ProcessMessage(task.ItemToEnqueue);
-                            task.SetResult(RpcResult.Ok);
-                        }
-                        catch (Exception ex)
-                        {
-                            task.SetException(ex);
-                        }
+                        var task = (IPendingItem)p;
+                        task.OnResult(ProcessMessage(task.Message));
                     }, nextAsyncItem);
                 }
                 else
@@ -184,7 +213,7 @@ namespace SharpRpc
                         Monitor.PulseAll(_lockObj);
 
                         while (_asyncQueue.Count > 0)
-                            _asyncQueue.Dequeue().SetResult(_fault);
+                            _asyncQueue.Dequeue().OnResult(_fault);
 
                         if (!_isProcessingItem)
                             _completedEvent.TrySetResult(true);
@@ -197,17 +226,46 @@ namespace SharpRpc
             private void FailAllPendingItems()
             {
                 while (_asyncQueue.Count > 0)
-                    _asyncQueue.Dequeue().SetResult(_fault);
+                    _asyncQueue.Dequeue().OnResult(_fault);
             }
 
-            private class PendingItemTask : TaskCompletionSource<RpcResult>
+            private interface IPendingItem
             {
-                public PendingItemTask(IMessage item)
+                IMessage Message { get; }
+                void OnResult(RpcResult result);
+            }
+
+            private class AsyncThrowItem : TaskCompletionSource<RpcResult>, IPendingItem
+            {
+                public AsyncThrowItem(IMessage item)
                 {
-                    ItemToEnqueue = item;
+                    Message = item;
                 }
 
-                public IMessage ItemToEnqueue { get; }
+                public IMessage Message { get; }
+
+                public void OnResult(RpcResult result)
+                {
+                    SetResult(result);
+                }
+            }
+
+            private class AsyncTryItem : TaskCompletionSource<RpcResult>, IPendingItem
+            {
+                public AsyncTryItem(IMessage item)
+                {
+                    Message = item;
+                }
+
+                public IMessage Message { get; }
+
+                public void OnResult(RpcResult result)
+                {
+                    if (result.Code == RpcRetCode.Ok)
+                        SetResult(result);
+                    else
+                        TrySetException(result.ToException());
+                }
             }
 
             private void _buffer_SpaceFreed(TxBuffer sender)

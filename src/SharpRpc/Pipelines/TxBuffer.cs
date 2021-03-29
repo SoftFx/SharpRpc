@@ -23,8 +23,8 @@ namespace SharpRpc
         {
             _lockObj = lockObj;
 
-            if (segmentSize > ushort.MaxValue)
-                throw new ArgumentException("Segment size must be less than " + ushort.MaxValue + ".");
+            //if (segmentSize > ushort.MaxValue)
+            //    throw new ArgumentException("Segment size must be less than " + ushort.MaxValue + ".");
 
             _serializer = serializer;
 
@@ -53,16 +53,22 @@ namespace SharpRpc
         private bool HasCompletedSegments => _completeSegments.Count > 0;
         private int SegmentSize => _memManager.SegmentSize;
 
-        public void LockForWrite()
+        public void Lock()
         {
             //lock (_lockObj)
             IsCurrentSegmentLocked = true;
         }
 
+        //public DequeueRequest Unlock()
+        //{
+        //    IsCurrentSegmentLocked = false;
+        //    return SignalDataAvailable();
+        //}
+
         public void WriteMessage(MessageHeader header, IMessage message)
         {
-            lock (_lockObj)
-                IsCurrentSegmentLocked = true;
+            //lock (_lockObj)
+            //    IsCurrentSegmentLocked = true;
 
             _marker.OnMessageStart(header);
             _serializer.Serialize(message, this);
@@ -276,7 +282,7 @@ namespace SharpRpc
 
         #endregion
 
-        private class DequeueRequest : TaskCompletionSource<bool>
+        public class DequeueRequest : TaskCompletionSource<bool>
         {
             public DequeueRequest(List<ArraySegment<byte>> container)
             {
