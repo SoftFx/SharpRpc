@@ -13,7 +13,8 @@ namespace SharpRpc.Builder
     {
         OneWay,
         Request,
-        Response
+        Response,
+        System
     }
 
     public class MessageBuilder
@@ -34,6 +35,13 @@ namespace SharpRpc.Builder
         public ContractDeclaration ContractInfo { get; }
         public IReadOnlyList<PropertyDeclarationSyntax> MessageProperties => _properties;
         public MessageType MessageType { get; }
+
+        internal static IEnumerable<ClassDeclarationSyntax> GenerateSystemMessages(ContractDeclaration contract)
+        {
+            yield return new MessageBuilder(contract, null, MessageType.System).GenerateLoginMessage();
+            yield return new MessageBuilder(contract, null, MessageType.System).GenerateLogoutMessage();
+            yield return new MessageBuilder(contract, null, MessageType.System).GenerateHeartbeatMessage();
+        }
 
         internal static IEnumerable<ClassDeclarationSyntax> GenerateMessages(ContractDeclaration contract, GeneratorExecutionContext context)
         {
@@ -59,6 +67,31 @@ namespace SharpRpc.Builder
             }
         }
 
+        internal static ClassDeclarationSyntax GenerateFactory(ContractDeclaration contractInfo)
+        {
+            var factoryInterface = SyntaxFactory.SimpleBaseType(SyntaxHelper.FullTypeName(Names.MessageFactoryInterface));
+
+            var loginMsgMethod = GenerateFactoryMethod("CreateLoginMessage", Names.LoginMessageInterface, contractInfo.LoginMessageClassName);
+            var logoutMsgMethod = GenerateFactoryMethod("CreateLogoutMessage", Names.LogoutMessageInterface, contractInfo.LogoutMessageClassName);
+            var heartbeatMsgMethod = GenerateFactoryMethod("CreateHeartBeatMessage", Names.HeartbeatMessageInterface, contractInfo.HeartbeatMessageClassName);
+
+            return SyntaxFactory.ClassDeclaration("MessageFactory")
+                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PrivateKeyword))
+                .AddBaseListTypes(factoryInterface)
+                .AddMembers(loginMsgMethod, logoutMsgMethod, heartbeatMsgMethod);
+        }
+
+        private static MethodDeclarationSyntax GenerateFactoryMethod(string methodName, TypeString retType, TypeString messageType)
+        {
+            var retStatement = SyntaxFactory.ReturnStatement(
+                SyntaxFactory.ObjectCreationExpression(SyntaxHelper.FullTypeName(messageType))
+                    .WithoutArguments());
+
+            return SyntaxFactory.MethodDeclaration(SyntaxHelper.FullTypeName(retType), methodName)
+                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+                .AddBodyStatements(retStatement);
+        }
+
         private static ClassDeclarationSyntax GenerateMessageBase(ContractDeclaration contract, GeneratorExecutionContext context)
         {
             var baseMessageClassName = contract.BaseMessageClassName;
@@ -71,6 +104,60 @@ namespace SharpRpc.Builder
                 serializerEtnry.Builder.CompleteMessageBuilding(ref messageClassDeclaration);
 
             return messageClassDeclaration;
+        }
+
+        private ClassDeclarationSyntax GenerateLoginMessage()
+        {
+            MessageClassName = ContractInfo.LoginMessageClassName;
+
+            var msgBase = SyntaxFactory.SimpleBaseType(SyntaxHelper.FullTypeName(ContractInfo.BaseMessageClassName));
+            var iLoginBase = SyntaxFactory.SimpleBaseType(SyntaxHelper.FullTypeName(Names.LoginMessageInterface));
+
+            _messageClassDeclaration = SyntaxFactory.ClassDeclaration(MessageClassName.Short)
+                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+                .AddBaseListTypes(msgBase, iLoginBase);
+
+            //_properties.Add(
+
+            NotifySerializers();
+
+            return _messageClassDeclaration.AddMembers(_properties.ToArray());
+        }
+
+        private ClassDeclarationSyntax GenerateLogoutMessage()
+        {
+            MessageClassName = ContractInfo.LogoutMessageClassName;
+
+            var msgBase = SyntaxFactory.SimpleBaseType(SyntaxHelper.FullTypeName(ContractInfo.BaseMessageClassName));
+            var iLogoutBase = SyntaxFactory.SimpleBaseType(SyntaxHelper.FullTypeName(Names.LogoutMessageInterface));
+
+            _messageClassDeclaration = SyntaxFactory.ClassDeclaration(MessageClassName.Short)
+                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+                .AddBaseListTypes(msgBase, iLogoutBase);
+
+            //_properties.Add(
+
+            NotifySerializers();
+
+            return _messageClassDeclaration.AddMembers(_properties.ToArray());
+        }
+
+        private ClassDeclarationSyntax GenerateHeartbeatMessage()
+        {
+            MessageClassName = ContractInfo.HeartbeatMessageClassName;
+
+            var msgBase = SyntaxFactory.SimpleBaseType(SyntaxHelper.FullTypeName(ContractInfo.BaseMessageClassName));
+            var iHeartbeatBase = SyntaxFactory.SimpleBaseType(SyntaxHelper.FullTypeName(Names.HeartbeatMessageInterface));
+
+            _messageClassDeclaration = SyntaxFactory.ClassDeclaration(MessageClassName.Short)
+                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+                .AddBaseListTypes(msgBase, iHeartbeatBase);
+
+            //_properties.Add(
+
+            NotifySerializers();
+
+            return _messageClassDeclaration.AddMembers(_properties.ToArray());
         }
 
         public void UpdatePropertyDeclaration(int index, Func<PropertyDeclarationSyntax, PropertyDeclarationSyntax> updateFunc)

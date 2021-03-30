@@ -52,6 +52,10 @@ namespace SharpRpc.Builder
             var clientBuilder = new ClientStubBuilder(contractInfo);
             var serverBuilder = new ServerStubBuilder(contractInfo);
 
+            var systemMessageClasses = MessageBuilder
+                .GenerateSystemMessages(contractInfo)
+                .ToArray();
+
             var messageClasses = MessageBuilder
                 .GenerateMessages(contractInfo, context)
                 .ToArray();
@@ -60,9 +64,15 @@ namespace SharpRpc.Builder
                 .GenerateSerializationAdapters(contractInfo, context)
                 .ToArray();
 
+            var systemBundleClass = SF.ClassDeclaration(contractInfo.SystemBundleClassName.Short)
+                .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
+                .AddMembers(systemMessageClasses);
+
             var messageBundleClass = SF.ClassDeclaration(contractInfo.MessageBundleClassName.Short)
                 .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
                 .AddMembers(messageClasses);
+
+            var messageFactoryClass = MessageBuilder.GenerateFactory(contractInfo);
 
             var clientFactoryMethod = clientBuilder.GenerateFactoryMethod();
             var sAdapterFactoryMethod = SerializerBuilderBase.GenerateSerializerFactory(contractInfo);
@@ -73,7 +83,7 @@ namespace SharpRpc.Builder
                .AddMembers(clientFactoryMethod, serviceFactoryMethod, sAdapterFactoryMethod)
                .AddMembers(clientBuilder.GenerateCode(), serverBuilder.GenerateCode())
                .AddMembers(sAdapterClasses)
-               .AddMembers(messageBundleClass);
+               .AddMembers(messageBundleClass, systemBundleClass, messageFactoryClass);
 
             var stubNamespace = SF.NamespaceDeclaration(SF.IdentifierName(contractInfo.Namespace))
                 .AddMembers(contractGenClass);

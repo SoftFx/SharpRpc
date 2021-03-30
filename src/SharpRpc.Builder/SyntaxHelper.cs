@@ -58,6 +58,11 @@ namespace SharpRpc.Builder
             return SyntaxFactory.ParseTypeName(type.Short);
         }
 
+        public static TypeSyntax FullTypeName(TypeString type)
+        {
+            return SyntaxFactory.ParseTypeName(type.Full);
+        }
+
         public static QualifiedNameSyntax GlobalTypeName(TypeString type)
         {
             var fullNamespace = SyntaxFactory.AliasQualifiedName(

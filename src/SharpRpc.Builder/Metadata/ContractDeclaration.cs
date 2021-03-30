@@ -14,7 +14,11 @@ namespace SharpRpc.Builder
             InterfaceName = new TypeString(typeFullName);
             FacadeClassName = new TypeString(InterfaceName.Namespace, InterfaceName.Short + "_Gen");
             MessageBundleClassName = new TypeString(FacadeClassName.Full, "Messages");
+            SystemBundleClassName = new TypeString(FacadeClassName.Full, "SystemMessages");
             BaseMessageClassName = new TypeString(MessageBundleClassName.Full, "MessageBase");
+            LoginMessageClassName = new TypeString(SystemBundleClassName.Short, "Login");
+            LogoutMessageClassName = new TypeString(SystemBundleClassName.Short, "Logout");
+            HeartbeatMessageClassName = new TypeString(SystemBundleClassName.Short, "Heartbeat");
             ClientStubClassName = new TypeString(FacadeClassName.Full, "Client");
             ServiceStubClassName = new TypeString(FacadeClassName.Full, "Service");
         }
@@ -22,10 +26,14 @@ namespace SharpRpc.Builder
         public TypeString InterfaceName { get; }
         public TypeString FacadeClassName { get; }
         public TypeString MessageBundleClassName { get; }
+        public TypeString SystemBundleClassName { get; }
         public TypeString ClientStubClassName { get; }
         public TypeString ServiceStubClassName { get; }
         public string Namespace => InterfaceName.Namespace;
         public TypeString BaseMessageClassName { get; }
+        public TypeString LoginMessageClassName { get; }
+        public TypeString LogoutMessageClassName { get; }
+        public TypeString HeartbeatMessageClassName { get; }
         public List<CallDeclaration> Calls { get; } = new List<CallDeclaration>();
 
         internal IReadOnlyList<SerializerDeclaration> Serializers => _serializers;

@@ -48,7 +48,7 @@ namespace SharpRpc.Builder
 
                 attrList.Add(SH.Attribute(UnionAttributeClassName,
                     SH.AttributeArgument(SH.LiteralExpression(i + 1)),
-                    SH.AttributeArgument(SH.TypeOfExpression(msgName.Short))));
+                    SH.AttributeArgument(SH.TypeOfExpression(msgName.Full))));
             }
 
             baseMessageClassDeclaration = baseMessageClassDeclaration.
