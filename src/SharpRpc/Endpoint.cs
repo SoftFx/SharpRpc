@@ -9,6 +9,7 @@ namespace SharpRpc
         protected readonly object _stateLockObj = new object();
         private int _rxSegmentSize = ushort.MaxValue * 10;
         private int _txSegmentSize = ushort.MaxValue * 10;
+        private TimeSpan _rxTimeout = TimeSpan.FromMinutes(1);
         private ConcurrencyMode _rxConcurrency = ConcurrencyMode.PagedQueueX1;
 
         public Endpoint()
@@ -41,6 +42,19 @@ namespace SharpRpc
             }
         }
 
+        public TimeSpan RxTimeout
+        {
+            get => _rxTimeout;
+            set
+            {
+                lock (_stateLockObj)
+                {
+                    CheckifConfigPossible();
+                    _rxTimeout = value;
+                }
+            }
+        }
+
         public ConcurrencyMode RxConcurrencyMode
         {
             get => _rxConcurrency;
@@ -51,6 +65,18 @@ namespace SharpRpc
                     CheckifConfigPossible();
                     _rxConcurrency = value;
                 }
+            }
+        }
+
+        internal bool IsKeepAliveEnabled => KeepAliveThreshold.Ticks > 0;
+        internal TimeSpan KeepAliveThreshold { get; private set; }
+
+        public void EnableKeepAlive(TimeSpan threashold)
+        {
+            lock (_stateLockObj)
+            {
+                CheckifConfigPossible();
+                KeepAliveThreshold = threashold;
             }
         }
 

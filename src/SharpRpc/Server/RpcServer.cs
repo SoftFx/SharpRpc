@@ -21,8 +21,7 @@ namespace SharpRpc
             Name = Namer.GetInstanceName(GetType());
         }
 
-        public void BindService<T>(Func<T> factory, IRpcSerializer messageSerializer)
-            where T : RpcServiceBase
+        public void BindService(ServiceBinding binding)
         {
             lock (_stateLock)
             {
@@ -31,7 +30,7 @@ namespace SharpRpc
                 if (_binding != null)
                     throw new InvalidOperationException("Only one binding per service is supported in this version!");
 
-                _binding = new ServiceBinding(factory, messageSerializer);
+                _binding = binding;
             }
         }
 
@@ -155,7 +154,7 @@ namespace SharpRpc
                 if (_state == ServerState.Online || _state == ServerState.Starting)
                 {
                     var serviceImpl = _binding.CreateServiceImpl();
-                    var session = new Channel(transport, sender, _binding.Serializer, serviceImpl);
+                    var session = new Channel(transport, sender, _binding.Descriptor, serviceImpl);
                     session.Closed += Session_Closed;
                     _sessions.Add(session.Id, session);
                     Logger.Verbose(Name, "New session: " + session.Id);

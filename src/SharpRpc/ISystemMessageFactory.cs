@@ -13,15 +13,15 @@ namespace SharpRpc
         IHeartbeatMessage CreateHeartBeatMessage();
     }
 
-    public interface ILoginMessage : IMessage
+    public interface ILoginMessage : ISystemMessage
     {
     }
 
-    public interface ILogoutMessage : IMessage
+    public interface ILogoutMessage : ISystemMessage
     {
     }
 
-    public interface IHeartbeatMessage : IMessage
+    public interface IHeartbeatMessage : ISystemMessage
     {
     }
 }

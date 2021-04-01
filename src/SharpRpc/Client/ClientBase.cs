@@ -7,9 +7,9 @@ namespace SharpRpc
 {
     public abstract class ClientBase
     {
-        public ClientBase(ClientEndpoint endpoint, IRpcSerializer serializer)
+        public ClientBase(ClientEndpoint endpoint, ContractDescriptor descriptor)
         {
-            Channel = new Channel(endpoint, serializer, new MsgHandler());
+            Channel = new Channel(endpoint, descriptor, new MsgHandler());
         }
 
         public Channel Channel { get; }

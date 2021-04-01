@@ -37,23 +37,28 @@ namespace SharpRpc.Builder
             var serializerCreateClause = SH.InvocationExpression(Names.FacadeSerializerAdapterFactoryMethod, SF.Argument(SF.IdentifierName("serializer")));
             var serializerVarStatement = SH.VarDeclaration("adapter", serializerCreateClause);
 
-            var serverBindInvokeStatement = SF.ExpressionStatement(SF.InvocationExpression(
-                SH.MemeberOfIdentifier("rpcServer", "BindService"),
-                SH.CallArguments(SH.IdentifierArgument("serviceImplFactory"), SH.IdentifierArgument("adapter"))));
-
-            var serverParam = SH.Parameter("rpcServer", Names.RpcServerClass.Full);
+            var msgFactoryVarStatement = SH.VarDeclaration("sFactory",
+                SF.ObjectCreationExpression(SH.ShortTypeName(_contract.MessageFactoryClassName))
+                .WithoutArguments());
 
             var serviceFactoryFunc = SH.GenericType("System.Func", _contract.ServiceStubClassName.Short);
-            var serviceBindParam = SH.Parameter("serviceImplFactory", serviceFactoryFunc);
+            var serviceFactoryParam = SH.Parameter("serviceImplFactory", serviceFactoryFunc);
+
+            var retStatement = SF.ReturnStatement(
+                SF.ObjectCreationExpression(SH.FullTypeName(Names.ServiceBindingClass))
+                .AddArgumentListArguments(
+                    SH.IdentifierArgument("serviceImplFactory"),
+                    SH.IdentifierArgument("adapter"),
+                    SH.IdentifierArgument("sFactory")));
 
             var serializerDefValue = SH.EnumValue(Names.SerializerChoiceEnum.Full, _contract.GetDefaultSerializerChoice());
             var serializerParam = SH.Parameter("serializer", Names.SerializerChoiceEnum.Full)
                 .WithDefault(SF.EqualsValueClause(serializerDefValue));
 
-            return SF.MethodDeclaration(SH.VoidToken(), "BindService")
+            return SF.MethodDeclaration(SH.FullTypeName(Names.ServiceBindingClass), "CreateBinding")
                 .AddModifiers(SF.Token(SyntaxKind.PublicKeyword), SF.Token(SyntaxKind.StaticKeyword))
-                .AddParameterListParameters(serverParam, serviceBindParam, serializerParam)
-                .WithBody(SF.Block(serializerVarStatement, serverBindInvokeStatement));
+                .AddParameterListParameters(serviceFactoryParam, serializerParam)
+                .WithBody(SF.Block(serializerVarStatement, msgFactoryVarStatement, retStatement));
         }
 
         private MethodDeclarationSyntax[] GenerateRpcMethods(TypeString clientStubTypeName)

@@ -76,11 +76,12 @@ namespace SharpRpc.Builder
 
             var clientFactoryMethod = clientBuilder.GenerateFactoryMethod();
             var sAdapterFactoryMethod = SerializerBuilderBase.GenerateSerializerFactory(contractInfo);
+            var descriptorFactoryMethod = GenerateDescriptorFactoryMethod(contractInfo);
             var serviceFactoryMethod = serverBuilder.GenerateBindMethod();
 
             var contractGenClass = SF.ClassDeclaration(contractGenClassName.Short)
                .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
-               .AddMembers(clientFactoryMethod, serviceFactoryMethod, sAdapterFactoryMethod)
+               .AddMembers(clientFactoryMethod, serviceFactoryMethod, sAdapterFactoryMethod, descriptorFactoryMethod)
                .AddMembers(clientBuilder.GenerateCode(), serverBuilder.GenerateCode())
                .AddMembers(sAdapterClasses)
                .AddMembers(messageBundleClass, systemBundleClass, messageFactoryClass);
@@ -291,6 +292,22 @@ namespace SharpRpc.Builder
             if (symbol == null)
                 throw new Exception("Cannot find type declaration: " + metadataName);
             return symbol;
+        }
+
+        private MethodDeclarationSyntax GenerateDescriptorFactoryMethod(ContractDeclaration contractInfo)
+        {
+            var msgFactoryCreationExp = SF.ObjectCreationExpression(
+                SyntaxHelper.ShortTypeName(contractInfo.MessageFactoryClassName))
+                .WithoutArguments();
+
+            var retStatement = SF.ReturnStatement(
+                SF.ObjectCreationExpression(SyntaxHelper.FullTypeName(Names.ContractDescriptorClass))
+                .AddArgumentListArguments(SyntaxHelper.IdentifierArgument("sAdapter"), SF.Argument(msgFactoryCreationExp)));
+
+            return SF.MethodDeclaration(SyntaxHelper.FullTypeName(Names.ContractDescriptorClass), Names.FacadeCreateDescriptorMethod)
+                .AddModifiers(SF.Token(SyntaxKind.PrivateKeyword), SF.Token(SyntaxKind.StaticKeyword))
+                .AddParameterListParameters(SyntaxHelper.Parameter("sAdapter", Names.RpcSerializerInterface.Full))
+                .AddBodyStatements(retStatement);
         }
 
         private class SyntaxReceiver : ISyntaxReceiver

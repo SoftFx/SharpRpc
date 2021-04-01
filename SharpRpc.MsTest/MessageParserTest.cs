@@ -13,7 +13,7 @@ namespace SharpRpc.MsTest
         {
             var msgSize = 115;
             var msg = MockMessage.Generate(msgSize);
-            var header = new byte[] { (byte)(MessageFlags.UserMessage | MessageFlags.EndOfMessage), 0, (byte)(msgSize + 3) };
+            var header = new byte[] { (byte)(MessageFlags.EndOfMessage), 0, (byte)(msgSize + 3) };
             var segment = header.Add(msg.RawBytes);
 
             var parser = new MessageParser();
@@ -47,11 +47,11 @@ namespace SharpRpc.MsTest
 
             var msg = MockMessage.Generate(msgSize);
 
-            var header1 = new byte[] { (byte)MessageFlags.UserMessage, 0, (byte)(body1Size + 3) };
+            var header1 = new byte[] { (byte)MessageFlags.None, 0, (byte)(body1Size + 3) };
             var body1 = msg.RawBytes.Slice(0, body1Size);
             var segment1 = header1.Add(body1);
 
-            var header2 = new byte[] { (byte)(MessageFlags.MessageContinuation | MessageFlags.EndOfMessage), 0, (byte)(body2Size + 3) };
+            var header2 = new byte[] { (byte)(MessageFlags.EndOfMessage), 0, (byte)(body2Size + 3) };
             var body2 = msg.RawBytes.Slice(body1Size, body2Size);
             var segment2 = header2.Add(body2);
 

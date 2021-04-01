@@ -18,7 +18,6 @@ namespace SharpRpc
         private int _currentMsgSize;
         private bool _isLastChunk;
 
-        public MessageType MessageType { get; }
         public IReadOnlyList<ArraySegment<byte>> MessageBody => _messageFragments;
 
         public void SetNextSegment(ArraySegment<byte> segment)

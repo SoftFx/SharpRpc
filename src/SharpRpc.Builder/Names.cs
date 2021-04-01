@@ -12,6 +12,8 @@ namespace SharpRpc.Builder
 
         public static readonly TypeString RpcClientBaseClass = new TypeString("SharpRpc.ClientBase");
         public static readonly TypeString RpcClientEndpointBaseClass = new TypeString("SharpRpc.ClientEndpoint");
+        public static readonly TypeString ContractDescriptorClass = new TypeString("SharpRpc.ContractDescriptor");
+        public static readonly TypeString ServiceBindingClass = new TypeString("SharpRpc.ServiceBinding");
 
         public static readonly TypeString MessageInterface = new TypeString("SharpRpc.IMessage");
         public static readonly TypeString RequestInterface = new TypeString("SharpRpc.IRequest");
@@ -51,6 +53,7 @@ namespace SharpRpc.Builder
         public static readonly string ReaderBufferProperty = "ByteBuffer";
 
         public static readonly string FacadeSerializerAdapterFactoryMethod = "CreateSerializationAdapter";
+        public static readonly string FacadeCreateDescriptorMethod = "CreateDescriptor";
         public static readonly string ServiceCreateFaultResponseMethod = "CreateFaultResponse";
 
         public static readonly string SystemTask = "System.Threading.Tasks.Task";

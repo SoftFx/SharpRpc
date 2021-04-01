@@ -12,7 +12,7 @@ namespace SharpRpc
         private RxPipeline _rx;
         private readonly Endpoint _endpoint;
         private readonly MessageDispatcher _dispatcher;
-        private readonly IRpcSerializer _serializer;
+        private readonly ContractDescriptor _descriptor;
         private readonly TaskCompletionSource<RpcResult> _connectEvent = new TaskCompletionSource<RpcResult>();
         private readonly TaskCompletionSource<RpcResult<ByteTransport>> _requestConnectEvent = new TaskCompletionSource<RpcResult<ByteTransport>>();
         private readonly TaskCompletionSource<RpcResult> _disconnectEvent = new TaskCompletionSource<RpcResult>();
@@ -30,18 +30,18 @@ namespace SharpRpc
 
         internal event Action<Channel, RpcResult> Closed;
 
-        internal Channel(ClientEndpoint endpoint, IRpcSerializer serializer, IUserMessageHandler msgHandler)
-            : this(null, endpoint, serializer, msgHandler)
+        internal Channel(ClientEndpoint endpoint, ContractDescriptor descriptor, IUserMessageHandler msgHandler)
+            : this(null, endpoint, descriptor, msgHandler)
         {
         }
 
-        internal Channel(ByteTransport transport, Endpoint endpoint, IRpcSerializer serializer, IUserMessageHandler msgHandler)
+        internal Channel(ByteTransport transport, Endpoint endpoint, ContractDescriptor descriptor, IUserMessageHandler msgHandler)
         {
             _transport = transport;
             _endpoint = endpoint;
-            _serializer = serializer;
+            _descriptor = descriptor;
 
-            _tx = new TxPipeline.NoQueue(serializer, endpoint, OnConnectionRequest);
+            _tx = new TxPipeline.NoQueue(descriptor, endpoint, OnConnectionRequest);
             _tx.CommunicationFaulted += OnCommunicationError;
 
             _dispatcher = MessageDispatcher.Create(_tx, msgHandler, endpoint.RxConcurrencyMode);
@@ -55,7 +55,7 @@ namespace SharpRpc
 
         private void StartRxPipeline(ByteTransport transport)
         {
-            _rx = new RxPipeline.OneThread(transport, _endpoint, _serializer, _dispatcher);
+            _rx = new RxPipeline.Dataflow(transport, _endpoint, _descriptor.SerializationAdapter, _dispatcher);
             _rx.CommunicationFaulted += OnCommunicationError;
             _rx.Start();
         }

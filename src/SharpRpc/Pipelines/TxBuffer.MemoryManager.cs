@@ -9,13 +9,13 @@ namespace SharpRpc
     {
         private class MemoryManager
         {
-            private readonly Queue<byte[]> _cache = new Queue<byte[]>();
-            private readonly int _maxCacheSize;
+            //private readonly Queue<byte[]> _cache = new Queue<byte[]>();
+            //private readonly int _maxCacheSize;
 
             public MemoryManager(int segmentSize, int maxSegmentsToCache)
             {
                 SegmentSize = segmentSize;
-                _maxCacheSize = maxSegmentsToCache;
+                //_maxCacheSize = maxSegmentsToCache;
             }
 
             public int SegmentSize { get; }

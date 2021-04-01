@@ -27,6 +27,10 @@ namespace SharpRpc
         T Result { get; }
     }
 
+    public interface ISystemMessage : IMessage
+    {
+    }
+
     public interface MessageWriter
     {
         IBufferWriter<byte> ByteBuffer { get; } 

@@ -75,7 +75,7 @@ namespace SharpRpc.Builder
             var logoutMsgMethod = GenerateFactoryMethod("CreateLogoutMessage", Names.LogoutMessageInterface, contractInfo.LogoutMessageClassName);
             var heartbeatMsgMethod = GenerateFactoryMethod("CreateHeartBeatMessage", Names.HeartbeatMessageInterface, contractInfo.HeartbeatMessageClassName);
 
-            return SyntaxFactory.ClassDeclaration("MessageFactory")
+            return SyntaxFactory.ClassDeclaration(contractInfo.MessageFactoryClassName.Short)
                 .AddModifiers(SyntaxFactory.Token(SyntaxKind.PrivateKeyword))
                 .AddBaseListTypes(factoryInterface)
                 .AddMembers(loginMsgMethod, logoutMsgMethod, heartbeatMsgMethod);

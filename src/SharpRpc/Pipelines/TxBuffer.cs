@@ -53,6 +53,8 @@ namespace SharpRpc
         private bool HasCompletedSegments => _completeSegments.Count > 0;
         private int SegmentSize => _memManager.SegmentSize;
 
+        public event Action OnDequeue;
+
         public void Lock()
         {
             //lock (_lockObj)
@@ -65,12 +67,12 @@ namespace SharpRpc
         //    return SignalDataAvailable();
         //}
 
-        public void WriteMessage(MessageHeader header, IMessage message)
+        public void WriteMessage(IMessage message)
         {
             //lock (_lockObj)
             //    IsCurrentSegmentLocked = true;
 
-            _marker.OnMessageStart(header);
+            _marker.OnMessageStart();
             _serializer.Serialize(message, this);
             _marker.OnMessageEnd();
 
@@ -170,6 +172,8 @@ namespace SharpRpc
             }
 
             _completeSegments.Clear();
+
+            OnDequeue?.Invoke();
         }
 
         #region IBufferWriter implementation

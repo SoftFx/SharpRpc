@@ -15,6 +15,7 @@ namespace SharpRpc.Builder
             FacadeClassName = new TypeString(InterfaceName.Namespace, InterfaceName.Short + "_Gen");
             MessageBundleClassName = new TypeString(FacadeClassName.Full, "Messages");
             SystemBundleClassName = new TypeString(FacadeClassName.Full, "SystemMessages");
+            MessageFactoryClassName = new TypeString(FacadeClassName.Full, "SystemMessagesFactory");
             BaseMessageClassName = new TypeString(MessageBundleClassName.Full, "MessageBase");
             LoginMessageClassName = new TypeString(SystemBundleClassName.Short, "Login");
             LogoutMessageClassName = new TypeString(SystemBundleClassName.Short, "Logout");
@@ -27,6 +28,7 @@ namespace SharpRpc.Builder
         public TypeString FacadeClassName { get; }
         public TypeString MessageBundleClassName { get; }
         public TypeString SystemBundleClassName { get; }
+        public TypeString MessageFactoryClassName { get; }
         public TypeString ClientStubClassName { get; }
         public TypeString ServiceStubClassName { get; }
         public string Namespace => InterfaceName.Namespace;

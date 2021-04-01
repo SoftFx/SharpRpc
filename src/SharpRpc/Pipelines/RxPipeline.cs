@@ -4,7 +4,6 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Threading.Tasks.Dataflow;
 
 namespace SharpRpc
 {
@@ -85,9 +84,9 @@ namespace SharpRpc
             CommunicationFaulted?.Invoke(fault);
         }
 
-        protected void Parse(RxParseTask task)
+        protected void Parse(List<ArraySegment<byte>> segments)
         {
-            foreach (var segment in task)
+            foreach (var segment in segments)
             {
                 _parser.SetNextSegment(segment);
 
@@ -107,14 +106,14 @@ namespace SharpRpc
                 }
             }
 
-            _buffer.ReturnSegments(task);
+            _buffer.ReturnSegments(segments);
         }
 
-        protected void BatchParse(RxParseTask task)
+        protected void BatchParse(List<ArraySegment<byte>> segments)
         {
             _page.Clear();
 
-            foreach (var segment in task)
+            foreach (var segment in segments)
             {
                 _parser.SetNextSegment(segment);
 
@@ -137,60 +136,10 @@ namespace SharpRpc
             if (_page.Count > 0)
                 _msgConsumer.OnMessages(_page);
 
-            _buffer.ReturnSegments(task);
+            _buffer.ReturnSegments(segments);
         }
 
-        internal class OneThread : RxPipeline
-        {
-            private readonly ActionBlock<RxParseTask> _parseBlock;
-            private readonly CancellationTokenSource _stopSrc = new CancellationTokenSource();
-
-            public OneThread(ByteTransport transport, Endpoint config, IRpcSerializer serializer, MessageDispatcher messageConsumer)
-                : base(transport, serializer, messageConsumer)
-            {
-                var parseBlockOptions = new ExecutionDataflowBlockOptions();
-                parseBlockOptions.BoundedCapacity = 5;
-                parseBlockOptions.MaxDegreeOfParallelism = 1;
-                parseBlockOptions.CancellationToken = _stopSrc.Token;
-
-                if (_msgConsumer.SuportsBatching)
-                    _parseBlock = new ActionBlock<RxParseTask>(BatchParse, parseBlockOptions);
-                else
-                    _parseBlock = new ActionBlock<RxParseTask>(Parse, parseBlockOptions);
-            }
-
-            public override void Start()
-            {
-                StartTransportRx();
-            }
-
-            //protected override IList<ArraySegment<byte>> GetByteBuffer()
-            //{
-            //    return _buffer.Segments;
-            //}
-
-            public override async Task Close()
-            {
-                try
-                {
-                    _stopSrc.Cancel();
-                    _parseBlock.Complete();
-                    await _parseBlock.Completion;
-
-                    await WaitStopTransportRx();
-                }
-                catch (TaskCanceledException)
-                {
-                }
-            }
-
-            protected override ValueTask<bool> OnBytesArrived(int count)
-            {
-                var task = _buffer.Advance(count);
-
-                return new ValueTask<bool>(_parseBlock.SendAsync(task));
-            }
-        }
+        
 
         internal class NoThreading : RxPipeline
         {
@@ -216,12 +165,13 @@ namespace SharpRpc
                 if (_isClosed)
                     return new ValueTask<bool>(false);
 
-                var task = _buffer.Advance(count);
+                var segments = new List<ArraySegment<byte>>();
+                _buffer.Advance(count, segments);
 
                 if (MessageConsumer.SuportsBatching)
-                    BatchParse(task);
+                    BatchParse(segments);
                 else
-                    Parse(task);
+                    Parse(segments);
 
                 return new ValueTask<bool>(true);
             }

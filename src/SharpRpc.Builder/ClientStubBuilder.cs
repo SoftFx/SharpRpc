@@ -23,14 +23,14 @@ namespace SharpRpc.Builder
             var clientStubType = _contract.ClientStubClassName;
 
             var constructorInitializer = SF.ConstructorInitializer(SyntaxKind.BaseConstructorInitializer)
-                .AddArgumentListArguments(SH.IdentifierArgument("endpoint"), SH.IdentifierArgument("serializer"));
+                .AddArgumentListArguments(SH.IdentifierArgument("endpoint"), SH.IdentifierArgument("descriptor"));
 
             var endpointConsParam = SH.Parameter("endpoint", Names.RpcClientEndpointBaseClass.Full);
-            var serializerConsParam = SH.Parameter("serializer", Names.RpcSerializerInterface.Full);
+            var descriptorConsParam = SH.Parameter("descriptor", Names.ContractDescriptorClass.Full);
 
             var constructor = SF.ConstructorDeclaration(clientStubType.Short)
                 .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
-                .AddParameterListParameters(endpointConsParam, serializerConsParam)
+                .AddParameterListParameters(endpointConsParam, descriptorConsParam)
                 .WithInitializer(constructorInitializer)
                 .WithBody(SF.Block());
 
@@ -46,8 +46,11 @@ namespace SharpRpc.Builder
             var serializerCreateClause = SH.InvocationExpression(Names.FacadeSerializerAdapterFactoryMethod, SF.Argument(SF.IdentifierName("serializer")));
             var serializerVarStatement = SH.VarDeclaration("adapter", serializerCreateClause);
 
+            var descriptorVarStatement = SH.VarDeclaration("descriptor",
+                SH.InvocationExpression(Names.FacadeCreateDescriptorMethod, SH.IdentifierArgument("adapter")));
+
             var clientCreateExpression = SF.ObjectCreationExpression(SH.ShortTypeName(_contract.ClientStubClassName))
-                .WithArgumentList(SH.CallArguments(SH.IdentifierArgument("endpoint"), SH.IdentifierArgument("adapter")));
+                .WithArgumentList(SH.CallArguments(SH.IdentifierArgument("endpoint"), SH.IdentifierArgument("descriptor")));
 
             var returnStatement = SF.ReturnStatement(clientCreateExpression);
 
@@ -60,7 +63,7 @@ namespace SharpRpc.Builder
             return SF.MethodDeclaration(SF.ParseTypeName(_contract.ClientStubClassName.Short), "CreateClient")
                 .AddModifiers(SF.Token(SyntaxKind.PublicKeyword), SF.Token(SyntaxKind.StaticKeyword))
                 .AddParameterListParameters(endpointParam, serializerParam)
-                .WithBody(SF.Block(serializerVarStatement, returnStatement));
+                .WithBody(SF.Block(serializerVarStatement, descriptorVarStatement, returnStatement));
         }
 
         private MethodDeclarationSyntax[] GenerateCallMethods(TypeString clientStubTypeName)

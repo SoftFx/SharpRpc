@@ -166,7 +166,11 @@ namespace SharpRpc
 
                     foreach (var item in _batch)
                     {
-                        if (item.Message is IResponse resp)
+                        if (item.Message is ISystemMessage sysMsg)
+                        {
+                            // ?????
+                        }
+                        else if (item.Message is IResponse resp)
                         {
                             item.Task.Complete(resp);
                         }

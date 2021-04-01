@@ -34,14 +34,13 @@ namespace Benchmark.Server
         private static RpcServer RunServer(ConcurrencyMode mode, int port)
         {
             var tcpEndpoint = new TcpServerEndpoint(port);
+            BenchmarkContractCfg.ConfigureEndpoint(tcpEndpoint);
             tcpEndpoint.RxConcurrencyMode = mode;
 
             var server = new RpcServer();
             server.AddEndpoint(tcpEndpoint);
+            server.BindService(BenchmarkContract_Gen.CreateBinding(() => new BechmarkServiceImpl()));
             server.SetLogger(new ConsoleLogger(true, true));
-
-            BenchmarkContract_Gen.BindService(server, () => new BechmarkServiceImpl());
-
             server.Start();
 
             return server;

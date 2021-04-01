@@ -9,8 +9,7 @@ namespace SharpRpc
         private class MessageMarker
         {
             private readonly TxBuffer _buffer;
-            private MessageHeader _currentHeader;
-            private bool _firstHeader;
+            //private MessageHeader _currentHeader;
             private int _headerPos;
             private HeaderWriter _writer = new HeaderWriter();
             private bool _isChunkOpened;
@@ -22,10 +21,9 @@ namespace SharpRpc
 
             //public bool IsWritingMessage { get; private set; }
 
-            public void OnMessageStart(MessageHeader header)
+            public void OnMessageStart()
             {
-                _currentHeader = header;
-                _firstHeader = true;
+                //_currentHeader = header;
                 //IsWritingMessage = true;
             }
 
@@ -61,11 +59,8 @@ namespace SharpRpc
 
             private void ReserveSpaceForHeader()
             {
-                var headerSize = _firstHeader ? _writer.GetMessageHeaderSize(_currentHeader)
-                    : _writer.GetContinuationHeaderSize();
-
                 _headerPos = _buffer.CurrentOffset;
-                _buffer.MoveOffset(headerSize);
+                _buffer.MoveOffset(MessageHeader.HeaderSize);
             }
 
             private void WriteHeader(bool isEoM)
@@ -73,18 +68,13 @@ namespace SharpRpc
                 var segment = _buffer.CurrentSegment;
                 var chunkSize = (ushort)(_buffer.CurrentOffset - _headerPos);
 
-                if (_firstHeader)
-                    _writer.WriteMessageHeader(_currentHeader, segment, _headerPos, chunkSize, isEoM);
-                else
-                    _writer.WriteContinuationHeader(_currentHeader, segment, _headerPos, chunkSize, isEoM);
-
-                _firstHeader = false;
+                _writer.WriteChunkHeader(segment, _headerPos, chunkSize, isEoM);
             }
 
-            private int CalcChunkCapacity()
-            {
-                return ushort.MaxValue - (_buffer.CurrentOffset - _headerPos);
-            }
+            //private int CalcChunkCapacity()
+            //{
+            //    return ushort.MaxValue - (_buffer.CurrentOffset - _headerPos);
+            //}
         }
     }
 }

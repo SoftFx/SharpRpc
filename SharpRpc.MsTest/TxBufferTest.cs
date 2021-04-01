@@ -16,11 +16,11 @@ namespace SharpRpc.MsTest
             var msg = MockMessage.Generate(100);
             var resultingSegments = new List<ArraySegment<byte>>();
 
-            var expectedHeader = new byte[] { 6, 0, 103 };
+            var expectedHeader = new byte[] { 1, 0, 103 };
             var expectedBody = msg.RawBytes;
             var expectedBytes = expectedHeader.Add(expectedBody);
 
-            buffer.WriteMessage(new MessageHeader { MsgType = MessageType.User }, msg);
+            buffer.WriteMessage(msg);
             buffer.ReturnAndDequeue(resultingSegments).AsTask().Wait();
 
             Assert.AreEqual(1, resultingSegments.Count);
@@ -40,15 +40,15 @@ namespace SharpRpc.MsTest
             var msg = MockMessage.Generate(messageSize);
             var resultingSegments = new List<ArraySegment<byte>>();
 
-            var expectedHeader1 = new byte[] { (byte)MessageFlags.UserMessage, 0, (byte)segmentSize };
+            var expectedHeader1 = new byte[] { (byte)MessageFlags.None, 0, (byte)segmentSize };
             var expectedBody1 = msg.RawBytes.Slice(0, bodySize1);
             var expectedSegment1 = expectedHeader1.Add(expectedBody1);
 
-            var expectedHeader2 = new byte[] { (byte)(MessageFlags.MessageContinuation | MessageFlags.EndOfMessage), 0, (byte)(bodySize2 + 3) };
+            var expectedHeader2 = new byte[] { (byte)(MessageFlags.EndOfMessage), 0, (byte)(bodySize2 + 3) };
             var expectedBody2 = msg.RawBytes.Slice(bodySize1, bodySize2);
             var expectedSegment2 = expectedHeader2.Add(expectedBody2);
 
-            buffer.WriteMessage(new MessageHeader { MsgType = MessageType.User }, msg);
+            buffer.WriteMessage(msg);
             buffer.ReturnAndDequeue(resultingSegments).AsTask().Wait();
 
             Assert.AreEqual(2, resultingSegments.Count);

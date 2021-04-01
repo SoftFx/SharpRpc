@@ -20,13 +20,25 @@ namespace SharpRpc
             private readonly int _bufferSizeThreshold;
             private readonly Queue<IPendingItem> _asyncQueue = new Queue<IPendingItem>();
             private readonly TaskCompletionSource<object> _completedEvent = new TaskCompletionSource<object>();
+            private DateTime _lastTxTime = DateTime.MinValue;
+            private readonly TimeSpan _idleThreshold;
+            private readonly Timer _keepAliveTimer;
+            private readonly IMessage _keepAliveMessage;
 
-            public NoQueue(IRpcSerializer serializer, Endpoint config, Func<Task<RpcResult<ByteTransport>>> transportRequestFunc)
+            public NoQueue(ContractDescriptor descriptor, Endpoint config, Func<Task<RpcResult<ByteTransport>>> transportRequestFunc)
                 : base(transportRequestFunc)
             {
-                _buffer = new TxBuffer(_lockObj, config.TxSegmentSize, serializer);
+                _buffer = new TxBuffer(_lockObj, config.TxSegmentSize, descriptor.SerializationAdapter);
                 _bufferSizeThreshold = config.TxSegmentSize * 5;
                 _buffer.SpaceFreed += _buffer_SpaceFreed;
+
+                if (config.IsKeepAliveEnabled)
+                {
+                    _keepAliveTimer = new Timer(OnKeepAliveTimerTick, null, 100, 100);
+                    _buffer.OnDequeue += RefreshLastTxTime;
+                    _idleThreshold = config.KeepAliveThreshold;
+                    _keepAliveMessage = descriptor.SystemMessages.CreateHeartBeatMessage();
+                }
             }
 
             private bool CanProcessNextMessage => _isInitialized &&!_isProcessingItem && HasRoomForNextMessage;
@@ -113,7 +125,6 @@ namespace SharpRpc
                 TrySend(message).ThrowIfNotOk();
             }
 
-
             private void LazyInit()
             {
                 if (!_isInitialized && !_isInitializing)
@@ -154,7 +165,7 @@ namespace SharpRpc
             {
                 try
                 {
-                    _buffer.WriteMessage(new MessageHeader { MsgType = MessageType.User }, msg);
+                    _buffer.WriteMessage(msg);
                     return RpcResult.Ok;
                 }
                 catch (RpcException rex)
@@ -210,6 +221,8 @@ namespace SharpRpc
                         _isCompleted = true;
                         _fault = fault;
 
+                        _keepAliveTimer?.Dispose();
+
                         Monitor.PulseAll(_lockObj);
 
                         while (_asyncQueue.Count > 0)
@@ -227,6 +240,20 @@ namespace SharpRpc
             {
                 while (_asyncQueue.Count > 0)
                     _asyncQueue.Dequeue().OnResult(_fault);
+            }
+
+            private void OnKeepAliveTimerTick(object state)
+            {
+                lock (_lockObj)
+                {
+                    if (DateTime.UtcNow - _lastTxTime > _idleThreshold)
+                        TrySendAsync(_keepAliveMessage);
+                }
+            }
+
+            private void RefreshLastTxTime()
+            {
+                _lastTxTime = DateTime.UtcNow;
             }
 
             private interface IPendingItem
