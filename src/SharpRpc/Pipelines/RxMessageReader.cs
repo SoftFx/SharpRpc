@@ -13,7 +13,14 @@ namespace SharpRpc
 
         public void Init(IReadOnlyList<ArraySegment<byte>> segments)
         {
-            _bsAdapter.Init(segments);
+            _bsAdapter.AddRange(segments);
+        }
+
+        public int MsgSize => _bsAdapter.Count;
+
+        public void Clear()
+        {
+            _bsAdapter.Clear();
         }
 
         public ReadOnlySequence<byte> ByteBuffer => _bsAdapter.GetSequence();

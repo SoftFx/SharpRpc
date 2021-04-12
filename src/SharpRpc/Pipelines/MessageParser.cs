@@ -41,8 +41,10 @@ namespace SharpRpc
                 if (_phase == States.Header || _phase == States.ChunkHeader)
                 {
                     var rCode = _headerParser.ParseNextByte(_segment[_segmentOffset++]);
+
                     if (rCode == ParserRetCode.Error)
-                        throw new Exception("Invalid header!");
+                        return RetCodes.InvalidHeader;
+
                     if (rCode == ParserRetCode.Complete)
                     {
                         if (_phase == States.ChunkHeader)
@@ -90,7 +92,7 @@ namespace SharpRpc
 
         private enum States { EndOfMessage, Header, Body, ChunkHeader  }
 
-        public enum RetCodes { MessageParsed, EndOfSegment, Error  }
+        public enum RetCodes { MessageParsed, EndOfSegment, InvalidHeader }
 
 #if DEBUG
         public string MessagBodyString

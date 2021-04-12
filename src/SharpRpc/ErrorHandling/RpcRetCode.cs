@@ -9,6 +9,7 @@ namespace SharpRpc
         Ok,
         OtherError,
         UnknownError,
+        ProtocolViolation,
         InvalidChannelState,
         ConfigurationError,
         ChannelClosed,

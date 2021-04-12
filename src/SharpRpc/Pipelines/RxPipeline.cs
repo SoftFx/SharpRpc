@@ -9,7 +9,6 @@ namespace SharpRpc
 {
     internal abstract partial class RxPipeline
     {
-        private readonly RxBuffer _buffer = new RxBuffer();
         private readonly MessageParser _parser = new MessageParser();
         private readonly RxMessageReader _reader = new RxMessageReader();
         private readonly ByteTransport _transport;
@@ -18,14 +17,14 @@ namespace SharpRpc
         private readonly List<IMessage> _page = new List<IMessage>();
         private Task _rxLoop;
 
-        public RxPipeline(ByteTransport transport, IRpcSerializer serializer, MessageDispatcher messageConsumer)
+        public RxPipeline(ByteTransport transport, Endpoint config, IRpcSerializer serializer, MessageDispatcher messageConsumer)
         {
             _transport = transport;
             _serializer = serializer;
             _msgConsumer = messageConsumer;
         }
 
-        //protected abstract IList<ArraySegment<byte>> GetByteBuffer();
+        protected abstract ArraySegment<byte> AllocateRxBuffer();
         protected abstract ValueTask<bool> OnBytesArrived(int count);
         protected MessageDispatcher MessageConsumer => _msgConsumer;
 
@@ -48,14 +47,15 @@ namespace SharpRpc
         {
             while (true)
             {
-                var buffer = _buffer.Segments;
-                int bytes;
+                int byteCount;
 
                 try
                 {
-                    bytes = await _transport.Receive(buffer);
+                    var buffer = AllocateRxBuffer();
 
-                    if (bytes == 0)
+                    byteCount = await _transport.Receive(buffer);
+
+                    if (byteCount == 0)
                     {
                         SignalCommunicationError(new RpcResult(RpcRetCode.ConnectionShutdown, ""));
                         break;
@@ -74,7 +74,7 @@ namespace SharpRpc
                     return;
                 }
 
-                if (!await OnBytesArrived(bytes))
+                if (!await OnBytesArrived(byteCount))
                     break;
             }
         }
@@ -84,104 +84,90 @@ namespace SharpRpc
             CommunicationFaulted?.Invoke(fault);
         }
 
-        protected void Parse(List<ArraySegment<byte>> segments)
+        protected RpcResult ParseAndDeserialize(ArraySegment<byte> segment, out int bytesConsumed)
         {
-            foreach (var segment in segments)
-            {
-                _parser.SetNextSegment(segment);
-
-                while (true)
-                {
-                    var pCode = _parser.ParseFurther();
-
-                    if (pCode == MessageParser.RetCodes.EndOfSegment)
-                        break;
-                    else if (pCode == MessageParser.RetCodes.MessageParsed)
-                    {
-                        _reader.Init(_parser.MessageBody);
-
-                        var msg = _serializer.Deserialize(_reader);
-                        _msgConsumer.OnMessage(msg);
-                    }
-                }
-            }
-
-            _buffer.ReturnSegments(segments);
+            if (_msgConsumer.SuportsBatching)
+                return BatchParseAndDeserialize(segment, out bytesConsumed);
+            else
+                return ParseAndDeserializeOneByOne(segment, out bytesConsumed);
         }
 
-        protected void BatchParse(List<ArraySegment<byte>> segments)
+        protected RpcResult ParseAndDeserializeOneByOne(ArraySegment<byte> segment, out int bytesConsumed)
         {
-            _page.Clear();
+            bytesConsumed = 0;
 
-            foreach (var segment in segments)
+            _parser.SetNextSegment(segment);
+
+            while (true)
             {
-                _parser.SetNextSegment(segment);
+                var pCode = _parser.ParseFurther();
 
-                while (true)
+                if (pCode == MessageParser.RetCodes.EndOfSegment)
+                    break;
+                else if (pCode == MessageParser.RetCodes.MessageParsed)
                 {
-                    var pCode = _parser.ParseFurther();
+                    _reader.Init(_parser.MessageBody);
 
-                    if (pCode == MessageParser.RetCodes.EndOfSegment)
-                        break;
-                    else if (pCode == MessageParser.RetCodes.MessageParsed)
+                    IMessage msg;
+
+                    try
                     {
-                        _reader.Init(_parser.MessageBody);
+                        msg = _serializer.Deserialize(_reader);
+                    }
+                    catch (Exception ex)
+                    {
+                        return new RpcResult(RpcRetCode.DeserializationError, ex.Message);
+                    }
 
+                    _msgConsumer.OnMessage(msg);
+
+                    bytesConsumed += _reader.MsgSize;
+                    _reader.Clear();
+                }
+                else
+                    return new RpcResult(RpcRetCode.ProtocolViolation, "A violation of message markup protocol has been detected. Code: " + pCode);
+            }
+
+            return RpcResult.Ok;
+        }
+
+        protected RpcResult BatchParseAndDeserialize(ArraySegment<byte> segment, out int bytesConsumed)
+        {
+            bytesConsumed = 0;
+
+            _page.Clear();
+            _parser.SetNextSegment(segment);
+
+            while (true)
+            {
+                var pCode = _parser.ParseFurther();
+
+                if (pCode == MessageParser.RetCodes.EndOfSegment)
+                    break;
+                else if (pCode == MessageParser.RetCodes.MessageParsed)
+                {
+                    _reader.Init(_parser.MessageBody);
+
+                    try
+                    {
                         var msg = _serializer.Deserialize(_reader);
                         _page.Add(msg);
                     }
+                    catch (Exception ex)
+                    {
+                        return new RpcResult(RpcRetCode.DeserializationError, ex.Message);
+                    }
+
+                    bytesConsumed += _reader.MsgSize;
+
+                    _reader.Clear();
                 }
             }
 
             if (_page.Count > 0)
                 _msgConsumer.OnMessages(_page);
 
-            _buffer.ReturnSegments(segments);
-        }
-
-        
-
-        internal class NoThreading : RxPipeline
-        {
-            private volatile bool _isClosed;
-
-            public NoThreading(ByteTransport transport, Endpoint config, IRpcSerializer serializer, MessageDispatcher messageConsumer)
-                : base(transport, serializer, messageConsumer)
-            {
-                StartTransportRx();
-            }
-
-            //protected override IList<ArraySegment<byte>> GetByteBuffer()
-            //{
-            //    return _buffer.Segments;
-            //}
-
-            public override void Start()
-            {
-            }
-
-            protected override ValueTask<bool> OnBytesArrived(int count)
-            {
-                if (_isClosed)
-                    return new ValueTask<bool>(false);
-
-                var segments = new List<ArraySegment<byte>>();
-                _buffer.Advance(count, segments);
-
-                if (MessageConsumer.SuportsBatching)
-                    BatchParse(segments);
-                else
-                    Parse(segments);
-
-                return new ValueTask<bool>(true);
-            }
-
-            public override Task Close()
-            {
-                _isClosed = true;
-
-                return Task.CompletedTask;
-            }
+            return RpcResult.Ok;
         }
     }
 }

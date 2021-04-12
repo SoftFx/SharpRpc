@@ -11,13 +11,15 @@ namespace SharpRpc
     {
         private readonly object _lockObj;
         private readonly StreamProxy _streamProxy;
-        private readonly List<ArraySegment<byte>> _completeSegments = new List<ArraySegment<byte>>();
+        private readonly Queue<ArraySegment<byte>> _completeSegments = new Queue<ArraySegment<byte>>();
         private readonly MemoryManager _memManager;
         private readonly int _minAllocSize = 64;
         private readonly MessageMarker _marker;
         private DequeueRequest _dequeueWaitHandle;
         //private readonly Action _dataArrivedEvent;
         private readonly IRpcSerializer _serializer;
+        private ArraySegment<byte> _dequeuedSegment;
+        private bool _isClosed;
 
         public TxBuffer(object lockObj, int segmentSize, IRpcSerializer serializer)
         {
@@ -55,6 +57,7 @@ namespace SharpRpc
 
         public event Action OnDequeue;
 
+        // shoult be called under lock
         public void Lock()
         {
             //lock (_lockObj)
@@ -87,6 +90,16 @@ namespace SharpRpc
             toSignal?.Signal();
         }
 
+        // shoult be called under lock
+        public void Close()
+        {
+            _isClosed = true;
+
+            var cpy = _dequeueWaitHandle;
+            _dequeueWaitHandle = null;
+            cpy?.TrySetResult(new ArraySegment<byte>());
+        }
+
         //public void ReleaseLock()
         //{
         //    //IsCurrentSegmentLocked = false;
@@ -112,42 +125,40 @@ namespace SharpRpc
         //    _marker.OnMessageEnd();
         //}
 
-        public ValueTask ReturnAndDequeue(List<ArraySegment<byte>> container)
+        public ValueTask<ArraySegment<byte>> DequeueNext()
         {
-            //if (IsCurrentDataAvailable)
-            //    CompleteCurrentSegment();
-
-            //toContainer.AddRange(_completeSegments);
-            //_completeSegments.Clear();
-
             lock (_lockObj)
             {
-                foreach (var segment in container)
-                    _memManager.FreeSegment(segment);
+                if (_isClosed)
+                    return new ValueTask<ArraySegment<byte>>(new ArraySegment<byte>());
 
-                container.Clear();
+                if (_dequeuedSegment != null)
+                {
+                    _memManager.FreeSegment(_dequeuedSegment);
+                    _dequeuedSegment = null;
+                }
 
                 var hasCurrentData = IsCurrentDataAvailable;
 
                 if (HasCompletedSegments || hasCurrentData)
                 {
-                    DequeueTo(container, hasCurrentData);
+                    var result = Dequeue();
                     SpaceFreed?.Invoke(this);
-                    return new ValueTask();
+                    return new ValueTask<ArraySegment<byte>>(result);
                 }
                 else
                 {
-                    _dequeueWaitHandle = new DequeueRequest(container);
-                    return new ValueTask(_dequeueWaitHandle.Task);
+                    _dequeueWaitHandle = new DequeueRequest();
+                    return new ValueTask<ArraySegment<byte>>(_dequeueWaitHandle.Task);
                 }
             }
         }
 
-        public void ReturnSegments(List<ArraySegment<byte>> container)
-        {
-            foreach (var segment in container)
-                _memManager.FreeSegment(segment);
-        }
+        //public void ReturnSegments(List<ArraySegment<byte>> container)
+        //{
+        //    foreach (var segment in container)
+        //        _memManager.FreeSegment(segment);
+        //}
 
         private DequeueRequest SignalDataAvailable()
         {
@@ -155,25 +166,22 @@ namespace SharpRpc
             _dequeueWaitHandle = null;
 
             if (cpy != null)
-                DequeueTo(cpy.Container, IsCurrentDataAvailable);
+                cpy.Result = Dequeue();
 
             return cpy;
         }
 
-        private void DequeueTo(List<ArraySegment<byte>> container, bool hasCurrentData)
+        private ArraySegment<byte> Dequeue()
         {
-            if (hasCurrentData)
+            if (_completeSegments.Count == 0)
                 CompleteCurrentSegment();
 
-            foreach (var segment in _completeSegments)
-            {
-                DataSize -= segment.Count;
-                container.Add(segment);
-            }
-
-            _completeSegments.Clear();
+            _dequeuedSegment = _completeSegments.Dequeue();
+            DataSize -= _dequeuedSegment.Count;
 
             OnDequeue?.Invoke();
+
+            return _dequeuedSegment;
         }
 
         #region IBufferWriter implementation
@@ -223,7 +231,7 @@ namespace SharpRpc
 
             lock (_lockObj)
             {
-                _completeSegments.Add(new ArraySegment<byte>(CurrentSegment, 0, CurrentOffset));
+                _completeSegments.Enqueue(new ArraySegment<byte>(CurrentSegment, 0, CurrentOffset));
 
                 AllocNewSegment();
 
@@ -286,18 +294,13 @@ namespace SharpRpc
 
         #endregion
 
-        public class DequeueRequest : TaskCompletionSource<bool>
+        public class DequeueRequest : TaskCompletionSource<ArraySegment<byte>>
         {
-            public DequeueRequest(List<ArraySegment<byte>> container)
-            {
-                Container = container;
-            }
-
-            public List<ArraySegment<byte>> Container { get; }
+            public ArraySegment<byte> Result { get; set; }
 
             public void Signal()
             {
-                SetResult(true);
+                SetResult(Result);
             }
         }
     }

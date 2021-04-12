@@ -1,8 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Net.Sockets;
-using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace SharpRpc
@@ -10,23 +7,22 @@ namespace SharpRpc
     internal class TcpTransport : ByteTransport
     {
         private readonly Socket _socket;
-
+        private readonly NetworkStream _stream;
+        
         public TcpTransport(Socket socket)
         {
             _socket = socket;
+            _stream = new NetworkStream(socket, false);
         }
 
-        public override Task<int> Receive(IList<ArraySegment<byte>> buffers)
+        public override ValueTask<int> Receive(ArraySegment<byte> buffer)
         {
-            return _socket.ReceiveAsync(buffers, SocketFlags.None);
-
-            //return Task.Factory.FromAsync((c, s) => _socket.BeginReceive(buffers, SocketFlags.None, c, s),
-            //    (r) => _socket.EndReceive(r), null);
+            return _stream.ReadAsync(buffer);
         }
 
-        public override Task<int> Send(IList<ArraySegment<byte>> data, CancellationToken cancelToken)
+        public override ValueTask Send(ArraySegment<byte> data)
         {
-            return _socket.SendAsync(data, SocketFlags.None);
+            return _stream.WriteAsync(data);
         }
 
         public override RpcResult TranslateException(Exception ex)
@@ -36,7 +32,7 @@ namespace SharpRpc
 
         public static RpcResult ToRpcResult(Exception ex)
         {
-            if (ex is SocketException socketEx)
+            if (ex.InnerException is SocketException socketEx)
             {
                 switch (socketEx.SocketErrorCode)
                 {
@@ -52,21 +48,31 @@ namespace SharpRpc
             return new RpcResult(RpcRetCode.OtherConnectionError, "An unexpected exception is occurred in TcpTransport: " + ex.Message);
         }
 
-        public override Task Shutdown()
+        public override async Task Shutdown()
         {
             try
             {
                 _socket.Shutdown(SocketShutdown.Both);
             }
-            catch (SocketException)
+            catch (Exception)
             {
+                // TO DO : log
             }
-            
-            return Task.CompletedTask;
+
+            try
+            {
+                await Task.Factory.FromAsync((c, s) => _socket.BeginDisconnect(false, c, s),
+                    r => _socket.EndDisconnect(r), null);
+            }
+            catch (Exception)
+            {
+                // TO DO : log
+            }
         }
 
         public override void Dispose()
         {
+            _stream.Dispose();
             _socket.Dispose();
         }
     }

@@ -15,9 +15,9 @@ namespace SharpRpc
             private readonly Dictionary<string, ITask> _callTasks = new Dictionary<string, ITask>();
             private readonly List<MessageTaskPair> _batch = new List<MessageTaskPair>();
             private TaskCompletionSource<bool> _dataAvaialableEvent;
-            private TaskCompletionSource<object> _completionEvent = new TaskCompletionSource<object>();
             private bool _completed;
             private readonly int _pageSize = 50;
+            private Task _workerTask;
 
             public OneThread()
             {
@@ -25,7 +25,7 @@ namespace SharpRpc
 
             protected override void OnInit()
             {
-                InvokeMessageHandlerLoop();
+                _workerTask = InvokeMessageHandlerLoop();
             }
 
             public override bool SuportsBatching => true;
@@ -81,7 +81,7 @@ namespace SharpRpc
                     if (_queue.Count == 0)
                         SignalCompleted();
 
-                    return _completionEvent.Task;
+                    return _workerTask;
                 }
             }
 
@@ -157,7 +157,7 @@ namespace SharpRpc
                 }
             }
 
-            private async void InvokeMessageHandlerLoop()
+            private async Task InvokeMessageHandlerLoop()
             {
                 while (true)
                 {
@@ -193,8 +193,6 @@ namespace SharpRpc
                         }
                     }
                 }
-
-                _completionEvent.SetResult(true);
             }
 
             private struct MessageTaskPair

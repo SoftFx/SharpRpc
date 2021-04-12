@@ -16,8 +16,8 @@ namespace Benchmark.Client
             DoTest(5000000, 1, true, false, ConcurrencyMode.PagedQueueX1);
             DoTest(5000000, 1, true, true, ConcurrencyMode.PagedQueueX1);
 
-            DoTest(100000, 1, false, false, ConcurrencyMode.PagedQueueX1);
-            DoTest(100000, 1, false, true, ConcurrencyMode.PagedQueueX1);
+            //DoTest(100000, 1, false, false, ConcurrencyMode.PagedQueueX1);
+            //DoTest(100000, 1, false, true, ConcurrencyMode.PagedQueueX1);
         }
 
         private static void DoTest(int msgCount, int clientCount, bool oneWay, bool async, ConcurrencyMode concurrency)

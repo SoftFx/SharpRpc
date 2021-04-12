@@ -1,75 +1,137 @@
 ﻿using SharpRpc.Lib;
 using System;
+using System.Buffers;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
 using System.Text;
-using System.Threading;
+using System.Threading.Tasks;
 
 namespace SharpRpc
 {
     internal class RxBuffer
     {
-        private readonly CircularList<ArraySegment<byte>> _segments = new CircularList<ArraySegment<byte>>();
-        private readonly Queue<byte[]> _unusedSegmentCache = new Queue<byte[]>();
-        private readonly int _segmentSize = 64 * 1024;
-        private readonly int _segmentCount = 5;
-        private readonly int _segmentCacheSize = 5;
+        private const int MaxThreshold = 1024 * 5;
 
-        public RxBuffer()
+        private Queue<RxSegment> _tail = new Queue<RxSegment>();
+        private RxSegment _currentSegment;
+        private readonly int _segmentSize;
+        private readonly int _segmentSizeThreshold;
+
+        public RxBuffer(int segmentSize)
         {
-            for (int i = 0; i < _segmentCount; i++)
-                _segments.Enqueue(new byte[_segmentSize]);
+            _segmentSize = segmentSize;
+            _segmentSizeThreshold = (int)(segmentSize * 0.3);
+
+            if (_segmentSizeThreshold > MaxThreshold)
+                _segmentSizeThreshold = MaxThreshold;
+
+            AllocateSegment();
         }
 
-        public IList<ArraySegment<byte>> Segments => _segments;
-
-        public int Advance(int size, IList<ArraySegment<byte>> container)
+        public ArraySegment<byte> GetRxSegment()
         {
-            var bytesCount = 0;
+            var freeSpace = GetFreeSpace(_currentSegment);
 
-            while (size > 0)
+            if (freeSpace < _segmentSizeThreshold)
             {
-                var segment = _segments.Dequeue();
-                var fragmentSize = Math.Min(segment.Count, size);
-                var fragment = new ArraySegment<byte>(segment.Array, 0, fragmentSize);
-                size -= fragmentSize;
+                if (!_currentSegment.IsFullyConsumed)
+                    _tail.Enqueue(_currentSegment);
 
-                container.Add(fragment);
+                AllocateSegment();
 
-                bytesCount += fragmentSize;
+                return new ArraySegment<byte>(_currentSegment.Bytes, 0, _segmentSize);
             }
-
-            ReplaceFilledSegments(container.Count);
-
-            return bytesCount;
-        }
-
-        private void ReplaceFilledSegments(int count)
-        {
-            lock (_unusedSegmentCache)
-            {
-                for (int i = 0; i < count; i++)
-                    _segments.Enqueue(GetNewSegment());
-            }
-        }
-
-        private ArraySegment<byte> GetNewSegment()
-        {
-            if (_unusedSegmentCache.Count > 0)
-                return _unusedSegmentCache.Dequeue();
             else
-                return new byte[_segmentSize];
+                return new ArraySegment<byte>(_currentSegment.Bytes, _currentSegment.Count, freeSpace);
         }
 
-        public void ReturnSegments(IList<ArraySegment<byte>> segments)
+        public ArraySegment<byte> CommitDataRx(int dataSize)
         {
-            lock (_unusedSegmentCache)
+            var offset = _currentSegment.Count;
+
+            _currentSegment.Count += dataSize;
+
+            return new ArraySegment<byte>(_currentSegment.Bytes, offset, dataSize);
+        }
+
+        public void CommitDataConsume(int dataSize)
+        {
+            while (_tail.Count > 0)
             {
-                foreach (var seg in segments)
-                {
-                    if (_unusedSegmentCache.Count < _segmentCacheSize)
-                        _unusedSegmentCache.Enqueue(seg.Array);
-                }
+                var segment = _tail.Peek();
+
+                var leftToConsume = segment.Count - segment.ConsumedCount;
+                var toConsume = Math.Min(dataSize, leftToConsume);
+
+                segment.ConsumedCount += toConsume;
+
+                if (leftToConsume == toConsume) // fully consumed
+                    DisposeSegment(_tail.Dequeue());
+
+                dataSize -= toConsume;
+
+                if (dataSize == 0)
+                    return;
+            }
+
+            var leftToConsumeInCurrent = _currentSegment.Count - _currentSegment.ConsumedCount;
+
+            if (leftToConsumeInCurrent == dataSize)
+                _currentSegment.Reset();
+            else if (leftToConsumeInCurrent > dataSize)
+                _currentSegment.ConsumedCount += dataSize;
+            else
+                throw new Exception("There is no more data in buffer to consume!");
+        }
+
+        public void Dispose()
+        {
+            foreach (var segment in _tail)
+                DisposeSegment(segment);
+
+            _tail.Clear();
+
+            DisposeSegment(_currentSegment);
+            _currentSegment = default;
+        }
+
+        private void AllocateSegment()
+        {
+            _currentSegment = new RxSegment(ArrayPool<byte>.Shared.Rent(_segmentSize));
+            //_currentSegment = new RxSegment(new byte[_segmentSize]);
+        }
+
+        private void DisposeSegment(RxSegment segment)
+        {
+            ArrayPool<byte>.Shared.Return(segment.Bytes);
+        }
+
+        private int GetFreeSpace(RxSegment segment)
+        {
+            return _segmentSize - segment.Count;
+        }
+
+        private struct RxSegment
+        {
+            public RxSegment(byte[] buffer)
+            {
+                Bytes = buffer;
+                Count = 0;
+                ConsumedCount = 0;
+            }
+
+            public byte[] Bytes { get; }
+            public int Count { get; set; }
+            public int ConsumedCount { get; set; }
+
+            public bool IsFullyConsumed => Count == ConsumedCount;
+
+            public void Reset()
+            {
+                Count = 0;
+                ConsumedCount = 0;
             }
         }
     }

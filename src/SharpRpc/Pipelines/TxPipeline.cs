@@ -30,7 +30,7 @@ namespace SharpRpc
         public abstract ValueTask SendAsync(IMessage message);
         public abstract Task Close(RpcResult fault);
 
-        protected abstract ValueTask ReturnSegmentAndDequeue(List<ArraySegment<byte>> container);
+        protected abstract ValueTask<ArraySegment<byte>> DequeueNextSegment();
 
         protected Task<RpcResult<ByteTransport>> GetTransport()
         {
@@ -47,7 +47,7 @@ namespace SharpRpc
             _txLoop = TxBytesLoop();
         }
 
-        protected Task WaitTransportRead()
+        protected Task WaitTransportReadToEnd()
         {
             return _txLoop;
         }
@@ -56,22 +56,22 @@ namespace SharpRpc
         {
             try
             {
-                var segmentList = new List<ArraySegment<byte>>();
+                //var segmentList = new List<ArraySegment<byte>>();
 
                 while (true)
                 {
-                    await ReturnSegmentAndDequeue(segmentList);
-                    await Task.Yield();
+                    var data =  await DequeueNextSegment();
+                    await Task.Yield(); 
 
                     try
                     {
-                        var sentBytes = await Transport.Send(segmentList, CancellationToken.None);
+                        await Transport.Send(data);
 
-                        if (sentBytes == 0)
-                        {
-                            SignalCommunicationError(new RpcResult(RpcRetCode.ConnectionShutdown, ""));
-                            return;
-                        }
+                        //if (sentBytes == 0)
+                        //{
+                        //    SignalCommunicationError(new RpcResult(RpcRetCode.ConnectionShutdown, ""));
+                        //    return;
+                        //}
                     }
                     catch (Exception ex)
                     {

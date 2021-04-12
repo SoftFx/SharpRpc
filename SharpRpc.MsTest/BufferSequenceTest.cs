@@ -26,7 +26,7 @@ namespace SharpRpc.MsTest
             var segments = partitions.Select(p => new ArraySegment<byte>(p)).ToArray();
 
             var sequenceAdapter = new BufferSequence<byte>();
-            sequenceAdapter.Init(segments);
+            sequenceAdapter.AddRange(segments);
 
             var sequence = sequenceAdapter.GetSequence();
             var resultingBuffer = ReadWholeSequnce(sequence);

@@ -14,17 +14,15 @@ namespace SharpRpc.MsTest
         {
             var buffer = new TxBuffer(new object(), 200, new BufferBasedMockSerializer());
             var msg = MockMessage.Generate(100);
-            var resultingSegments = new List<ArraySegment<byte>>();
 
             var expectedHeader = new byte[] { 1, 0, 103 };
             var expectedBody = msg.RawBytes;
             var expectedBytes = expectedHeader.Add(expectedBody);
 
             buffer.WriteMessage(msg);
-            buffer.ReturnAndDequeue(resultingSegments).AsTask().Wait();
+            var segment = buffer.DequeueNext().Result;
 
-            Assert.AreEqual(1, resultingSegments.Count);
-            CollectionAssert.AreEqual(expectedBytes, resultingSegments[0].ToArray());
+            CollectionAssert.AreEqual(expectedBytes, segment.ToArray());
         }
 
         [DataTestMethod]
@@ -38,7 +36,6 @@ namespace SharpRpc.MsTest
 
             var buffer = new TxBuffer(new object(), segmentSize, new BufferBasedMockSerializer());
             var msg = MockMessage.Generate(messageSize);
-            var resultingSegments = new List<ArraySegment<byte>>();
 
             var expectedHeader1 = new byte[] { (byte)MessageFlags.None, 0, (byte)segmentSize };
             var expectedBody1 = msg.RawBytes.Slice(0, bodySize1);
@@ -49,7 +46,10 @@ namespace SharpRpc.MsTest
             var expectedSegment2 = expectedHeader2.Add(expectedBody2);
 
             buffer.WriteMessage(msg);
-            buffer.ReturnAndDequeue(resultingSegments).AsTask().Wait();
+
+            var resultingSegments = new List<ArraySegment<byte>>();
+            resultingSegments.Add(buffer.DequeueNext().Result);
+            resultingSegments.Add(buffer.DequeueNext().Result);
 
             Assert.AreEqual(2, resultingSegments.Count);
             CollectionAssert.AreEqual(expectedSegment1, resultingSegments[0].ToArray());

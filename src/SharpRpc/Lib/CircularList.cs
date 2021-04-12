@@ -8,18 +8,20 @@ namespace SharpRpc.Lib
     {
         private static readonly T[] emptyBuffer = new T[0];
 
-        private int _begin = 0;
-        private int _end = -1;
+        private int _begin;
+        private int _end;
         private T[] _buffer;
 
         public CircularList()
         {
             _buffer = emptyBuffer;
+            ResetPointers();
         }
 
         public CircularList(int capacity)
         {
             _buffer = new T[capacity];
+            ResetPointers();
         }
 
         public int Capacity { get { return _buffer.Length; } }
@@ -111,10 +113,7 @@ namespace SharpRpc.Lib
             Count -= dSize;
 
             if (Count == 0)
-            {
-                _begin = 0;
-                _end = -1;
-            }
+                ResetPointers();
 
             return dSize;
         }
@@ -170,20 +169,27 @@ namespace SharpRpc.Lib
             Count -= dSize;
 
             if (Count == 0)
-            {
-                _begin = 0;
-                _end = -1;
-            }
+                ResetPointers();
 
             return dSize;
         }
 
         public virtual void Clear()
         {
-            throw new NotImplementedException();
-        }
+            if (Count == 0)
+                return;
 
-        
+            if (_begin <= _end)
+                Array.Clear(_buffer, _begin, _begin - _end + 1);
+            else
+            {
+                Array.Clear(_buffer, _begin, Capacity - _begin);
+                Array.Clear(_buffer, 0, _end + 1);
+            }
+
+            Count = 0;
+            ResetPointers();
+        }
 
         //public virtual void TruncateStart(int tSize)
         //{
@@ -344,6 +350,11 @@ namespace SharpRpc.Lib
         {
             throw new NotImplementedException();
         }
-    }
 
+        private void ResetPointers()
+        {
+            _begin = 0;
+            _end = -1;
+        }
+    }
 }

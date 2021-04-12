@@ -154,8 +154,9 @@ namespace SharpRpc
                 if (_state == ServerState.Online || _state == ServerState.Starting)
                 {
                     var serviceImpl = _binding.CreateServiceImpl();
-                    var session = new Channel(transport, sender, _binding.Descriptor, serviceImpl);
+                    var session = new Channel(sender, _binding.Descriptor, serviceImpl);
                     session.Closed += Session_Closed;
+                    session.StartServerMode(transport);
                     _sessions.Add(session.Id, session);
                     Logger.Verbose(Name, "New session: " + session.Id);
                 }
@@ -177,8 +178,11 @@ namespace SharpRpc
                 _sessions.Remove(channel.Id);
             }
 
-            Logger.Verbose(Name, "Session " + channel.Id + " was closed.");
-        }
+            if (fault.Code == RpcRetCode.Ok)
+                Logger.Verbose(Name, "Session " + channel.Id + " was closed.");
+            else
+                Logger.Verbose(Name, "Session " + channel.Id + " was faulted. Code: " + fault.Code + " Message: " + fault.Fault.Message);
+        }   
 
         private void ThrowIfConfigProhibited()
         {

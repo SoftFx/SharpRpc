@@ -10,13 +10,19 @@
         internal RpcResult(RpcRetCode code, RpcFault fault)
         {
             Code = code;
-            Fault = fault ?? new RpcFault("");
+            if (code != RpcRetCode.Ok)
+                Fault = fault ?? new RpcFault("");
+            else
+                Fault = null;
         }
 
         internal RpcResult(RpcRetCode code, string message)
         {
             Code = code;
-            Fault = new RpcFault(message ?? "");
+            if (code != RpcRetCode.Ok)
+                Fault = new RpcFault(message ?? "");
+            else
+                Fault = null;
         }
 
         public static readonly RpcResult Ok = new RpcResult();

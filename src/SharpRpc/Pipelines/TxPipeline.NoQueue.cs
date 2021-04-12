@@ -13,7 +13,7 @@ namespace SharpRpc
             private readonly object _lockObj = new object();
             private readonly TxBuffer _buffer;
             private bool _isProcessingItem;
-            private bool _isCompleted;
+            private bool isClosing;
             private bool _isInitialized;
             private bool _isInitializing;
             private RpcResult _fault;
@@ -28,8 +28,8 @@ namespace SharpRpc
             public NoQueue(ContractDescriptor descriptor, Endpoint config, Func<Task<RpcResult<ByteTransport>>> transportRequestFunc)
                 : base(transportRequestFunc)
             {
-                _buffer = new TxBuffer(_lockObj, config.TxSegmentSize, descriptor.SerializationAdapter);
-                _bufferSizeThreshold = config.TxSegmentSize * 5;
+                _buffer = new TxBuffer(_lockObj, config.TxBufferSegmentSize, descriptor.SerializationAdapter);
+                _bufferSizeThreshold = config.TxBufferSegmentSize * 2;
                 _buffer.SpaceFreed += _buffer_SpaceFreed;
 
                 if (config.IsKeepAliveEnabled)
@@ -97,8 +97,7 @@ namespace SharpRpc
             {
                 lock (_lockObj)
                 {
-                    if (_fault.Code != RpcRetCode.Ok)
-                        return new ValueTask();
+                    _fault.ThrowIfNotOk();
 
                     LazyInit();
 
@@ -170,25 +169,41 @@ namespace SharpRpc
                 }
                 catch (RpcException rex)
                 {
-                    return rex.ToRpcResult();
+                    return OnTxError(rex.ToRpcResult());
                 }
                 catch (Exception ex)
                 {
-                    return new RpcResult(RpcRetCode.SerializationError, ex.Message);
+                    return OnTxError(new RpcResult(RpcRetCode.SerializationError, ex.Message));
                 }
                 finally
                 {
                     lock (_lockObj)
                     {
                         _isProcessingItem = false;
-                        EnqueueNextItem();
+
+                        if (!isClosing)
+                            EnqueueNextItem();
+                        else
+                            CompleteClose();
                     }
                 }
             }
 
-            protected override ValueTask ReturnSegmentAndDequeue(List<ArraySegment<byte>> container)
+            private RpcResult OnTxError(RpcResult error)
             {
-                return _buffer.ReturnAndDequeue(container);
+                lock (_lockObj)
+                {
+                    // TO DO: stop TxPipeline immediately
+                }
+
+                SignalCommunicationError(error);
+
+                return error;
+            }
+
+            protected override ValueTask<ArraySegment<byte>> DequeueNextSegment()
+            {
+                return _buffer.DequeueNext();
             }
 
             private void EnqueueNextItem()
@@ -212,13 +227,19 @@ namespace SharpRpc
                 }
             }
 
-            public override Task Close(RpcResult fault)
+            public override async Task Close(RpcResult fault)
+            {
+                await ClosePipeline(fault);
+                await WaitTransportReadToEnd();
+            }
+
+            private Task ClosePipeline(RpcResult fault)
             {
                 lock (_lockObj)
                 {
-                    if (!_isCompleted)
+                    if (!isClosing)
                     {
-                        _isCompleted = true;
+                        isClosing = true;
                         _fault = fault;
 
                         _keepAliveTimer?.Dispose();
@@ -230,11 +251,21 @@ namespace SharpRpc
 
                         if (!_isProcessingItem)
                             _completedEvent.TrySetResult(true);
+
+                        _buffer.Close();
                     }
                 }
 
                 return _completedEvent.Task;
-            }   
+            }
+
+            private void CompleteClose()
+            {
+                lock (_lockObj)
+                {
+                    _completedEvent.TrySetResult(true);
+                }
+            }
 
             private void FailAllPendingItems()
             {

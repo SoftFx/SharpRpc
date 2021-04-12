@@ -8,8 +8,8 @@ namespace SharpRpc
 {
     public abstract class ByteTransport
     {
-        public abstract Task<int> Send(IList<ArraySegment<byte>> data, CancellationToken cancelToken);
-        public abstract Task<int> Receive(IList<ArraySegment<byte>> buffers);
+        public abstract ValueTask Send(ArraySegment<byte> data);
+        public abstract ValueTask<int> Receive(ArraySegment<byte> buffer);
         public abstract RpcResult TranslateException(Exception ex);
 
         public abstract Task Shutdown();

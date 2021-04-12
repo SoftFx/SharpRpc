@@ -8,7 +8,10 @@ namespace SharpRpc.Lib
     internal class BufferSequence<T>
     {
         private readonly List<Segment> _cachedSegments = new List<Segment>();
-        private int _lastIndex;
+        private int _lastIndex = -1;
+        private int _totalSize;
+
+        public int Count => _totalSize;
 
         public ReadOnlySequence<T> GetSequence()
         {
@@ -18,33 +21,39 @@ namespace SharpRpc.Lib
             return new ReadOnlySequence<T>(first, 0, last, last.Memory.Length);
         }
 
-        public void Init(IReadOnlyList<ArraySegment<T>> segments)
+        public void Clear()
         {
-            ExpandCacheTo(segments.Count);
+            for (int i = 0; i <= _lastIndex; i++)
+                _cachedSegments[i].Clear();
 
-            var size = 0;
-
-            for (int i = 0; i < segments.Count - 1; i++)
-            {
-                var arraySeg = segments[i];
-                _cachedSegments[i].Init(arraySeg, _cachedSegments[i + 1], size);
-                size += arraySeg.Count;
-            }
-
-            _lastIndex = segments.Count - 1;
-            var lastArrSeg = segments[_lastIndex];
-            _cachedSegments[_lastIndex].Init(lastArrSeg, null, size);
+            _totalSize = 0;
+            _lastIndex = -1;
         }
 
-        private void ExpandCacheTo(int newCount)
+        public void Add(ArraySegment<T> segment)
         {
-            if (_cachedSegments.Count < newCount)
-            {
-                var toAdd = newCount - _cachedSegments.Count;
+            Add(segment.Array, segment.Offset, segment.Count);
+        }
 
-                for (int i = 0; i < toAdd; i++)
-                    _cachedSegments.Add(new Segment());
-            }
+        public void Add(T[] data, int offset, int count)
+        {
+            if (_lastIndex + 1 >= _cachedSegments.Count)
+                _cachedSegments.Add(new Segment());
+
+            var prevSegment = _lastIndex >= 0 ? _cachedSegments[_lastIndex] : null;
+
+            var currentSegment = _cachedSegments[++_lastIndex];
+            currentSegment.SetData(new ArraySegment<T>(data, offset, count));
+            currentSegment.SetSize(_totalSize);
+
+            _totalSize += count;
+            prevSegment?.SetNextSegment(currentSegment);
+        }
+
+        public void AddRange(IEnumerable<ArraySegment<T>> segments)
+        {
+            foreach (var segment in segments)
+                Add(segment);
         }
 
         private class Segment : ReadOnlySequenceSegment<T>
@@ -54,6 +63,28 @@ namespace SharpRpc.Lib
                 Memory = buffer;
                 Next = nextSegment;
                 RunningIndex = size;
+            }
+
+            public void SetData(ArraySegment<T> data)
+            {
+                Memory = data;
+            }
+
+            public void SetNextSegment(Segment next)
+            {
+                Next = next;
+            }
+
+            public void SetSize(long size)
+            {
+                RunningIndex = size;
+            }
+
+            public void Clear()
+            {
+                RunningIndex = 0;
+                Memory = null;
+                Next = null;
             }
         }
     }

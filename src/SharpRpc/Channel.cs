@@ -30,32 +30,30 @@ namespace SharpRpc
 
         internal event Action<Channel, RpcResult> Closed;
 
-        internal Channel(ClientEndpoint endpoint, ContractDescriptor descriptor, IUserMessageHandler msgHandler)
-            : this(null, endpoint, descriptor, msgHandler)
+        internal Channel(Endpoint endpoint, ContractDescriptor descriptor, IUserMessageHandler msgHandler)
         {
-        }
-
-        internal Channel(ByteTransport transport, Endpoint endpoint, ContractDescriptor descriptor, IUserMessageHandler msgHandler)
-        {
-            _transport = transport;
             _endpoint = endpoint;
             _descriptor = descriptor;
 
             _tx = new TxPipeline.NoQueue(descriptor, endpoint, OnConnectionRequest);
             _tx.CommunicationFaulted += OnCommunicationError;
 
-            _dispatcher = MessageDispatcher.Create(_tx, msgHandler, endpoint.RxConcurrencyMode);
+            _dispatcher = MessageDispatcher.Create(_tx, msgHandler, endpoint.RxConcurrencyMode);   
+        }
 
-            if (transport != null)
-            {
+        internal void StartServerMode(ByteTransport transport)
+        {
+            _transport = transport;
+
+            lock (_stateSyncObj)
                 State = ChannelState.Online;
-                StartRxPipeline(transport);
-            }
+
+            StartRxPipeline(_transport);
         }
 
         private void StartRxPipeline(ByteTransport transport)
         {
-            _rx = new RxPipeline.Dataflow(transport, _endpoint, _descriptor.SerializationAdapter, _dispatcher);
+            _rx = new RxPipeline.NoThreading(transport, _endpoint, _descriptor.SerializationAdapter, _dispatcher);
             _rx.CommunicationFaulted += OnCommunicationError;
             _rx.Start();
         }
@@ -102,7 +100,7 @@ namespace SharpRpc
                     return Task.CompletedTask;
             }
             
-            DoDisconnect();
+            DoDisconnect(ChannelShutdownMode.Emergency);
 
             return _disconnectEvent.Task;
         }
@@ -125,7 +123,7 @@ namespace SharpRpc
                     return;
             }
 
-            DoDisconnect();
+            DoDisconnect(ChannelShutdownMode.Emergency);
         }
 
         private void UpdateFault(RpcResult fault)
@@ -165,7 +163,7 @@ namespace SharpRpc
 
             if (abortConnect)
             {
-                await CloseComponents();
+                await CloseComponents(ChannelShutdownMode.Emergency);
 
                 lock (_stateSyncObj)
                     State = ChannelState.Faulted;
@@ -182,10 +180,12 @@ namespace SharpRpc
             }
         }
 
-        private async Task CloseComponents()
+        private async Task CloseComponents(ChannelShutdownMode mode)
         {
             if (_transport != null)
                 await _transport.Shutdown();
+
+            await _dispatcher.Close(mode == ChannelShutdownMode.Emergency);
 
             try
             {
@@ -196,7 +196,7 @@ namespace SharpRpc
                     await rxCloseTask;
                 await txCloseTask;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
                 //TO DO : log
             }
@@ -204,9 +204,9 @@ namespace SharpRpc
             _transport?.Dispose();
         }
 
-        private async void DoDisconnect()
+        private async void DoDisconnect(ChannelShutdownMode mode)
         {
-            await CloseComponents();
+            await CloseComponents(mode);
 
             lock (_stateSyncObj)
             {
@@ -258,5 +258,12 @@ namespace SharpRpc
         Disconnecting,
         Closed,
         Faulted
+    }
+
+
+    internal enum ChannelShutdownMode
+    {
+        Normal,
+        Emergency
     }
 }
