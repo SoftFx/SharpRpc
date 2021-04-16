@@ -30,6 +30,7 @@
 
         public RpcRetCode Code { get; }
         public RpcFault Fault { get; }
+        public bool IsOk => Code == RpcRetCode.Ok;
 
         public void ThrowIfNotOk()
         {

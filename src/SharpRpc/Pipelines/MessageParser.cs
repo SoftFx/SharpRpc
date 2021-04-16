@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel.Design.Serialization;
 using System.Linq;
 using System.Text;
 
@@ -7,7 +8,6 @@ namespace SharpRpc
 {
     internal class MessageParser
     {
-        //private readonly List<ArraySegment<byte>> _parsedSegments = new List<ArraySegment<byte>>();
         private readonly List<ArraySegment<byte>> _messageFragments = new List<ArraySegment<byte>>();
         private readonly HeaderParser _headerParser = new HeaderParser();
         private States _phase = States.Header;
@@ -15,10 +15,12 @@ namespace SharpRpc
         private ArraySegment<byte> _segment; 
         private int _segmentOffset;
         private int _currentChunkSize;
-        private int _currentMsgSize;
         private bool _isLastChunk;
 
         public IReadOnlyList<ArraySegment<byte>> MessageBody => _messageFragments;
+
+        // message size plus size of all headers
+        public int MessageBrutto { get; private set; }
 
         public void SetNextSegment(ArraySegment<byte> segment)
         {
@@ -32,9 +34,8 @@ namespace SharpRpc
             {
                 if (_phase == States.EndOfMessage)
                 {
-                    //_parsedSegments.Clear();
                     _messageFragments.Clear();
-                    _currentMsgSize = 0;
+                    MessageBrutto = 0;
                     _phase = States.Header;
                 }
 
@@ -44,6 +45,8 @@ namespace SharpRpc
 
                     if (rCode == ParserRetCode.Error)
                         return RetCodes.InvalidHeader;
+
+                    MessageBrutto++;
 
                     if (rCode == ParserRetCode.Complete)
                     {
@@ -64,7 +67,7 @@ namespace SharpRpc
                     var fragmentSize = Math.Min(dataLeftInSegment, _specifiedChunkSize - _currentChunkSize);
                     AddMessageFragment(_segment, _segmentOffset, fragmentSize);
                     _currentChunkSize += fragmentSize;
-                    _currentMsgSize += fragmentSize;
+                    MessageBrutto += fragmentSize;
                     _segmentOffset += fragmentSize;
 
                     if (_currentChunkSize == _specifiedChunkSize)

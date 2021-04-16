@@ -13,11 +13,11 @@ namespace Benchmark.Client
     {
         public static void LaunchTestSeries()
         {
-            DoTest(5000000, 1, true, false, ConcurrencyMode.PagedQueueX1);
-            DoTest(5000000, 1, true, true, ConcurrencyMode.PagedQueueX1);
+            DoTest(5000000, 1, true, false, ConcurrencyMode.PagedQueue);
+            DoTest(5000000, 1, true, true, ConcurrencyMode.PagedQueue);
 
-            //DoTest(100000, 1, false, false, ConcurrencyMode.PagedQueueX1);
-            //DoTest(100000, 1, false, true, ConcurrencyMode.PagedQueueX1);
+            DoTest(100000, 1, false, false, ConcurrencyMode.PagedQueue);
+            DoTest(100000, 1, false, true, ConcurrencyMode.PagedQueue);
         }
 
         private static void DoTest(int msgCount, int clientCount, bool oneWay, bool async, ConcurrencyMode concurrency)
@@ -157,7 +157,7 @@ namespace Benchmark.Client
             {
                 case ConcurrencyMode.NoQueue: return 812;
                 //case ConcurrencyMode.DataflowX1: return 813;
-                case ConcurrencyMode.PagedQueueX1: return 814;
+                case ConcurrencyMode.PagedQueue: return 814;
                 default: throw new InvalidOperationException();
             }
         }

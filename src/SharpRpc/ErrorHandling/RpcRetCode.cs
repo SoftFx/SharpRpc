@@ -21,6 +21,5 @@ namespace SharpRpc
         DeserializationError,
         MessageMarkupError,
         MessageHandlerFailure
-
     }
 }

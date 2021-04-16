@@ -13,10 +13,8 @@ namespace SharpRpc
         {
             switch (mode)
             {
-                case ConcurrencyMode.NoQueue: return new NoThreading().Init(sender, handler);
-                //case ConcurrencyMode.DataflowX1: return new Dataflow(1).Init(sender, handler);
-                //case ConcurrencyMode.DataflowX2: return new Dataflow(2).Init(sender, handler);
-                case ConcurrencyMode.PagedQueueX1: return new OneThread().Init(sender, handler);
+                //case ConcurrencyMode.NoQueue: return new NoThreading().Init(sender, handler);
+                case ConcurrencyMode.PagedQueue: return new OneThread().Init(sender, handler);
                 default: throw new InvalidOperationException();
             }
         }
@@ -39,8 +37,6 @@ namespace SharpRpc
 
         public event Action<RpcResult> ErrorOccured;
 
-        public abstract bool SuportsBatching { get; }
-        public abstract void OnMessage(IMessage message);
         public abstract void OnMessages(IEnumerable<IMessage> messages);
         public abstract Task Close(bool dropTheQueue);
 
@@ -153,8 +149,6 @@ namespace SharpRpc
     public enum ConcurrencyMode
     {
         NoQueue,
-        //DataflowX1,
-        //DataflowX2,
-        PagedQueueX1,
+        PagedQueue,
     }
 }

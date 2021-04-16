@@ -14,7 +14,7 @@ namespace SharpRpc
     {
         private const int MaxThreshold = 1024 * 5;
 
-        private Queue<RxSegment> _tail = new Queue<RxSegment>();
+        private CircularList<RxSegment> _tail = new CircularList<RxSegment>();
         private RxSegment _currentSegment;
         private readonly int _segmentSize;
         private readonly int _segmentSizeThreshold;
@@ -60,7 +60,7 @@ namespace SharpRpc
         {
             while (_tail.Count > 0)
             {
-                var segment = _tail.Peek();
+                var segment = _tail[0];
 
                 var leftToConsume = segment.Count - segment.ConsumedCount;
                 var toConsume = Math.Min(dataSize, leftToConsume);
@@ -69,6 +69,8 @@ namespace SharpRpc
 
                 if (leftToConsume == toConsume) // fully consumed
                     DisposeSegment(_tail.Dequeue());
+                else
+                    _tail[0] = segment;
 
                 dataSize -= toConsume;
 
@@ -78,9 +80,7 @@ namespace SharpRpc
 
             var leftToConsumeInCurrent = _currentSegment.Count - _currentSegment.ConsumedCount;
 
-            if (leftToConsumeInCurrent == dataSize)
-                _currentSegment.Reset();
-            else if (leftToConsumeInCurrent > dataSize)
+            if (leftToConsumeInCurrent >= dataSize)
                 _currentSegment.ConsumedCount += dataSize;
             else
                 throw new Exception("There is no more data in buffer to consume!");

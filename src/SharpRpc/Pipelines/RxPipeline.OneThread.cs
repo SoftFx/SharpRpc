@@ -20,8 +20,8 @@ namespace SharpRpc
             private ArraySegment<byte> _segmentToParse;
             private ArraySegment<byte> _awaitingSegment;
 
-            public OneThread(ByteTransport transport, Endpoint config, IRpcSerializer serializer, MessageDispatcher messageConsumer)
-                : base(transport, config, serializer, messageConsumer)
+            public OneThread(ByteTransport transport, Endpoint config, IRpcSerializer serializer, MessageDispatcher messageConsumer, SessionCoordinator coordinator)
+                : base(transport, config, serializer, messageConsumer, coordinator)
             {
                 _buffer = new RxBuffer(config.RxBufferSegmentSize);
             }
@@ -91,7 +91,6 @@ namespace SharpRpc
 
             private void ParseSegment()
             {
-                var dataSize = _segmentToParse.Count;
                 var parseRes = ParseAndDeserialize(_segmentToParse, out var bytesConsumed);
 
                 if (parseRes.Code == RpcRetCode.Ok)

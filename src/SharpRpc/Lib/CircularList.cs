@@ -43,7 +43,7 @@ namespace SharpRpc.Lib
             Count++;
         }
 
-        public void AddRange(IEnumerable<T> recRange)
+        public void EnqueueRange(IEnumerable<T> recRange)
         {
             // TO DO : optimization in case recRange is IList or ICollection
 
@@ -180,7 +180,7 @@ namespace SharpRpc.Lib
                 return;
 
             if (_begin <= _end)
-                Array.Clear(_buffer, _begin, _begin - _end + 1);
+                Array.Clear(_buffer, _begin, _end - _begin + 1);
             else
             {
                 Array.Clear(_buffer, _begin, Capacity - _begin);

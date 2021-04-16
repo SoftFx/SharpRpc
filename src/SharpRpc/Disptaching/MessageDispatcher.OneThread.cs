@@ -28,20 +28,6 @@ namespace SharpRpc
                 _workerTask = InvokeMessageHandlerLoop();
             }
 
-            public override bool SuportsBatching => true;
-
-            public override void OnMessage(IMessage message)
-            {
-                lock (_lockObj)
-                {
-                    if (_completed)
-                        return;
-
-                    MatchAndEnqueue(message);
-                    SignalDataReady();
-                }
-            }
-
             public override void OnMessages(IEnumerable<IMessage> messages)
             {
                 lock (_lockObj)

@@ -14,12 +14,14 @@ namespace SharpRpc
         private readonly MessageDispatcher _dispatcher;
         private readonly ContractDescriptor _descriptor;
         private readonly TaskCompletionSource<RpcResult> _connectEvent = new TaskCompletionSource<RpcResult>();
-        private readonly TaskCompletionSource<RpcResult<ByteTransport>> _requestConnectEvent = new TaskCompletionSource<RpcResult<ByteTransport>>();
+        //private readonly TaskCompletionSource<RpcResult<ByteTransport>> _requestConnectEvent = new TaskCompletionSource<RpcResult<ByteTransport>>();
         private readonly TaskCompletionSource<RpcResult> _disconnectEvent = new TaskCompletionSource<RpcResult>();
         private RpcResult _channelDisplayFault = RpcResult.Ok;
         private RpcResult _channelOperationFault = RpcResult.ChannelClose;
         private ByteTransport _transport;
+        private SessionCoordinator _coordinator;
         private bool _closeFlag;
+        private bool _isServerSide;
 
         public ChannelState State { get; private set; }
         public RpcResult Fault => _channelDisplayFault;
@@ -27,6 +29,7 @@ namespace SharpRpc
 
         internal MessageDispatcher Dispatcher => _dispatcher;
         internal TxPipeline Tx => _tx;
+        internal ContractDescriptor Contract => _descriptor;
 
         internal event Action<Channel, RpcResult> Closed;
 
@@ -35,7 +38,8 @@ namespace SharpRpc
             _endpoint = endpoint;
             _descriptor = descriptor;
 
-            _tx = new TxPipeline.NoQueue(descriptor, endpoint, OnConnectionRequest);
+            _tx = new TxPipeline.NoQueue(descriptor, endpoint);
+            _tx.ConnectionRequested += OnConnectionRequested;
             _tx.CommunicationFaulted += OnCommunicationError;
 
             _dispatcher = MessageDispatcher.Create(_tx, msgHandler, endpoint.RxConcurrencyMode);   
@@ -43,19 +47,28 @@ namespace SharpRpc
 
         internal void StartServerMode(ByteTransport transport)
         {
+            _isServerSide = true;
             _transport = transport;
+            _coordinator = new ServerSideCoordinator();
 
             lock (_stateSyncObj)
-                State = ChannelState.Online;
+                State = ChannelState.Connecting;
 
-            StartRxPipeline(_transport);
+            DoConnect();
         }
 
-        private void StartRxPipeline(ByteTransport transport)
+        private void StartPipelines(ByteTransport transport)
         {
-            _rx = new RxPipeline.NoThreading(transport, _endpoint, _descriptor.SerializationAdapter, _dispatcher);
+            if (_coordinator == null)
+                _coordinator = new ClientSideCoordinator(false);
+
+            _coordinator.Init(this);
+
+            _rx = new RxPipeline.OneThread(transport, _endpoint, _descriptor.SerializationAdapter, _dispatcher, _coordinator);
             _rx.CommunicationFaulted += OnCommunicationError;
             _rx.Start();
+
+            _tx.Start(transport);
         }
 
         public ValueTask<RpcResult> TryConnectAsync()
@@ -100,7 +113,7 @@ namespace SharpRpc
                     return Task.CompletedTask;
             }
             
-            DoDisconnect(ChannelShutdownMode.Emergency);
+            DoDisconnect(ChannelShutdownMode.Normal);
 
             return _disconnectEvent.Task;
         }
@@ -123,7 +136,7 @@ namespace SharpRpc
                     return;
             }
 
-            DoDisconnect(ChannelShutdownMode.Emergency);
+            DoDisconnect(ChannelShutdownMode.Abort);
         }
 
         private void UpdateFault(RpcResult fault)
@@ -134,23 +147,35 @@ namespace SharpRpc
 
         private async void DoConnect()
         {
-            bool abortConnect = false;
-
-            try
+            if (!_isServerSide)
             {
-                var connectResult = await ((ClientEndpoint)_endpoint).ConnectAsync();
-                if (connectResult.Code == RpcRetCode.Ok)
-                    _transport = connectResult.Result;
-                else
-                    UpdateFault(connectResult.GetResultInfo());
-            }
-            catch (Exception ex)
-            {
-                UpdateFault(new RpcResult(RpcRetCode.UnknownError, "An unexpected error has been occured on transport level: " + ex.Message));
+                try
+                {
+                    var connectResult = await ((ClientEndpoint)_endpoint).ConnectAsync();
+                    if (connectResult.Code == RpcRetCode.Ok)
+                        _transport = connectResult.Result;
+                    else
+                        UpdateFault(connectResult.GetResultInfo());
+                }
+                catch (Exception ex)
+                {
+                    UpdateFault(new RpcResult(RpcRetCode.UnknownError, "An unexpected error has been occured on transport level: " + ex.Message));
+                }
             }
 
             if (_transport != null)
-                StartRxPipeline(_transport);
+            {
+                StartPipelines(_transport);
+
+                var loginResult = await _coordinator.OnConnect();
+
+                if (loginResult.Code != RpcRetCode.Ok)
+                    UpdateFault(loginResult);
+                else
+                    _tx.StartProcessingUserMessages();
+            }
+
+            bool abortConnect = false;
 
             lock (_stateSyncObj)
             {
@@ -163,7 +188,7 @@ namespace SharpRpc
 
             if (abortConnect)
             {
-                await CloseComponents(ChannelShutdownMode.Emergency);
+                await CloseComponents();
 
                 lock (_stateSyncObj)
                     State = ChannelState.Faulted;
@@ -171,26 +196,22 @@ namespace SharpRpc
                 Closed?.Invoke(this, _channelDisplayFault);
 
                 _connectEvent.SetResult(_channelDisplayFault);
-                _requestConnectEvent.SetResult(new RpcResult<ByteTransport>(_channelDisplayFault.Code, _channelDisplayFault.Fault));
             }
             else
-            {
                 _connectEvent.SetResult(RpcResult.Ok);
-                _requestConnectEvent.SetResult(new RpcResult<ByteTransport>(_transport));
-            }
         }
 
-        private async Task CloseComponents(ChannelShutdownMode mode)
+        private async Task CloseComponents()
         {
             if (_transport != null)
                 await _transport.Shutdown();
 
-            await _dispatcher.Close(mode == ChannelShutdownMode.Emergency);
+            await _dispatcher.Close(true);
 
             try
             {
                 var rxCloseTask = _rx?.Close();
-                var txCloseTask = _tx.Close(_channelOperationFault);
+                var txCloseTask = _tx.Close();
 
                 if (rxCloseTask != null)
                     await rxCloseTask;
@@ -206,7 +227,12 @@ namespace SharpRpc
 
         private async void DoDisconnect(ChannelShutdownMode mode)
         {
-            await CloseComponents(mode);
+            _tx.StopProcessingUserMessages(_channelOperationFault);
+
+            if (mode == ChannelShutdownMode.Normal)
+                await _coordinator.OnDisconnect();
+
+            await CloseComponents();
 
             lock (_stateSyncObj)
             {
@@ -221,32 +247,21 @@ namespace SharpRpc
             _disconnectEvent.SetResult(RpcResult.Ok);
         }
 
-        private Task<RpcResult<ByteTransport>> OnConnectionRequest()
+        private void OnConnectionRequested()
         {
             bool invokeConnect = false;
 
             lock (_stateSyncObj)
             {
-                if (State == ChannelState.Online)
-                    return Task.FromResult(new RpcResult<ByteTransport>(_transport));
-                else if (State == ChannelState.New)
+                if (State == ChannelState.New)
                 {
                     State = ChannelState.Connecting;
                     invokeConnect = true;
-                }
-                else if (State != ChannelState.Connecting)
-                {
-                    if (_channelDisplayFault.Code == RpcRetCode.Ok)
-                        return Task.FromResult(new RpcResult<ByteTransport>(RpcRetCode.ChannelClosed, "Closed"));
-                    else
-                        return Task.FromResult(new RpcResult<ByteTransport>(_channelDisplayFault.Code, _channelDisplayFault.Fault));
                 }
             }
 
             if (invokeConnect)
                 DoConnect();
-
-            return _requestConnectEvent.Task;
         }
     }
 
@@ -264,6 +279,6 @@ namespace SharpRpc
     internal enum ChannelShutdownMode
     {
         Normal,
-        Emergency
+        Abort
     }
 }

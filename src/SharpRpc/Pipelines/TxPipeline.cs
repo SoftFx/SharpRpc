@@ -10,36 +10,28 @@ namespace SharpRpc
 {
     internal abstract partial class TxPipeline
     {
-        //private readonly ByteTransport _transport;
-        private readonly Func<Task<RpcResult<ByteTransport>>> _transportRequestFunc;
         private Task _txLoop;
-
-        public TxPipeline(Func<Task<RpcResult<ByteTransport>>> connectRequestFunc)
-        {
-            //_transport = transport;
-            _transportRequestFunc = connectRequestFunc;
-        }
 
         public ByteTransport Transport { get; protected set; }
 
+        public event Action ConnectionRequested;
         public event Action<RpcResult> CommunicationFaulted;
 
         public abstract RpcResult TrySend(IMessage message);
         public abstract void Send(IMessage message);
         public abstract ValueTask<RpcResult> TrySendAsync(IMessage message);
+        public abstract ValueTask<RpcResult> SendSystemMessage(ISystemMessage message);
         public abstract ValueTask SendAsync(IMessage message);
-        public abstract Task Close(RpcResult fault);
+        public abstract void Start(ByteTransport transport);
+        public abstract void StartProcessingUserMessages();
+        public abstract void StopProcessingUserMessages(RpcResult fault);
+        public abstract Task Close();
 
         protected abstract ValueTask<ArraySegment<byte>> DequeueNextSegment();
 
-        protected Task<RpcResult<ByteTransport>> GetTransport()
-        {
-            return _transportRequestFunc();
-        }
-
         protected void SignalCommunicationError(RpcResult fault)
         {
-            CommunicationFaulted?.Invoke(fault);
+            CommunicationFaulted.Invoke(fault);
         }
 
         protected void StartTransportRead()
@@ -56,8 +48,6 @@ namespace SharpRpc
         {
             try
             {
-                //var segmentList = new List<ArraySegment<byte>>();
-
                 while (true)
                 {
                     var data =  await DequeueNextSegment();
@@ -66,12 +56,6 @@ namespace SharpRpc
                     try
                     {
                         await Transport.Send(data);
-
-                        //if (sentBytes == 0)
-                        //{
-                        //    SignalCommunicationError(new RpcResult(RpcRetCode.ConnectionShutdown, ""));
-                        //    return;
-                        //}
                     }
                     catch (Exception ex)
                     {
@@ -85,6 +69,11 @@ namespace SharpRpc
             {
                 SignalCommunicationError(new RpcResult(RpcRetCode.OtherError, ex.Message));
             }
+        }
+
+        protected void SignalConnectionRequest()
+        {
+            ConnectionRequested.Invoke();
         }
     }
 }

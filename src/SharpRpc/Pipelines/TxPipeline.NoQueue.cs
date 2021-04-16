@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Runtime.Serialization;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -13,20 +14,21 @@ namespace SharpRpc
             private readonly object _lockObj = new object();
             private readonly TxBuffer _buffer;
             private bool _isProcessingItem;
-            private bool isClosing;
-            private bool _isInitialized;
-            private bool _isInitializing;
+            private bool _isClosing;
+            private bool _isStarted;
+            private bool _isRequestedConnection;
+            private bool _isUserMessagesEnabled;
             private RpcResult _fault;
             private readonly int _bufferSizeThreshold;
             private readonly Queue<IPendingItem> _asyncQueue = new Queue<IPendingItem>();
+            private readonly Queue<IPendingItem> _systemQueue = new Queue<IPendingItem>();
             private readonly TaskCompletionSource<object> _completedEvent = new TaskCompletionSource<object>();
             private DateTime _lastTxTime = DateTime.MinValue;
             private readonly TimeSpan _idleThreshold;
             private readonly Timer _keepAliveTimer;
             private readonly IMessage _keepAliveMessage;
 
-            public NoQueue(ContractDescriptor descriptor, Endpoint config, Func<Task<RpcResult<ByteTransport>>> transportRequestFunc)
-                : base(transportRequestFunc)
+            public NoQueue(ContractDescriptor descriptor, Endpoint config)
             {
                 _buffer = new TxBuffer(_lockObj, config.TxBufferSegmentSize, descriptor.SerializationAdapter);
                 _bufferSizeThreshold = config.TxBufferSegmentSize * 2;
@@ -41,7 +43,8 @@ namespace SharpRpc
                 }
             }
 
-            private bool CanProcessNextMessage => _isInitialized &&!_isProcessingItem && HasRoomForNextMessage;
+            private bool CanProcessUserMessage => _isUserMessagesEnabled && !_isProcessingItem && HasRoomForNextMessage;
+            private bool CanProcessSystemMessage => _isStarted && !_isProcessingItem && HasRoomForNextMessage;
             private bool HasRoomForNextMessage => _buffer.DataSize < _bufferSizeThreshold;
 
             public override RpcResult TrySend(IMessage message)
@@ -51,9 +54,9 @@ namespace SharpRpc
                     if (_fault.Code != RpcRetCode.Ok)
                         return _fault;
 
-                    LazyInit();
+                    CheckConnectionFlags();
 
-                    while (!CanProcessNextMessage)
+                    while (!CanProcessUserMessage)
                     {
                         Monitor.Wait(_lockObj);
 
@@ -75,12 +78,37 @@ namespace SharpRpc
                     if (_fault.Code != RpcRetCode.Ok)
                         return new ValueTask<RpcResult>(_fault);
 
-                    LazyInit();
+                    CheckConnectionFlags();
 
-                    if (!CanProcessNextMessage)
+                    if (!CanProcessUserMessage)
                     {
                         var waitItem = new AsyncTryItem(message);
                         _asyncQueue.Enqueue(waitItem);
+                        return new ValueTask<RpcResult>(waitItem.Task);
+                    }
+                    else
+                    {
+                        _isProcessingItem = true;
+                        _buffer.Lock();
+                    }
+                }
+
+                return new ValueTask<RpcResult>(ProcessMessage(message));
+            }
+
+            public override ValueTask<RpcResult> SendSystemMessage(ISystemMessage message)
+            {
+                lock (_lockObj)
+                {
+                    if (_isClosing)
+                        return new ValueTask<RpcResult>(_fault);
+
+                    CheckConnectionFlags();
+
+                    if (!CanProcessSystemMessage)
+                    {
+                        var waitItem = new AsyncTryItem(message);
+                        _systemQueue.Enqueue(waitItem);
                         return new ValueTask<RpcResult>(waitItem.Task);
                     }
                     else
@@ -99,9 +127,9 @@ namespace SharpRpc
                 {
                     _fault.ThrowIfNotOk();
 
-                    LazyInit();
+                    CheckConnectionFlags();
 
-                    if (!CanProcessNextMessage)
+                    if (!CanProcessUserMessage)
                     {
                         var waitItem = new AsyncThrowItem(message);
                         _asyncQueue.Enqueue(waitItem);
@@ -124,40 +152,21 @@ namespace SharpRpc
                 TrySend(message).ThrowIfNotOk();
             }
 
-            private void LazyInit()
+            private void CheckConnectionFlags()
             {
-                if (!_isInitialized && !_isInitializing)
+                if (!_isStarted && !_isRequestedConnection)
                 {
-                    _isInitializing = true;
-                    Initialize();
+                    _isRequestedConnection = true;
+                    RequestConnection();
                 }
             }
 
-            private async void Initialize()
+            private async void RequestConnection()
             {
                 // exit lock
                 await Task.Yield();
 
-                var ret = await GetTransport();
-
-                lock (_lockObj)
-                {
-                    _isInitialized = true;
-                    _isInitializing = false;
-
-                    Transport = ret.Result;
-
-                    if (ret.Code != RpcRetCode.Ok)
-                    {
-                        _fault = new RpcResult(ret.Code, ret.Fault);
-                        FailAllPendingItems();
-                    }
-                    else
-                    {
-                        StartTransportRead();
-                        EnqueueNextItem();
-                    }
-                }
+                SignalConnectionRequest();
             }
 
             private RpcResult ProcessMessage(IMessage msg)
@@ -181,7 +190,7 @@ namespace SharpRpc
                     {
                         _isProcessingItem = false;
 
-                        if (!isClosing)
+                        if (!_isClosing)
                             EnqueueNextItem();
                         else
                             CompleteClose();
@@ -208,45 +217,99 @@ namespace SharpRpc
 
             private void EnqueueNextItem()
             {
-                if (_asyncQueue.Count > 0)
+                var nextPending = DequeuePending();
+
+                if (nextPending != null)
                 {
                     _isProcessingItem = true;
                     _buffer.Lock();
-
-                    var nextAsyncItem = _asyncQueue.Dequeue();
 
                     Task.Factory.StartNew(p =>
                     {
                         var task = (IPendingItem)p;
                         task.OnResult(ProcessMessage(task.Message));
-                    }, nextAsyncItem);
+                    }, nextPending);
                 }
                 else
                 {
-                    Monitor.Pulse(_lockObj);
+                    Monitor.PulseAll(_lockObj);
                 }
             }
 
-            public override async Task Close(RpcResult fault)
+            private IPendingItem DequeuePending()
             {
-                await ClosePipeline(fault);
-                await WaitTransportReadToEnd();
+                if (_systemQueue.Count > 0)
+                    return _systemQueue.Dequeue();
+                else if (_isUserMessagesEnabled && _asyncQueue.Count > 0)
+                    return _asyncQueue.Dequeue();
+                else
+                    return null;
             }
 
-            private Task ClosePipeline(RpcResult fault)
+            public override void Start(ByteTransport transport)
             {
                 lock (_lockObj)
                 {
-                    if (!isClosing)
+                    _isStarted = true;
+
+                    Transport = transport;
+                    StartTransportRead();
+                    EnqueueNextItem();
+                }
+            }
+
+            public override void StartProcessingUserMessages()
+            {
+                lock (_lockObj)
+                {
+                    if (_isStarted && !_isClosing)
                     {
-                        isClosing = true;
+                        _isUserMessagesEnabled = true;
+                        EnqueueNextItem();
+                    }
+                    else
+                        throw new Exception("Invalid state!");
+                }
+            }
+
+            public override void StopProcessingUserMessages(RpcResult fault)
+            {
+                lock (_lockObj)
+                {
+                    if (_isStarted && !_isClosing)
+                    {
+                        _isUserMessagesEnabled = false;
                         _fault = fault;
+
+                        Monitor.PulseAll(_lockObj);
+
+                        while (_asyncQueue.Count > 0)
+                            _asyncQueue.Dequeue().OnResult(_fault);
+                    }
+                    else
+                        throw new Exception("Invalid state!");
+                }
+            }
+
+            public override async Task Close()
+            {
+                await ClosePipeline();
+                await WaitTransportReadToEnd();
+            }
+
+            private Task ClosePipeline()
+            {
+                lock (_lockObj)
+                {
+                    if (!_isClosing)
+                    {
+                        _isClosing = true;
 
                         _keepAliveTimer?.Dispose();
 
                         Monitor.PulseAll(_lockObj);
 
-                        while (_asyncQueue.Count > 0)
+                        while (_systemQueue.Count > 0)
                             _asyncQueue.Dequeue().OnResult(_fault);
 
                         if (!_isProcessingItem)
@@ -328,7 +391,7 @@ namespace SharpRpc
 
             private void _buffer_SpaceFreed(TxBuffer sender)
             {
-                if (CanProcessNextMessage)
+                if (_isStarted && !_isProcessingItem)
                     EnqueueNextItem();
             }
         }

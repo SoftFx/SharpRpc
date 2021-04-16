@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection.Metadata.Ecma335;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -15,13 +16,16 @@ namespace SharpRpc
         private readonly IRpcSerializer _serializer;
         private readonly MessageDispatcher _msgConsumer;
         private readonly List<IMessage> _page = new List<IMessage>();
+        private readonly SessionCoordinator _coordinator;
         private Task _rxLoop;
+        private bool _isLoggedIn;
 
-        public RxPipeline(ByteTransport transport, Endpoint config, IRpcSerializer serializer, MessageDispatcher messageConsumer)
+        public RxPipeline(ByteTransport transport, Endpoint config, IRpcSerializer serializer, MessageDispatcher messageConsumer, SessionCoordinator coordinator)
         {
             _transport = transport;
             _serializer = serializer;
             _msgConsumer = messageConsumer;
+            _coordinator = coordinator;
         }
 
         protected abstract ArraySegment<byte> AllocateRxBuffer();
@@ -86,53 +90,6 @@ namespace SharpRpc
 
         protected RpcResult ParseAndDeserialize(ArraySegment<byte> segment, out int bytesConsumed)
         {
-            if (_msgConsumer.SuportsBatching)
-                return BatchParseAndDeserialize(segment, out bytesConsumed);
-            else
-                return ParseAndDeserializeOneByOne(segment, out bytesConsumed);
-        }
-
-        protected RpcResult ParseAndDeserializeOneByOne(ArraySegment<byte> segment, out int bytesConsumed)
-        {
-            bytesConsumed = 0;
-
-            _parser.SetNextSegment(segment);
-
-            while (true)
-            {
-                var pCode = _parser.ParseFurther();
-
-                if (pCode == MessageParser.RetCodes.EndOfSegment)
-                    break;
-                else if (pCode == MessageParser.RetCodes.MessageParsed)
-                {
-                    _reader.Init(_parser.MessageBody);
-
-                    IMessage msg;
-
-                    try
-                    {
-                        msg = _serializer.Deserialize(_reader);
-                    }
-                    catch (Exception ex)
-                    {
-                        return new RpcResult(RpcRetCode.DeserializationError, ex.Message);
-                    }
-
-                    _msgConsumer.OnMessage(msg);
-
-                    bytesConsumed += _reader.MsgSize;
-                    _reader.Clear();
-                }
-                else
-                    return new RpcResult(RpcRetCode.ProtocolViolation, "A violation of message markup protocol has been detected. Code: " + pCode);
-            }
-
-            return RpcResult.Ok;
-        }
-
-        protected RpcResult BatchParseAndDeserialize(ArraySegment<byte> segment, out int bytesConsumed)
-        {
             bytesConsumed = 0;
 
             _page.Clear();
@@ -151,21 +108,50 @@ namespace SharpRpc
                     try
                     {
                         var msg = _serializer.Deserialize(_reader);
-                        _page.Add(msg);
+
+                        if (msg is ISystemMessage sysMsg)
+                        {
+                            var sysMsgResult = OnSystemMessage(sysMsg);
+                            if (sysMsgResult.Code != RpcRetCode.Ok)
+                                return sysMsgResult;
+                        }
+                        else if (!_isLoggedIn)
+                            return new RpcResult(RpcRetCode.ProtocolViolation, "A violation of handshake protocol has been detected!");
+                        else
+                            _page.Add(msg);
                     }
                     catch (Exception ex)
                     {
                         return new RpcResult(RpcRetCode.DeserializationError, ex.Message);
                     }
 
-                    bytesConsumed += _reader.MsgSize;
+                    bytesConsumed += _parser.MessageBrutto;
 
                     _reader.Clear();
                 }
+                else
+                    return new RpcResult(RpcRetCode.ProtocolViolation, "A violation of message markup protocol has been detected! Code: " + pCode);
             }
 
             if (_page.Count > 0)
                 _msgConsumer.OnMessages(_page);
+
+            return RpcResult.Ok;
+        }
+
+        private RpcResult OnSystemMessage(ISystemMessage msg)
+        {
+            // ignore hartbeat (it did his job by just arriving)
+            if (msg is IHeartbeatMessage)
+                return RpcResult.Ok;
+
+            var result = _coordinator.OnMessage(msg, out var isLoggedIn);
+
+            if (result.Code != RpcRetCode.Ok)
+                return result;
+
+            if (isLoggedIn)
+                _isLoggedIn = true;
 
             return RpcResult.Ok;
         }

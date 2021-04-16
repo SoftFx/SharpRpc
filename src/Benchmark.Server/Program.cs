@@ -20,7 +20,7 @@ namespace Benchmark.Server
         {
             var srv1 = RunServer(ConcurrencyMode.NoQueue, 812);
             //var srv2 = RunServer(ConcurrencyMode.DataflowX1, 813);
-            var srv3 = RunServer(ConcurrencyMode.PagedQueueX1, 814);
+            var srv3 = RunServer(ConcurrencyMode.PagedQueue, 814);
 
             Console.Read();
 
