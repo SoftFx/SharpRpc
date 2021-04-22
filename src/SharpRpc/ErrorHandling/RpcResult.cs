@@ -38,7 +38,7 @@
                 throw new RpcException(Fault.Message, Code);
         }
 
-        internal RpcException ToException()
+        public RpcException ToException()
         {
             return new RpcException(Fault.Message, Code);
         }

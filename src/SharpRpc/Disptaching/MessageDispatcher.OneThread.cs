@@ -1,6 +1,7 @@
 ﻿using SharpRpc.Lib;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -15,17 +16,22 @@ namespace SharpRpc
             private readonly Dictionary<string, ITask> _callTasks = new Dictionary<string, ITask>();
             private readonly List<MessageTaskPair> _batch = new List<MessageTaskPair>();
             private TaskCompletionSource<bool> _dataAvaialableEvent;
+            private bool _allowFlag;
             private bool _completed;
             private readonly int _pageSize = 50;
             private Task _workerTask;
+            private RpcResult _fault;
 
-            public OneThread()
+            public override void Start()
             {
+                lock (_lockObj)
+                    _workerTask = InvokeMessageHandlerLoop();
             }
 
-            protected override void OnInit()
+            public override void AllowMessages()
             {
-                _workerTask = InvokeMessageHandlerLoop();
+                lock (_lockObj)
+                    _allowFlag = true;
             }
 
             public override void OnMessages(IEnumerable<IMessage> messages)
@@ -35,9 +41,12 @@ namespace SharpRpc
                     if (_completed)
                         return;
 
+                    if (!_allowFlag)
+                        OnError(RpcRetCode.ProtocolViolation, "A violation of handshake protocol has been detected!");
+
                     foreach (var msg in messages)
                         MatchAndEnqueue(msg);
-                    
+
                     SignalDataReady();
                 }
             }
@@ -55,20 +64,30 @@ namespace SharpRpc
                     _queue.Add(new MessageTaskPair(incomingMessage));
             }
 
-            public override Task Close(bool dropTheQueue)
+            public override Task Stop(RpcResult fault)
             {
+                Task stopWaithandle;
+                List<ITask> tasksToCanel;
+
                 lock (_lockObj)
                 {
                     _completed = true;
-
-                    if (dropTheQueue)
-                        _queue.Clear();
+                    _queue.Clear();
+                    _fault = fault;
 
                     if (_queue.Count == 0)
                         SignalCompleted();
 
-                    return _workerTask;
+                    tasksToCanel = _callTasks.Values.ToList();
+                    _callTasks.Clear();
+
+                    stopWaithandle = _workerTask ?? Task.CompletedTask;
                 }
+
+                foreach (var task in tasksToCanel)
+                    task.Fail(_fault);
+
+                return stopWaithandle;
             }
 
             protected override async void DoCall(IRequest requestMsg, ITask callTask)
@@ -82,7 +101,7 @@ namespace SharpRpc
                 lock (_lockObj)
                 {
                     if (_completed)
-                        result = RpcResult.ChannelClose;
+                        result = _fault;
                     else
                         _callTasks.Add(callId, callTask);
                 }
@@ -152,11 +171,7 @@ namespace SharpRpc
 
                     foreach (var item in _batch)
                     {
-                        if (item.Message is ISystemMessage sysMsg)
-                        {
-                            // ?????
-                        }
-                        else if (item.Message is IResponse resp)
+                        if (item.Message is IResponse resp)
                         {
                             item.Task.Complete(resp);
                         }

@@ -18,42 +18,75 @@ namespace SharpRpc.Builder
         public readonly string SerializerMethod = "MessagePack.MessagePackSerializer.Serialize";
         public readonly string DeserializerMethod = "MessagePack.MessagePackSerializer.Deserialize";
 
-        private List<TypeString> _messageClassNames = new List<TypeString>();
-
         public override string Name => "MessagePack";
 
-        public override void BuildUpMessage(MessageBuilder builder)
+        public override void BuildUpClassHierachy(ClassBuildNode rootNode)
         {
-            _messageClassNames.Add(builder.MessageClassName);
-
-            builder.UpdateClassDeclaration(
+            rootNode.UpdateDeclaration(
                 c => c.AddSeparatedAttributes(SH.Attribute(ContractAttributeClassName)));
 
-            for (int i = 0; i < builder.MessageProperties.Count; i++)
+            for (int i = 0; i < rootNode.PropertyDeclarations.Count; i++)
             {
                 var keyAttr = SH.Attribute(MemberAttributeClassName,
                     SF.AttributeArgument(SH.LiteralExpression(i + 1)));
 
-                builder.UpdatePropertyDeclaration(i, p => p.AddAttributes(keyAttr));
+                rootNode.UpdatePropertyDeclaration(i, p => p.AddAttributes(keyAttr));
             }
+
+            AddUnions(rootNode);
+
+            foreach (var successor in rootNode.Successors)
+                BuildUpClassHierachy(successor);
         }
 
-        public override void CompleteMessageBuilding(ref ClassDeclarationSyntax baseMessageClassDeclaration)
+        private void AddUnions(ClassBuildNode node)
         {
             var attrList = new List<AttributeSyntax>();
 
-            for (int i = 0; i < _messageClassNames.Count; i++)
+            for (int i = 0; i < node.Successors.Count; i++)
             {
-                var msgName = _messageClassNames[i];
+                var className = node.Successors[i].ClassName;
 
                 attrList.Add(SH.Attribute(UnionAttributeClassName,
                     SH.AttributeArgument(SH.LiteralExpression(i + 1)),
-                    SH.AttributeArgument(SH.TypeOfExpression(msgName.Full))));
+                    SH.AttributeArgument(SH.TypeOfExpression(className.Full))));
             }
 
-            baseMessageClassDeclaration = baseMessageClassDeclaration.
-                AddSeparatedAttributes(attrList);
+            node.UpdateDeclaration(d => d.AddSeparatedAttributes(attrList));
         }
+
+        //public override void BuildUpMessage(MessageBuilder builder)
+        //{
+        //    _messageClassNames.Add(builder.MessageClassName);
+
+        //    builder.UpdateClassDeclaration(
+        //        c => c.AddSeparatedAttributes(SH.Attribute(ContractAttributeClassName)));
+
+        //    for (int i = 0; i < builder.MessageProperties.Count; i++)
+        //    {
+        //        var keyAttr = SH.Attribute(MemberAttributeClassName,
+        //            SF.AttributeArgument(SH.LiteralExpression(i + 1)));
+
+        //        builder.UpdatePropertyDeclaration(i, p => p.AddAttributes(keyAttr));
+        //    }
+        //}
+
+        //public override void CompleteMessageBuilding(ref ClassDeclarationSyntax baseMessageClassDeclaration)
+        //{
+        //    var attrList = new List<AttributeSyntax>();
+
+        //    for (int i = 0; i < _messageClassNames.Count; i++)
+        //    {
+        //        var msgName = _messageClassNames[i];
+
+        //        attrList.Add(SH.Attribute(UnionAttributeClassName,
+        //            SH.AttributeArgument(SH.LiteralExpression(i + 1)),
+        //            SH.AttributeArgument(SH.TypeOfExpression(msgName.Full))));
+        //    }
+
+        //    baseMessageClassDeclaration = baseMessageClassDeclaration.
+        //        AddSeparatedAttributes(attrList);
+        //}
 
         public override ClassDeclarationSyntax GenerateSerializerAdapter(TypeString serilizerClassName, TypeString baseMessageClassName, GeneratorExecutionContext context)
         {

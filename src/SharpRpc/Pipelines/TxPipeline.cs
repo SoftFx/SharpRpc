@@ -1,6 +1,7 @@
 ﻿using SharpRpc.Lib;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,6 +12,7 @@ namespace SharpRpc
     internal abstract partial class TxPipeline
     {
         private Task _txLoop;
+        private readonly CancellationTokenSource _txCancelSrc = new CancellationTokenSource();
 
         public ByteTransport Transport { get; protected set; }
 
@@ -25,7 +27,7 @@ namespace SharpRpc
         public abstract void Start(ByteTransport transport);
         public abstract void StartProcessingUserMessages();
         public abstract void StopProcessingUserMessages(RpcResult fault);
-        public abstract Task Close();
+        public abstract Task Close(TimeSpan gracefulCloseTimeout);
 
         protected abstract ValueTask<ArraySegment<byte>> DequeueNextSegment();
 
@@ -34,14 +36,24 @@ namespace SharpRpc
             CommunicationFaulted.Invoke(fault);
         }
 
-        protected void StartTransportRead()
+        protected void StartTransportWrite()
         {
             _txLoop = TxBytesLoop();
         }
 
-        protected Task WaitTransportReadToEnd()
+        protected void AbortTransportWriteAfter(TimeSpan timeSpan)
         {
-            return _txLoop;
+            _txCancelSrc.CancelAfter(timeSpan);
+        }
+
+        protected void AbortTransportRead()
+        {
+            _txCancelSrc.Cancel();
+        }
+
+        protected Task WaitTransportWaitToEnd()
+        {
+            return _txLoop ?? Task.CompletedTask;
         }
 
         private async Task TxBytesLoop()
@@ -50,12 +62,21 @@ namespace SharpRpc
             {
                 while (true)
                 {
-                    var data =  await DequeueNextSegment();
-                    await Task.Yield(); 
+                    var data = await DequeueNextSegment();
+
+                    if (data.Array == null)
+                        return;
+
+                    await Task.Yield();
 
                     try
                     {
-                        await Transport.Send(data);
+                        await Transport.Send(data, _txCancelSrc.Token);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // normal exit
+                        return;
                     }
                     catch (Exception ex)
                     {

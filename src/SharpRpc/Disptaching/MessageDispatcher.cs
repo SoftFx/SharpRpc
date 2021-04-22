@@ -23,7 +23,6 @@ namespace SharpRpc
         {
             Tx = tx;
             MessageHandler = handler;
-            OnInit();
             return this;
         }
 
@@ -37,10 +36,11 @@ namespace SharpRpc
 
         public event Action<RpcResult> ErrorOccured;
 
+        public abstract void Start();
+        public abstract void AllowMessages();
         public abstract void OnMessages(IEnumerable<IMessage> messages);
-        public abstract Task Close(bool dropTheQueue);
+        public abstract Task Stop(RpcResult fault);
 
-        protected virtual void OnInit() { }
         protected abstract void DoCall(IRequest requestMsg, ITask callTask);
 
         public Task Call<TResp>(IRequest requestMsg)

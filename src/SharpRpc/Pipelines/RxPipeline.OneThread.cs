@@ -19,6 +19,7 @@ namespace SharpRpc
             private bool _isBusy;
             private ArraySegment<byte> _segmentToParse;
             private ArraySegment<byte> _awaitingSegment;
+            private RpcResult _communicationError;
 
             public OneThread(ByteTransport transport, Endpoint config, IRpcSerializer serializer, MessageDispatcher messageConsumer, SessionCoordinator coordinator)
                 : base(transport, config, serializer, messageConsumer, coordinator)
@@ -57,6 +58,20 @@ namespace SharpRpc
                 }
             }
 
+            protected override void OnCommunicationError(RpcResult fault)
+            {
+                bool signalNow;
+
+                lock (_lockObj)
+                {
+                    _communicationError = fault;
+                    signalNow = !_isBusy;
+                }
+
+                if (signalNow)
+                    SignalCommunicationError(fault);
+            }
+
             private void LaunchWorker(ArraySegment<byte> dataToProcess)
             {
                 _isBusy = true;
@@ -79,12 +94,12 @@ namespace SharpRpc
                     if (!_isBusy)
                     {
                         CompleteClose();
-                        return WaitStopTransportRx();
+                        return StopTransportRx();
                     }
                     else
                     {
                         _closeWaitHandler = new TaskCompletionSource<bool>();
-                        return Task.WhenAll(_closeWaitHandler.Task, WaitStopTransportRx());
+                        return Task.WhenAll(_closeWaitHandler.Task, StopTransportRx());
                     }
                 }
             }
@@ -121,9 +136,12 @@ namespace SharpRpc
                             LaunchWorker(_awaitingSegment);
                             _awaitingSegment = default;
                         }
-                        else
-                            CompleteClose();
                     }
+
+                    if (_isClosing)
+                        CompleteClose();
+                    else if (!_communicationError.IsOk)
+                        SignalCommunicationError(_communicationError);
 
                     isNotClosed = !_isClosing;
                 }

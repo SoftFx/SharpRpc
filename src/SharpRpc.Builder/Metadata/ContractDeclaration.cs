@@ -20,6 +20,8 @@ namespace SharpRpc.Builder
             LoginMessageClassName = new TypeString(SystemBundleClassName.Short, "Login");
             LogoutMessageClassName = new TypeString(SystemBundleClassName.Short, "Logout");
             HeartbeatMessageClassName = new TypeString(SystemBundleClassName.Short, "Heartbeat");
+            //AuthDataClassName = new TypeString(SystemBundleClassName.Short, "AuthData");
+            //BasicAuthDataClassName = new TypeString(SystemBundleClassName.Short, "BasicAuthData");
             ClientStubClassName = new TypeString(FacadeClassName.Full, "Client");
             ServiceStubClassName = new TypeString(FacadeClassName.Full, "Service");
         }
@@ -36,6 +38,8 @@ namespace SharpRpc.Builder
         public TypeString LoginMessageClassName { get; }
         public TypeString LogoutMessageClassName { get; }
         public TypeString HeartbeatMessageClassName { get; }
+        //public TypeString AuthDataClassName { get; }
+        //public TypeString BasicAuthDataClassName { get; }
         public List<CallDeclaration> Calls { get; } = new List<CallDeclaration>();
 
         internal IReadOnlyList<SerializerDeclaration> Serializers => _serializers;

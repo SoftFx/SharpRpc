@@ -14,23 +14,27 @@ namespace SharpRpc.Builder
 
         public override string Name => "DataContract";
 
-        public override void BuildUpMessage(MessageBuilder builder)
+        public override void BuildUpClassHierachy(ClassBuildNode rootNode)
         {
-            builder.UpdateClassDeclaration(
-                c => c.AddSeparatedAttributes(SyntaxHelper.Attribute(ContractAttributeClassName)));
-
-            for (int i = 0; i < builder.MessageProperties.Count; i++)
-            {
-                var memberAttr = SyntaxHelper.Attribute(MemberAttributeClassName);
-
-                builder.UpdatePropertyDeclaration(i, p => p.AddAttributes(memberAttr));
-            }
         }
 
-        public override void CompleteMessageBuilding(ref Microsoft.CodeAnalysis.CSharp.Syntax.ClassDeclarationSyntax baseMessageClassDeclaration)
-        {
+        //public override void BuildUpMessage(MessageBuilder builder)
+        //{
+        //    builder.UpdateClassDeclaration(
+        //        c => c.AddSeparatedAttributes(SyntaxHelper.Attribute(ContractAttributeClassName)));
 
-        }
+        //    for (int i = 0; i < builder.MessageProperties.Count; i++)
+        //    {
+        //        var memberAttr = SyntaxHelper.Attribute(MemberAttributeClassName);
+
+        //        builder.UpdatePropertyDeclaration(i, p => p.AddAttributes(memberAttr));
+        //    }
+        //}
+
+        //public override void CompleteMessageBuilding(ref Microsoft.CodeAnalysis.CSharp.Syntax.ClassDeclarationSyntax baseMessageClassDeclaration)
+        //{
+
+        //}
 
         public override ClassDeclarationSyntax GenerateSerializerAdapter(TypeString serilizerClassName, TypeString baseMessageClassName, GeneratorExecutionContext context)
         {

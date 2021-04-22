@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Reflection.Metadata.Ecma335;
 using System.Text;
@@ -17,8 +18,8 @@ namespace SharpRpc
         private readonly MessageDispatcher _msgConsumer;
         private readonly List<IMessage> _page = new List<IMessage>();
         private readonly SessionCoordinator _coordinator;
+        //private readonly CancellationTokenSource _rxCancelSrc = new CancellationTokenSource();
         private Task _rxLoop;
-        private bool _isLoggedIn;
 
         public RxPipeline(ByteTransport transport, Endpoint config, IRpcSerializer serializer, MessageDispatcher messageConsumer, SessionCoordinator coordinator)
         {
@@ -28,11 +29,13 @@ namespace SharpRpc
             _coordinator = coordinator;
         }
 
-        protected abstract ArraySegment<byte> AllocateRxBuffer();
-        protected abstract ValueTask<bool> OnBytesArrived(int count);
         protected MessageDispatcher MessageConsumer => _msgConsumer;
 
         public event Action<RpcResult> CommunicationFaulted;
+
+        protected abstract ArraySegment<byte> AllocateRxBuffer();
+        protected abstract ValueTask<bool> OnBytesArrived(int count);
+        protected abstract void OnCommunicationError(RpcResult fault);
 
         public abstract void Start();
         public abstract Task Close();
@@ -42,8 +45,9 @@ namespace SharpRpc
             _rxLoop = RxLoop();
         }
 
-        protected Task WaitStopTransportRx()
+        protected Task StopTransportRx()
         {
+            //_rxCancelSrc.Cancel();
             return _rxLoop;
         }
 
@@ -57,29 +61,35 @@ namespace SharpRpc
                 {
                     var buffer = AllocateRxBuffer();
 
-                    byteCount = await _transport.Receive(buffer);
+                    byteCount = await _transport.Receive(buffer, CancellationToken.None); // _rxCancelSrc.Token);
 
                     if (byteCount == 0)
                     {
-                        SignalCommunicationError(new RpcResult(RpcRetCode.ConnectionShutdown, ""));
+                        OnCommunicationError(new RpcResult(RpcRetCode.ConnectionAbortedByPeer, "Connection is closed by foreign host."));
                         break;
                     }
 
                 }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
                 catch (RpcException rex)
                 {
-                    SignalCommunicationError(rex.ToRpcResult());
+                    OnCommunicationError(rex.ToRpcResult());
                     return;
                 }
                 catch (Exception ex)
                 {
                     var fault = _transport.TranslateException(ex);
-                    SignalCommunicationError(fault);
+                    OnCommunicationError(fault);
                     return;
                 }
 
-                if (!await OnBytesArrived(byteCount))
-                    break;
+                await OnBytesArrived(byteCount);
+
+                //if (!await OnBytesArrived(byteCount))
+                //    break;
             }
         }
 
@@ -115,8 +125,6 @@ namespace SharpRpc
                             if (sysMsgResult.Code != RpcRetCode.Ok)
                                 return sysMsgResult;
                         }
-                        else if (!_isLoggedIn)
-                            return new RpcResult(RpcRetCode.ProtocolViolation, "A violation of handshake protocol has been detected!");
                         else
                             _page.Add(msg);
                     }
@@ -145,13 +153,13 @@ namespace SharpRpc
             if (msg is IHeartbeatMessage)
                 return RpcResult.Ok;
 
-            var result = _coordinator.OnMessage(msg, out var isLoggedIn);
+            var result = _coordinator.OnMessage(msg);
 
             if (result.Code != RpcRetCode.Ok)
                 return result;
 
-            if (isLoggedIn)
-                _isLoggedIn = true;
+            //if (isLoggedIn)
+            //    _isLoggedIn = true;
 
             return RpcResult.Ok;
         }

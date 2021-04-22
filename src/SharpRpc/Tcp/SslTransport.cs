@@ -18,14 +18,14 @@ namespace SharpRpc.Tcp
             _stream = stream;
         }
 
-        public override ValueTask<int> Receive(ArraySegment<byte> buffer)
+        public override ValueTask<int> Receive(ArraySegment<byte> buffer, CancellationToken cToken)
         {
-            return _stream.ReadAsync(buffer);
+            return _stream.ReadAsync(buffer, cToken);
         }
 
-        public override ValueTask Send(ArraySegment<byte> data)
+        public override ValueTask Send(ArraySegment<byte> data, CancellationToken cToken)
         {
-            return _stream.WriteAsync(data);
+            return _stream.WriteAsync(data, cToken);
         }
 
         public override RpcResult TranslateException(Exception ex)

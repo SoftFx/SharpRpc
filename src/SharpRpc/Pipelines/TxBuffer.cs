@@ -129,9 +129,6 @@ namespace SharpRpc
         {
             lock (_lockObj)
             {
-                if (_isClosed)
-                    return new ValueTask<ArraySegment<byte>>(new ArraySegment<byte>());
-
                 if (_dequeuedSegment != null)
                 {
                     _memManager.FreeSegment(_dequeuedSegment);
@@ -146,6 +143,8 @@ namespace SharpRpc
                     SpaceFreed?.Invoke(this);
                     return new ValueTask<ArraySegment<byte>>(result);
                 }
+                else if (_isClosed)
+                    return new ValueTask<ArraySegment<byte>>(new ArraySegment<byte>());
                 else
                 {
                     _dequeueWaitHandle = new DequeueRequest();

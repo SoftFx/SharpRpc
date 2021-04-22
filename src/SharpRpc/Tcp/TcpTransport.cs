@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Net.Sockets;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace SharpRpc
@@ -12,17 +14,18 @@ namespace SharpRpc
         public TcpTransport(Socket socket)
         {
             _socket = socket;
+            _socket.NoDelay = true;
             _stream = new NetworkStream(socket, false);
         }
 
-        public override ValueTask<int> Receive(ArraySegment<byte> buffer)
+        public override ValueTask<int> Receive(ArraySegment<byte> buffer, CancellationToken cToken)
         {
-            return _stream.ReadAsync(buffer);
+            return _stream.ReadAsync(buffer, cToken);
         }
 
-        public override ValueTask Send(ArraySegment<byte> data)
+        public override ValueTask Send(ArraySegment<byte> data, CancellationToken cToken)
         {
-            return _stream.WriteAsync(data);
+            return _stream.WriteAsync(data, cToken);
         }
 
         public override RpcResult TranslateException(Exception ex)
@@ -32,7 +35,9 @@ namespace SharpRpc
 
         public static RpcResult ToRpcResult(Exception ex)
         {
-            if (ex.InnerException is SocketException socketEx)
+            var socketEx = ex as SocketException ?? ex.InnerException as SocketException;
+
+            if (socketEx != null)
             {
                 switch (socketEx.SocketErrorCode)
                 {
@@ -52,6 +57,7 @@ namespace SharpRpc
         {
             try
             {
+
                 _socket.Shutdown(SocketShutdown.Both);
             }
             catch (Exception)
@@ -68,6 +74,8 @@ namespace SharpRpc
             {
                 // TO DO : log
             }
+
+            _socket.Close();
         }
 
         public override void Dispose()

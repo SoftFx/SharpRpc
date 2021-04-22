@@ -193,7 +193,10 @@ namespace SharpRpc
                         if (!_isClosing)
                             EnqueueNextItem();
                         else
-                            CompleteClose();
+                        {
+                            if (_asyncQueue.Count == 0)
+                                CompleteClose();
+                        }
                     }
                 }
             }
@@ -253,7 +256,7 @@ namespace SharpRpc
                     _isStarted = true;
 
                     Transport = transport;
-                    StartTransportRead();
+                    StartTransportWrite();
                     EnqueueNextItem();
                 }
             }
@@ -276,7 +279,7 @@ namespace SharpRpc
             {
                 lock (_lockObj)
                 {
-                    if (_isStarted && !_isClosing)
+                    if (!_isClosing)
                     {
                         _isUserMessagesEnabled = false;
                         _fault = fault;
@@ -286,19 +289,19 @@ namespace SharpRpc
                         while (_asyncQueue.Count > 0)
                             _asyncQueue.Dequeue().OnResult(_fault);
                     }
-                    else
-                        throw new Exception("Invalid state!");
                 }
             }
 
-            public override async Task Close()
+            public override async Task Close(TimeSpan gracefulCloseTimeout)
             {
-                await ClosePipeline();
-                await WaitTransportReadToEnd();
+                await ClosePipeline(gracefulCloseTimeout);
+                await WaitTransportWaitToEnd();
             }
 
-            private Task ClosePipeline()
+            private Task ClosePipeline(TimeSpan gracefulCloseTimeout)
             {
+                bool gracefulClose = gracefulCloseTimeout > TimeSpan.Zero;
+
                 lock (_lockObj)
                 {
                     if (!_isClosing)
@@ -309,13 +312,19 @@ namespace SharpRpc
 
                         Monitor.PulseAll(_lockObj);
 
-                        while (_systemQueue.Count > 0)
-                            _asyncQueue.Dequeue().OnResult(_fault);
+                        if (!gracefulClose)
+                        {
+                            while (_systemQueue.Count > 0)
+                                _asyncQueue.Dequeue().OnResult(_fault);
+                        }
 
                         if (!_isProcessingItem)
-                            _completedEvent.TrySetResult(true);
+                            CompleteClose();
 
-                        _buffer.Close();
+                        if (gracefulClose)
+                            AbortTransportWriteAfter(gracefulCloseTimeout);
+                        else
+                            AbortTransportRead();
                     }
                 }
 
@@ -324,16 +333,8 @@ namespace SharpRpc
 
             private void CompleteClose()
             {
-                lock (_lockObj)
-                {
-                    _completedEvent.TrySetResult(true);
-                }
-            }
-
-            private void FailAllPendingItems()
-            {
-                while (_asyncQueue.Count > 0)
-                    _asyncQueue.Dequeue().OnResult(_fault);
+                _buffer.Close();
+                _completedEvent.TrySetResult(true);
             }
 
             private void OnKeepAliveTimerTick(object state)
@@ -348,6 +349,12 @@ namespace SharpRpc
             private void RefreshLastTxTime()
             {
                 _lastTxTime = DateTime.UtcNow;
+            }
+
+            private void _buffer_SpaceFreed(TxBuffer sender)
+            {
+                if (_isStarted && !_isProcessingItem)
+                    EnqueueNextItem();
             }
 
             private interface IPendingItem
@@ -387,12 +394,6 @@ namespace SharpRpc
                     else
                         TrySetException(result.ToException());
                 }
-            }
-
-            private void _buffer_SpaceFreed(TxBuffer sender)
-            {
-                if (_isStarted && !_isProcessingItem)
-                    EnqueueNextItem();
             }
         }
     }

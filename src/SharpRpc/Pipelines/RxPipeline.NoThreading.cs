@@ -24,6 +24,11 @@ namespace SharpRpc
                 StartTransportRx();
             }
 
+            protected override void OnCommunicationError(RpcResult fault)
+            {
+                SignalCommunicationError(fault);
+            }
+
             protected override ArraySegment<byte> AllocateRxBuffer()
             {
                 return _buffer.GetRxSegment();
@@ -52,7 +57,7 @@ namespace SharpRpc
             {
                 _isClosed = true;
 
-                return WaitStopTransportRx();
+                return StopTransportRx();
             }
         }
     }

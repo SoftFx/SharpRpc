@@ -5,6 +5,7 @@ using Microsoft.CodeAnalysis.Text;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace SharpRpc.Builder
@@ -19,10 +20,6 @@ namespace SharpRpc.Builder
 
     public class MessageBuilder
     {
-        private readonly List<PropertyDeclarationSyntax> _properties = new List<PropertyDeclarationSyntax>();
-        //private readonly List<ParameterSyntax> _msgProps = new List<ParameterSyntax>();
-        private ClassDeclarationSyntax _messageClassDeclaration;
-
         internal MessageBuilder(ContractDeclaration contract, CallDeclaration callDec, MessageType type)
         {
             ContractInfo = contract;
@@ -30,20 +27,23 @@ namespace SharpRpc.Builder
             MessageType = type;
         }
 
-        public TypeString MessageClassName { get; private set; }
         public CallDeclaration RpcInfo { get; }
         public ContractDeclaration ContractInfo { get; }
-        public IReadOnlyList<PropertyDeclarationSyntax> MessageProperties => _properties;
         public MessageType MessageType { get; }
 
-        internal static IEnumerable<ClassDeclarationSyntax> GenerateSystemMessages(ContractDeclaration contract)
+        internal static IEnumerable<ClassBuildNode> GenerateSystemMessages(ContractDeclaration contract)
         {
-            yield return new MessageBuilder(contract, null, MessageType.System).GenerateLoginMessage();
-            yield return new MessageBuilder(contract, null, MessageType.System).GenerateLogoutMessage();
-            yield return new MessageBuilder(contract, null, MessageType.System).GenerateHeartbeatMessage();
+            yield return GenerateLoginMessage(contract);
+            yield return GenerateLogoutMessage(contract);
+            yield return GenerateHeartbeatMessage(contract);
         }
 
-        internal static IEnumerable<ClassDeclarationSyntax> GenerateMessages(ContractDeclaration contract, GeneratorExecutionContext context)
+        //internal static IEnumerable<ClassBuildNode> GenerateAuthContracts(ContractDeclaration contract)
+        //{
+        //    yield return GenerateBasicAuthData(contract);
+        //}
+
+        internal static IEnumerable<ClassBuildNode> GenerateUserMessages(ContractDeclaration contract, GeneratorExecutionContext context)
         {
             foreach (var call in contract.Calls)
             {
@@ -55,16 +55,6 @@ namespace SharpRpc.Builder
                 else
                     yield return new MessageBuilder(contract, call, MessageType.OneWay).GenerateMessage(context, true, Names.MessageClassPostfix);
             }
-
-            yield return GenerateMessageBase(contract, context);
-        }
-
-        internal static IEnumerable<ClassDeclarationSyntax> GenerateSerializationAdapters(ContractDeclaration contract, GeneratorExecutionContext context)
-        {
-            foreach (var serializerDec in contract.Serializers)
-            {
-                yield return serializerDec.Builder.GenerateSerializerAdapter(serializerDec.AdapterClassName, contract.BaseMessageClassName, context);
-            }
         }
 
         internal static ClassDeclarationSyntax GenerateFactory(ContractDeclaration contractInfo)
@@ -74,6 +64,7 @@ namespace SharpRpc.Builder
             var loginMsgMethod = GenerateFactoryMethod("CreateLoginMessage", Names.LoginMessageInterface, contractInfo.LoginMessageClassName);
             var logoutMsgMethod = GenerateFactoryMethod("CreateLogoutMessage", Names.LogoutMessageInterface, contractInfo.LogoutMessageClassName);
             var heartbeatMsgMethod = GenerateFactoryMethod("CreateHeartBeatMessage", Names.HeartbeatMessageInterface, contractInfo.HeartbeatMessageClassName);
+            //var basicAuthMethod = GenerateFactoryMethod("CreateBasicAuthData", Names.BasicAuthDataInterface, contractInfo.BasicAuthDataClassName);
 
             return SyntaxFactory.ClassDeclaration(contractInfo.MessageFactoryClassName.Short)
                 .AddModifiers(SyntaxFactory.Token(SyntaxKind.PrivateKeyword))
@@ -92,87 +83,148 @@ namespace SharpRpc.Builder
                 .AddBodyStatements(retStatement);
         }
 
-        private static ClassDeclarationSyntax GenerateMessageBase(ContractDeclaration contract, GeneratorExecutionContext context)
+        public static ClassBuildNode GenerateMessageBase(ContractDeclaration contract)
         {
             var baseMessageClassName = contract.BaseMessageClassName;
 
-            var messageClassDeclaration = SyntaxFactory.ClassDeclaration(baseMessageClassName.Short)
+            var clasDeclaration = SyntaxFactory.ClassDeclaration(baseMessageClassName.Short)
                 .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword), SyntaxFactory.Token(SyntaxKind.AbstractKeyword))
                 .AddBaseListTypes(SyntaxFactory.SimpleBaseType(SyntaxHelper.GlobalTypeName(Names.MessageInterface)));
 
-            foreach (var serializerEtnry in contract.Serializers)
-                serializerEtnry.Builder.CompleteMessageBuilding(ref messageClassDeclaration);
-
-            return messageClassDeclaration;
+            return new ClassBuildNode(baseMessageClassName, clasDeclaration);
         }
 
-        private ClassDeclarationSyntax GenerateLoginMessage()
+        private static ClassBuildNode GenerateLoginMessage(ContractDeclaration contractInfo)
         {
-            MessageClassName = ContractInfo.LoginMessageClassName;
+            var messageClassName = contractInfo.LoginMessageClassName;
 
-            var msgBase = SyntaxFactory.SimpleBaseType(SyntaxHelper.FullTypeName(ContractInfo.BaseMessageClassName));
+            var msgBase = SyntaxFactory.SimpleBaseType(SyntaxHelper.FullTypeName(contractInfo.BaseMessageClassName));
             var iLoginBase = SyntaxFactory.SimpleBaseType(SyntaxHelper.FullTypeName(Names.LoginMessageInterface));
 
-            _messageClassDeclaration = SyntaxFactory.ClassDeclaration(MessageClassName.Short)
+            var userNameProperty = SyntaxFactory
+                .PropertyDeclaration(SyntaxFactory.ParseTypeName("string"), "UserName")
+                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+                .AddAutoGetter()
+                .AddAutoSetter();
+
+            var passwordProperty = SyntaxFactory
+                .PropertyDeclaration(SyntaxFactory.ParseTypeName("string"), "Password")
+                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+                .AddAutoGetter()
+                .AddAutoSetter();
+
+            var resultPropertyType = SyntaxFactory.NullableType(SyntaxHelper.FullTypeName(Names.LoginResultEnum));
+            var resultProperty = SyntaxFactory
+                .PropertyDeclaration(resultPropertyType, "ResultCode")
+                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+                .AddAutoGetter()
+                .AddAutoSetter();
+
+            var errorMessageProperty = SyntaxFactory
+                .PropertyDeclaration(SyntaxFactory.ParseTypeName("string"), "ErrorMessage")
+                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+                .AddAutoGetter()
+                .AddAutoSetter();
+
+            //var authDataProperty = SyntaxFactory
+            //    .PropertyDeclaration(SyntaxFactory.ParseTypeName("AuthData"), "AuthData")
+            //    .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+            //    .AddAutoGetter()
+            //    .AddAutoSetter();
+
+            //var authImplicitGetter = SyntaxFactory
+            //    .AccessorDeclaration(SyntaxKind.GetAccessorDeclaration,
+            //        SyntaxFactory.Block(SyntaxFactory.ReturnStatement(SyntaxFactory.IdentifierName("AuthData"))));
+
+            //var authDataCast = SyntaxFactory.CastExpression(SyntaxHelper.ShortTypeName(contractInfo.AuthDataClassName),
+            //    SyntaxFactory.IdentifierName("value"));
+
+            //var authImplicitSetter = SyntaxFactory
+            //    .AccessorDeclaration(SyntaxKind.SetAccessorDeclaration,
+            //        SyntaxFactory.Block(SyntaxFactory.ExpressionStatement(
+            //            SyntaxFactory.AssignmentExpression(SyntaxKind.SimpleAssignmentExpression, SyntaxFactory.IdentifierName("AuthData"), authDataCast))));
+
+            //var authImplicitProperty = SyntaxFactory
+            //    .PropertyDeclaration(SyntaxHelper.FullTypeName(Names.AuthDataInterface), Names.LoginMessageInterface.Full + ".AuthData")
+            //    .AddAccessorListAccessors(authImplicitGetter, authImplicitSetter);
+
+            var messageClassDeclaration = SyntaxFactory.ClassDeclaration(messageClassName.Short)
                 .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
                 .AddBaseListTypes(msgBase, iLoginBase);
 
-            //_properties.Add(
-
-            NotifySerializers();
-
-            return _messageClassDeclaration.AddMembers(_properties.ToArray());
+            return new ClassBuildNode(messageClassName, messageClassDeclaration, userNameProperty, passwordProperty, resultProperty, errorMessageProperty);
         }
 
-        private ClassDeclarationSyntax GenerateLogoutMessage()
+        private static ClassBuildNode GenerateLogoutMessage(ContractDeclaration contractInfo)
         {
-            MessageClassName = ContractInfo.LogoutMessageClassName;
+            var messageClassName = contractInfo.LogoutMessageClassName;
 
-            var msgBase = SyntaxFactory.SimpleBaseType(SyntaxHelper.FullTypeName(ContractInfo.BaseMessageClassName));
+            var msgBase = SyntaxFactory.SimpleBaseType(SyntaxHelper.FullTypeName(contractInfo.BaseMessageClassName));
             var iLogoutBase = SyntaxFactory.SimpleBaseType(SyntaxHelper.FullTypeName(Names.LogoutMessageInterface));
 
-            _messageClassDeclaration = SyntaxFactory.ClassDeclaration(MessageClassName.Short)
+            var messageClassDeclaration = SyntaxFactory.ClassDeclaration(messageClassName.Short)
                 .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
                 .AddBaseListTypes(msgBase, iLogoutBase);
 
-            //_properties.Add(
-
-            NotifySerializers();
-
-            return _messageClassDeclaration.AddMembers(_properties.ToArray());
+            return new ClassBuildNode(messageClassName, messageClassDeclaration);
         }
 
-        private ClassDeclarationSyntax GenerateHeartbeatMessage()
-        {
-            MessageClassName = ContractInfo.HeartbeatMessageClassName;
+        //public static ClassBuildNode GenerateBaseAuthData(ContractDeclaration contractInfo)
+        //{
+        //    var messageClassName = new TypeString("AuthData");
 
-            var msgBase = SyntaxFactory.SimpleBaseType(SyntaxHelper.FullTypeName(ContractInfo.BaseMessageClassName));
+        //    var contractInterface = SyntaxFactory.SimpleBaseType(SyntaxHelper.FullTypeName(Names.AuthDataInterface));
+
+        //    var messageClassDeclaration = SyntaxFactory.ClassDeclaration(messageClassName.Short)
+        //        .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+        //        .AddBaseListTypes(contractInterface);
+
+        //    return new ClassBuildNode(messageClassName, messageClassDeclaration);
+        //}
+
+        //private static ClassBuildNode GenerateBasicAuthData(ContractDeclaration contractInfo)
+        //{
+        //    var messageClassName = contractInfo.BasicAuthDataClassName;
+
+        //    var baseClass = SyntaxFactory.SimpleBaseType(SyntaxFactory.ParseTypeName("AuthData"));
+        //    var contractInterface = SyntaxFactory.SimpleBaseType(SyntaxHelper.FullTypeName(Names.BasicAuthDataInterface));
+
+        //    var userNameProperty = SyntaxFactory
+        //        .PropertyDeclaration(SyntaxFactory.ParseTypeName("string"), "UserName")
+        //        .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+        //        .AddAutoGetter()
+        //        .AddAutoSetter();
+
+        //    var passwordProperty = SyntaxFactory
+        //        .PropertyDeclaration(SyntaxFactory.ParseTypeName("string"), "Password")
+        //        .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+        //        .AddAutoGetter()
+        //        .AddAutoSetter();
+
+        //    var messageClassDeclaration = SyntaxFactory.ClassDeclaration(messageClassName.Short)
+        //        .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+        //        .AddBaseListTypes(baseClass, contractInterface);
+
+        //    return new ClassBuildNode(messageClassName, messageClassDeclaration, userNameProperty, passwordProperty);
+        //}
+
+        private static ClassBuildNode GenerateHeartbeatMessage(ContractDeclaration contractInfo)
+        {
+            var messageClassName = contractInfo.HeartbeatMessageClassName;
+
+            var msgBase = SyntaxFactory.SimpleBaseType(SyntaxHelper.FullTypeName(contractInfo.BaseMessageClassName));
             var iHeartbeatBase = SyntaxFactory.SimpleBaseType(SyntaxHelper.FullTypeName(Names.HeartbeatMessageInterface));
 
-            _messageClassDeclaration = SyntaxFactory.ClassDeclaration(MessageClassName.Short)
+            var messageClassDeclaration = SyntaxFactory.ClassDeclaration(messageClassName.Short)
                 .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
                 .AddBaseListTypes(msgBase, iHeartbeatBase);
 
-            //_properties.Add(
-
-            NotifySerializers();
-
-            return _messageClassDeclaration.AddMembers(_properties.ToArray());
+            return new ClassBuildNode(messageClassName, messageClassDeclaration, new List<PropertyDeclarationSyntax>());
         }
 
-        public void UpdatePropertyDeclaration(int index, Func<PropertyDeclarationSyntax, PropertyDeclarationSyntax> updateFunc)
+        internal ClassBuildNode GenerateMessage(GeneratorExecutionContext context, bool direct, string namePostfix)
         {
-            _properties[index] = updateFunc(_properties[index]);
-        }
-
-        public void UpdateClassDeclaration(Func<ClassDeclarationSyntax, ClassDeclarationSyntax> updateFunc)
-        {
-            _messageClassDeclaration = updateFunc(_messageClassDeclaration);
-        }
-
-        internal ClassDeclarationSyntax GenerateMessage(GeneratorExecutionContext context, bool direct, string namePostfix)
-        {
-            MessageClassName = ContractInfo.GetMessageClassName(RpcInfo.MethodName, namePostfix);
+            var messageClassName = ContractInfo.GetMessageClassName(RpcInfo.MethodName, namePostfix);
 
             var baseTypes = new List<BaseTypeSyntax>();
             baseTypes.Add(SyntaxFactory.SimpleBaseType(SyntaxHelper.ShortTypeName(ContractInfo.BaseMessageClassName)));
@@ -187,13 +239,15 @@ namespace SharpRpc.Builder
                     baseTypes.Add(SyntaxFactory.SimpleBaseType(SyntaxHelper.GlobalTypeName(Names.ResponseInterface)));
             }
 
-            _messageClassDeclaration = SyntaxFactory.ClassDeclaration(MessageClassName.Short)
+            var messageClassDeclaration = SyntaxFactory.ClassDeclaration(messageClassName.Short)
                 .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
                 .AddBaseListTypes(baseTypes.ToArray());
 
+            var properties = new List<PropertyDeclarationSyntax>();
+
             if (MessageType == MessageType.Request || MessageType == MessageType.Response)
             {
-                _properties.Add(GenerateMessageProperty("string", "CallId"));
+                properties.Add(GenerateMessageProperty("string", "CallId"));
             }
 
             if (direct)
@@ -201,23 +255,15 @@ namespace SharpRpc.Builder
                 var index = 1;
 
                 foreach (var param in RpcInfo.Params)
-                    _properties.Add(GenerateMessageProperty(param, index++));
+                    properties.Add(GenerateMessageProperty(param, index++));
             }
             else
             {
                 if (RpcInfo.ReturnsData)
-                    _properties.Add(GenerateMessageProperty(RpcInfo.ReturnParam.ParamType, Names.ResponseResultProperty));
+                    properties.Add(GenerateMessageProperty(RpcInfo.ReturnParam.ParamType, Names.ResponseResultProperty));
             }
 
-            NotifySerializers();
-
-            return _messageClassDeclaration.AddMembers(_properties.ToArray());
-        }
-
-        private void NotifySerializers()
-        {
-            foreach (var serializerEntry in ContractInfo.Serializers)
-                serializerEntry.Builder.BuildUpMessage(this);
+            return new ClassBuildNode(messageClassName, messageClassDeclaration, properties);
         }
 
         private PropertyDeclarationSyntax GenerateMessageProperty(string type, string name)

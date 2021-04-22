@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace SharpRpc
@@ -14,8 +15,8 @@ namespace SharpRpc
         private readonly MessageDispatcher _dispatcher;
         private readonly ContractDescriptor _descriptor;
         private readonly TaskCompletionSource<RpcResult> _connectEvent = new TaskCompletionSource<RpcResult>();
-        //private readonly TaskCompletionSource<RpcResult<ByteTransport>> _requestConnectEvent = new TaskCompletionSource<RpcResult<ByteTransport>>();
         private readonly TaskCompletionSource<RpcResult> _disconnectEvent = new TaskCompletionSource<RpcResult>();
+        private readonly CancellationTokenSource _loginCancelSrc = new CancellationTokenSource();
         private RpcResult _channelDisplayFault = RpcResult.Ok;
         private RpcResult _channelOperationFault = RpcResult.ChannelClose;
         private ByteTransport _transport;
@@ -28,6 +29,7 @@ namespace SharpRpc
         public Guid Id { get; } = Guid.NewGuid();
 
         internal MessageDispatcher Dispatcher => _dispatcher;
+        internal Endpoint Endpoint => _endpoint;
         internal TxPipeline Tx => _tx;
         internal ContractDescriptor Contract => _descriptor;
 
@@ -127,9 +129,10 @@ namespace SharpRpc
                     State = ChannelState.Disconnecting;
                     UpdateFault(fault);
                 }
-                else if (State == ChannelState.Connecting && _channelDisplayFault.Code == RpcRetCode.Ok)
+                else if (State == ChannelState.Connecting)
                 {
                     UpdateFault(fault);
+                    _loginCancelSrc.Cancel();
                     return;
                 }
                 else
@@ -141,8 +144,11 @@ namespace SharpRpc
 
         private void UpdateFault(RpcResult fault)
         {
-            _channelOperationFault = fault;
-            _channelDisplayFault = fault;
+            if (_channelDisplayFault.Code == RpcRetCode.Ok) // only first fault counts
+            {
+                _channelOperationFault = fault;
+                _channelDisplayFault = fault;
+            }
         }
 
         private async void DoConnect()
@@ -167,7 +173,11 @@ namespace SharpRpc
             {
                 StartPipelines(_transport);
 
-                var loginResult = await _coordinator.OnConnect();
+                // setup login timeout
+                _loginCancelSrc.CancelAfter(_coordinator.LoginTimeout);
+
+                // login handshake
+                var loginResult = await _coordinator.OnConnect(_loginCancelSrc.Token);
 
                 if (loginResult.Code != RpcRetCode.Ok)
                     UpdateFault(loginResult);
@@ -188,6 +198,8 @@ namespace SharpRpc
 
             if (abortConnect)
             {
+                _tx.StopProcessingUserMessages(_channelOperationFault);
+
                 await CloseComponents();
 
                 lock (_stateSyncObj)
@@ -203,19 +215,20 @@ namespace SharpRpc
 
         private async Task CloseComponents()
         {
-            if (_transport != null)
-                await _transport.Shutdown();
-
-            await _dispatcher.Close(true);
+            await _dispatcher.Stop(_channelOperationFault);
 
             try
             {
                 var rxCloseTask = _rx?.Close();
-                var txCloseTask = _tx.Close();
+                var txCloseTask = _tx.Close(TimeSpan.FromSeconds(5));
+
+                await txCloseTask;
+                
+                if (_transport != null)
+                    await _transport.Shutdown();
 
                 if (rxCloseTask != null)
                     await rxCloseTask;
-                await txCloseTask;
             }
             catch (Exception ex)
             {

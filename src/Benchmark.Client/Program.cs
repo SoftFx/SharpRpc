@@ -24,7 +24,10 @@ namespace Benchmark.Client
             var choice = Console.ReadLine();
 
             if (choice == "1")
+            {
                 Benchmark.LaunchTestSeries();
+                Console.Read();
+            }
             else if (choice == "2")
             {
                 var endpoint = new TcpClientEndpoint("localhost", 812);

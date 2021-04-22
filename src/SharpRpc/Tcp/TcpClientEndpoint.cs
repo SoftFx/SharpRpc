@@ -18,7 +18,7 @@ namespace SharpRpc
             _port = port;
         }
 
-        public override async Task<RpcResult< ByteTransport>> ConnectAsync()
+        public override async Task<RpcResult<ByteTransport>> ConnectAsync()
         {
             IPHostEntry ipHostInfo = Dns.GetHostEntry(_address);
             IPAddress ipAddress = ipHostInfo.AddressList[0];

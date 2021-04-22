@@ -36,6 +36,7 @@ namespace Benchmark.Server
             var tcpEndpoint = new TcpServerEndpoint(port);
             BenchmarkContractCfg.ConfigureEndpoint(tcpEndpoint);
             tcpEndpoint.RxConcurrencyMode = mode;
+            tcpEndpoint.Authenticator = new BasicClientAuthenticator(new AuthValidator());
 
             var server = new RpcServer();
             server.AddEndpoint(tcpEndpoint);

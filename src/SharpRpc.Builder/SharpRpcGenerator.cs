@@ -42,6 +42,7 @@ namespace SharpRpc.Builder
             catch (Exception ex)
             {
                 Trace.WriteLine("Exception in StubGenerator.Execute(): " + ex.Message);
+                throw;
             }
         }
 
@@ -52,30 +53,69 @@ namespace SharpRpc.Builder
             var clientBuilder = new ClientStubBuilder(contractInfo);
             var serverBuilder = new ServerStubBuilder(contractInfo);
 
-            var systemMessageClasses = MessageBuilder
+            var baseMsgNode = MessageBuilder.GenerateMessageBase(contractInfo);
+
+            var systemMessageNodes = MessageBuilder
                 .GenerateSystemMessages(contractInfo)
-                .ToArray();
+                .ToList();
 
-            var messageClasses = MessageBuilder
-                .GenerateMessages(contractInfo, context)
-                .ToArray();
+            //var authBaseNode = MessageBuilder.GenerateBaseAuthData(contractInfo);
+            //var systemAuthNodes = MessageBuilder
+            //    .GenerateAuthContracts(contractInfo)
+            //    .ToList();
 
-            var sAdapterClasses = MessageBuilder
+            var messageNodes = MessageBuilder
+                .GenerateUserMessages(contractInfo, context)
+                .ToList();
+
+            foreach (var msgNode in systemMessageNodes)
+                baseMsgNode.Successors.Add(msgNode);
+
+            foreach (var msgNode in messageNodes)
+                baseMsgNode.Successors.Add(msgNode);
+
+            //foreach (var authDataNode in systemAuthNodes)
+            //    authBaseNode.Successors.Add(authDataNode);
+
+            var sFixture = new SerializerFixture()
+                .AddHierachy(baseMsgNode);
+                //.AddHierachy(authBaseNode);
+
+            var sAdapterClasses = sFixture
                 .GenerateSerializationAdapters(contractInfo, context)
+                .ToArray();
+
+            var baseMessageClass = baseMsgNode.CompleteBuilding();
+
+            var systemMessageClasses = systemMessageNodes
+                .Select(n => n.CompleteBuilding())
+                .ToArray();
+
+            //var baseAuthClass = authBaseNode.CompleteBuilding();
+
+            //var systemAuthDataClasses = systemAuthNodes
+            //    .Select(n => n.CompleteBuilding())
+            //    .ToArray();
+
+            var messageClasses = messageNodes
+                .Select(n => n.CompleteBuilding())
                 .ToArray();
 
             var systemBundleClass = SF.ClassDeclaration(contractInfo.SystemBundleClassName.Short)
                 .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
                 .AddMembers(systemMessageClasses);
+                //.AddMembers(baseAuthClass)
+                //.AddMembers(systemAuthDataClasses);
 
             var messageBundleClass = SF.ClassDeclaration(contractInfo.MessageBundleClassName.Short)
                 .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
+                .AddMembers(baseMessageClass)
                 .AddMembers(messageClasses);
 
             var messageFactoryClass = MessageBuilder.GenerateFactory(contractInfo);
 
             var clientFactoryMethod = clientBuilder.GenerateFactoryMethod();
-            var sAdapterFactoryMethod = SerializerBuilderBase.GenerateSerializerFactory(contractInfo);
+            var sAdapterFactoryMethod = SerializerFixture.GenerateSerializerFactory(contractInfo);
             var descriptorFactoryMethod = GenerateDescriptorFactoryMethod(contractInfo);
             var serviceFactoryMethod = serverBuilder.GenerateBindMethod();
 

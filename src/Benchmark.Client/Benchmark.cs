@@ -31,7 +31,7 @@ namespace Benchmark.Client
 
             var clients = Enumerable
                 .Range(0, clientCount)
-                .Select(i => BenchmarkContract_Gen.CreateClient(new TcpClientEndpoint("localhost", GetPort(concurrency))))
+                .Select(i => CreateClient(concurrency))
                 .ToList();
 
             var connects = clients
@@ -41,8 +41,12 @@ namespace Benchmark.Client
             Task.WaitAll(connects);
 
             Exception ex = null;
+            TimeSpan execTime = default;
 
-            var execTime = MeasureTime(() =>
+            //if (connects.All(c => c.Result.IsOk))
+            //{
+
+            execTime = MeasureTime(() =>
             {
                 try
                 {
@@ -57,6 +61,12 @@ namespace Benchmark.Client
                     ex = aex.InnerException;
                 }
             });
+
+            //}
+            //else
+            //{
+            //    ex = connects.First(c => !c.Result.IsOk).Result.ToException();
+            //}
 
             var closeTasks = clients
                 .Select(c => c.Channel.CloseAsync())
@@ -130,7 +140,7 @@ namespace Benchmark.Client
             for (int i = 0; i < msgCount; i++)
             {
                 var msg = generator.Next();
-                await client.TrySendUpdate2Async(msg);
+                await client.SendUpdate2Async(msg);
             }
         }
 
@@ -149,6 +159,14 @@ namespace Benchmark.Client
             a();
             watch.Stop();
             return watch.Elapsed;
+        }
+
+        private static BenchmarkContract_Gen.Client CreateClient(ConcurrencyMode concurrency)
+        {
+            var endpoint = new TcpClientEndpoint("localhost", GetPort(concurrency));
+            endpoint.Credentials = new BasicCredentials("Admin", "zzzz");
+
+            return BenchmarkContract_Gen.CreateClient(endpoint);
         }
 
         private static int GetPort(ConcurrencyMode mode)
