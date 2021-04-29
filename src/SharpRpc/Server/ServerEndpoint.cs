@@ -1,5 +1,4 @@
-﻿using SharpRpc.Security;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading;
@@ -10,8 +9,8 @@ namespace SharpRpc
     public abstract class ServerEndpoint : Endpoint
     {
         private RpcServer _server;
-        private ServerCredentials _creds = ServerCredentials.None;
-        private ClientAuthenticator _authenticator = ClientAuthenticator.None;
+        //private ServerCredentials _creds = ServerCredentials.None;
+        private Authenticator _authenticator = Authenticator.None;
 
         public ServerEndpoint()
         {
@@ -20,20 +19,20 @@ namespace SharpRpc
 
         public string Name { get; }
 
-        public ServerCredentials Credentials
-        {
-            get => _creds;
-            set
-            {
-                lock (_stateLockObj)
-                {
-                    ThrowIfImmutable();
-                    _creds = value ?? throw new ArgumentNullException(nameof(value));
-                }
-            }
-        }
+        //public ServerCredentials Credentials
+        //{
+        //    get => _creds;
+        //    set
+        //    {
+        //        lock (_stateLockObj)
+        //        {
+        //            ThrowIfImmutable();
+        //            _creds = value ?? throw new ArgumentNullException(nameof(value));
+        //        }
+        //    }
+        //}
 
-        public ClientAuthenticator Authenticator
+        public Authenticator Authenticator
         {
             get => _authenticator;
             set

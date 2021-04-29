@@ -13,7 +13,7 @@ namespace SharpRpc
         private States _state = States.PendingLogin;
         private TaskCompletionSource<ILoginMessage> _loginWaitHandle;
         private bool _isLogoutEnabled;
-        private ClientCredentials _creds;
+        private Credentials _creds;
 
         public ClientSideCoordinator(bool isLogoutRequired)
         {

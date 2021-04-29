@@ -10,7 +10,7 @@ namespace SharpRpc
         private int _rxSegmentSize = ushort.MaxValue * 10;
         private int _txSegmentSize = ushort.MaxValue * 10;
         private TimeSpan _rxTimeout = TimeSpan.FromMinutes(1);
-        private ConcurrencyMode _rxConcurrency = ConcurrencyMode.PagedQueue;
+        //private ConcurrencyMode _rxConcurrency = ConcurrencyMode.PagedQueue;
 
         public Endpoint()
         {
@@ -55,18 +55,18 @@ namespace SharpRpc
             }
         }
 
-        public ConcurrencyMode RxConcurrencyMode
-        {
-            get => _rxConcurrency;
-            set
-            {
-                lock (_stateLockObj)
-                {
-                    ThrowIfImmutable();
-                    _rxConcurrency = value;
-                }
-            }
-        }
+        //public ConcurrencyMode RxConcurrencyMode
+        //{
+        //    get => _rxConcurrency;
+        //    set
+        //    {
+        //        lock (_stateLockObj)
+        //        {
+        //            ThrowIfImmutable();
+        //            _rxConcurrency = value;
+        //        }
+        //    }
+        //}
 
         internal bool IsKeepAliveEnabled => KeepAliveThreshold.Ticks > 0;
         internal TimeSpan KeepAliveThreshold { get; private set; }

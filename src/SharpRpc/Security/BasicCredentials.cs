@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace SharpRpc
 {
-    public class BasicCredentials : ClientCredentials
+    public class BasicCredentials : Credentials
     {
         private string _userName;
         private string _password;

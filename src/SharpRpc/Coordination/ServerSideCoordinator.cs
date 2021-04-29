@@ -11,7 +11,7 @@ namespace SharpRpc
     {
         private object _lockObj = new object();
         private States _state = States.PendingLogin;
-        private ClientAuthenticator _authPlugin;
+        private Authenticator _authPlugin;
         private readonly TaskCompletionSource<ILoginMessage> _loginWaitHandle = new TaskCompletionSource<ILoginMessage>();
         //private readonly CancellationTokenSource _loginWaitCancel = new CancellationTokenSource();
 

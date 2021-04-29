@@ -18,10 +18,10 @@ namespace SharpRpc
         ConnectionAbortedByPeer,
         ConnectionTimeout,
         LoginTimeout,
+        SecurityError,
         OtherConnectionError,
         SerializationError,
         DeserializationError,
-        MessageMarkupError,
         MessageHandlerFailure
     }
 }

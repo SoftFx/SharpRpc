@@ -14,24 +14,13 @@ namespace SharpRpc
         private readonly List<ServerEndpoint> _endpoints = new List<ServerEndpoint>();
         private ServerState _state;
         private readonly Dictionary<Guid, Channel> _sessions = new Dictionary<Guid, Channel>();
-        private ServiceBinding _binding;
+        private readonly ServiceBinding _binding;
 
-        public RpcServer()
+        public RpcServer(ServiceBinding binding)
         {
+            _binding = binding ?? throw new ArgumentNullException("binding");
+
             Name = Namer.GetInstanceName(GetType());
-        }
-
-        public void BindService(ServiceBinding binding)
-        {
-            lock (_stateLock)
-            {
-                ThrowIfConfigProhibited();
-
-                if (_binding != null)
-                    throw new InvalidOperationException("Only one binding per service is supported in this version!");
-
-                _binding = binding;
-            }
         }
 
         public RpcServer AddEndpoint(ServerEndpoint endpoint)

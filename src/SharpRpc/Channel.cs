@@ -44,7 +44,7 @@ namespace SharpRpc
             _tx.ConnectionRequested += OnConnectionRequested;
             _tx.CommunicationFaulted += OnCommunicationError;
 
-            _dispatcher = MessageDispatcher.Create(_tx, msgHandler, endpoint.RxConcurrencyMode);   
+            _dispatcher = MessageDispatcher.Create(_tx, msgHandler);   
         }
 
         internal void StartServerMode(ByteTransport transport)
@@ -66,7 +66,7 @@ namespace SharpRpc
 
             _coordinator.Init(this);
 
-            _rx = new RxPipeline.OneThread(transport, _endpoint, _descriptor.SerializationAdapter, _dispatcher, _coordinator);
+            _rx = new RxPipeline.NoThreading(transport, _endpoint, _descriptor.SerializationAdapter, _dispatcher, _coordinator);
             _rx.CommunicationFaulted += OnCommunicationError;
             _rx.Start();
 

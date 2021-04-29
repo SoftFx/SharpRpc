@@ -1,4 +1,5 @@
 ﻿using System;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Net.Sockets;
 using System.Threading;
@@ -49,6 +50,10 @@ namespace SharpRpc
                     default: return new RpcResult(RpcRetCode.OtherConnectionError, ex.Message);
                 }
             }
+            else if (ex is Win32Exception w32ex && w32ex.Source == "System.Net.Security")
+            {
+                return new RpcResult(RpcRetCode.SecurityError, ex.Message);
+            }
 
             return new RpcResult(RpcRetCode.OtherConnectionError, "An unexpected exception is occurred in TcpTransport: " + ex.Message);
         }
@@ -67,8 +72,7 @@ namespace SharpRpc
 
             try
             {
-                await Task.Factory.FromAsync((c, s) => _socket.BeginDisconnect(false, c, s),
-                    r => _socket.EndDisconnect(r), null);
+                await _socket.DisconnectAsync();
             }
             catch (Exception)
             {

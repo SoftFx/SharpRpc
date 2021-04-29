@@ -6,13 +6,13 @@ using System.Threading.Tasks;
 
 namespace SharpRpc
 {
-    public class ClientCredentials
+    public class Credentials
     {
-        public static ClientCredentials None { get; } = new Null();
+        public static Credentials None { get; } = new Null();
 
         internal virtual void OnBeforeLogin(ILoginMessage loginMsg) { }
 
-        private class Null : ClientCredentials
+        private class Null : Credentials
         {
         }
     }

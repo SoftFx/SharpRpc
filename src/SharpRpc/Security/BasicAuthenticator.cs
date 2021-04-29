@@ -6,11 +6,11 @@ using System.Threading.Tasks;
 
 namespace SharpRpc
 {
-    public class BasicClientAuthenticator : ClientAuthenticator
+    public class BasicAuthenticator : Authenticator
     {
         private PasswordValidator _validator;
 
-        public BasicClientAuthenticator(PasswordValidator validator)
+        public BasicAuthenticator(PasswordValidator validator)
         {
             _validator = validator ?? throw new ArgumentNullException("validator");
         }

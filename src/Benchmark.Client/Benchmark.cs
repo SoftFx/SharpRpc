@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -11,18 +12,34 @@ namespace Benchmark.Client
 {
     internal class Benchmark
     {
-        public static void LaunchTestSeries()
+        public static void LaunchTestSeries(string address)
         {
-            DoTest(5000000, 1, true, false, ConcurrencyMode.PagedQueue);
-            DoTest(5000000, 1, true, true, ConcurrencyMode.PagedQueue);
+            DoTest(address, 500000, 1, true, false, false);
+            DoTest(address, 500000, 1, true, true, false);
+            DoTest(address, 500000, 1, true, false, true);
+            DoTest(address, 500000, 1, true, true, true);
 
-            DoTest(100000, 1, false, false, ConcurrencyMode.PagedQueue);
-            DoTest(100000, 1, false, true, ConcurrencyMode.PagedQueue);
+            //DoTest(5000000, 1, true, true, ConcurrencyMode.PagedQueue, true);
+
+            DoTest(address, 1000, 1, false, false, false);
+            DoTest(address, 1000, 1, false, true, false);
+            DoTest(address, 1000, 1, false, false, true);
+            DoTest(address, 1000, 1, false, true, true);
         }
 
-        private static void DoTest(int msgCount, int clientCount, bool oneWay, bool async, ConcurrencyMode concurrency)
+        private static void DoTest(string serverAddress, int msgCount, int clientCount, bool oneWay, bool async, bool enableSsl)
         {
-            Console.WriteLine("Started test size={0}, oneWay={4} clients={1}, isAsync={2} concurrency={3}", msgCount, clientCount, async, concurrency, oneWay);
+            var nameBuilder = new StringBuilder();
+            nameBuilder.Append("Test: ");
+            nameBuilder.Append("X").Append(clientCount);
+            if (oneWay)
+                nameBuilder.Append(" | OneWay");
+            if (async)
+                nameBuilder.Append(" | Async");
+            if (enableSsl)
+                nameBuilder.Append(" | SSL");
+
+            Console.WriteLine(nameBuilder.ToString());
 
             var gens = Enumerable
                 .Range(0, clientCount)
@@ -31,7 +48,7 @@ namespace Benchmark.Client
 
             var clients = Enumerable
                 .Range(0, clientCount)
-                .Select(i => CreateClient(concurrency))
+                .Select(i => CreateClient(serverAddress, enableSsl))
                 .ToList();
 
             var connects = clients
@@ -76,7 +93,7 @@ namespace Benchmark.Client
 
             if (ex == null)
             {
-                Console.WriteLine("Done!");
+                Console.WriteLine();
 
                 var totalMsgCount = msgCount * clientCount;
 
@@ -161,23 +178,24 @@ namespace Benchmark.Client
             return watch.Elapsed;
         }
 
-        private static BenchmarkContract_Gen.Client CreateClient(ConcurrencyMode concurrency)
+        private static BenchmarkContract_Gen.Client CreateClient(string address, bool secure)
         {
-            var endpoint = new TcpClientEndpoint("localhost", GetPort(concurrency));
+            var security = GetSecurity(secure);
+            var endpoint = new TcpClientEndpoint(address, BenchmarkContractCfg.GetPort(secure), security);
             endpoint.Credentials = new BasicCredentials("Admin", "zzzz");
 
             return BenchmarkContract_Gen.CreateClient(endpoint);
         }
 
-        private static int GetPort(ConcurrencyMode mode)
+        private static TcpSecurity GetSecurity(bool secure)
         {
-            switch (mode)
+            if (secure)
             {
-                case ConcurrencyMode.NoQueue: return 812;
-                //case ConcurrencyMode.DataflowX1: return 813;
-                case ConcurrencyMode.PagedQueue: return 814;
-                default: throw new InvalidOperationException();
+                //var cert = new StoredCertificate(StoreLocation.LocalMachine, StoreName.My, X509FindType.FindByThumbprint, "ad1a42f5598388af3d656a9a03ebf01823995f5a");
+                return new SslSecurity();
             }
+            else
+                return TcpSecurity.None;
         }
     }
 }

@@ -23,5 +23,10 @@ namespace Benchmark.Common
             endpoint.RxTimeout = TimeSpan.FromSeconds(5);
             endpoint.EnableKeepAlive(TimeSpan.FromSeconds(1));
         }
+
+        public static int GetPort(bool secure)
+        {
+            return secure ? 8413 : 8412;
+        }
     }
 }

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -13,22 +14,47 @@ namespace SharpRpc
         private readonly Socket _listener;
         private Task _listenerTask;
         private volatile bool _stopFlag;
-        private LoggerFacade _logger;
         private readonly IPEndPoint _ipEndpoint;
+        private readonly TcpServerSecurity _security;
 
-        public TcpServerEndpoint(int port)
+        public TcpServerEndpoint(IPEndPoint ipEndpoint, TcpServerSecurity security)
         {
-            ///IPHostEntry ipHostInfo = Dns.GetHostEntry(Dns.GetHostName());
-            IPAddress ipAddress = IPAddress.IPv6Loopback;// ipHostInfo.AddressList[0];
+            _security = security ?? throw new ArgumentNullException("security");
+            _ipEndpoint = ipEndpoint;
+
+            _listener = new Socket(_ipEndpoint.Address.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+        }
+
+        public TcpServerEndpoint(IPAddress address, int port, TcpServerSecurity security)
+            : this(new IPEndPoint(address, port), security)
+        {
+        }
+
+        public TcpServerEndpoint(string address, TcpServerSecurity security)
+        {
+            var addressParts = address.Split(':');
+
+            if (addressParts.Length != 2)
+                throw new ArgumentException("Invalid address format. Please provide address in host:port format.");
+
+            if (!int.TryParse(addressParts[1].Trim(), out int port) || port < 0)
+                throw new ArgumentException("Invalid port. Port must be a positive integer.");
+
+            IPHostEntry ipHostInfo = Dns.GetHostEntry(addressParts[0].Trim());
+            var ipAddress = ipHostInfo.AddressList[0];
             _ipEndpoint = new IPEndPoint(ipAddress, port);
 
             _listener = new Socket(ipAddress.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
         }
 
+        protected LoggerFacade Logger { get; private set; }
+
         protected override void Start(LoggerFacade logger)
         {
-            _logger = logger;
+            Logger = logger;
             _stopFlag = false;
+
+            _security.Init();
 
             _listener.Bind(_ipEndpoint);
             _listener.Listen(100);
@@ -45,22 +71,50 @@ namespace SharpRpc
             await _listenerTask;
         }
 
+        protected virtual ValueTask<ByteTransport> GetTransport(Socket socket)
+        {
+            return new ValueTask<ByteTransport>(new TcpTransport(socket));
+        }
+
         private async Task AcceptLoop()
         {
-            try
+            while (!_stopFlag)
             {
-                while (!_stopFlag)
-                {
-                    var socket = await _listener.AcceptAsync().ConfigureAwait(false);
-                    OnConnect(new TcpTransport(socket));
-                }
-            }
-            catch (Exception ex)
-            {
-                var socketEx = ex as SocketException;
+                Socket socket;
 
-                if (!_stopFlag || socketEx == null || socketEx.SocketErrorCode != SocketError.OperationAborted)
-                    _logger.Error(Name, ex.Message);
+                try
+                {
+                    socket = await _listener.AcceptAsync().ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    var socketEx = ex as SocketException;
+
+                    if (!_stopFlag || socketEx == null || socketEx.SocketErrorCode != SocketError.OperationAborted)
+                        Logger.Error(Name, ex.Message);
+
+                    continue;
+                }
+
+                try
+                {
+                    var transport = await _security.SecureTransport(socket);
+
+                    OnConnect(transport);
+                }
+                catch (Exception ex)
+                {
+                    //var socketEx = ex as SocketException;
+                    Logger.Error(Name, ex.Message);
+
+                    try
+                    {
+                        await socket.DisconnectAsync();
+                    }
+                    catch
+                    {
+                    }
+                }
             }
         }
     }

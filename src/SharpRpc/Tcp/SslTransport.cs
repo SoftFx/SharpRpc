@@ -7,7 +7,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace SharpRpc.Tcp
+namespace SharpRpc
 {
     internal class SslTransport : ByteTransport
     {

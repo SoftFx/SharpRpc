@@ -25,12 +25,12 @@ namespace Benchmark.Client
 
             if (choice == "1")
             {
-                Benchmark.LaunchTestSeries();
+                Benchmark.LaunchTestSeries(address);
                 Console.Read();
             }
             else if (choice == "2")
             {
-                var endpoint = new TcpClientEndpoint("localhost", 812);
+                var endpoint = new TcpClientEndpoint("localhost", 812, TcpSecurity.None);
                 BenchmarkContractCfg.ConfigureEndpoint(endpoint);
                 var client = BenchmarkContract_Gen.CreateClient(endpoint);
                 var connectRet = client.Channel.TryConnectAsync().AsTask().Result;

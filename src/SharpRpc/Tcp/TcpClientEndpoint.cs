@@ -9,13 +9,15 @@ namespace SharpRpc
 {
     public class TcpClientEndpoint : ClientEndpoint
     {
-        private string _address;
-        private int _port;
+        private readonly string _address;
+        private readonly int _port;
+        private readonly TcpSecurity _security;
 
-        public TcpClientEndpoint(string address, int port)
+        public TcpClientEndpoint(string address, int port, TcpSecurity security)
         {
             _address = address;
             _port = port;
+            _security = security ?? throw new ArgumentNullException("security");
         }
 
         public override async Task<RpcResult<ByteTransport>> ConnectAsync()
@@ -32,7 +34,7 @@ namespace SharpRpc
 
                 await socket.ConnectAsync(remoteEP);
 
-                return new RpcResult<ByteTransport>(new TcpTransport(socket));
+                return new RpcResult<ByteTransport>(await _security.SecureTransport(socket, _address));
             }
             catch (Exception ex)
             {

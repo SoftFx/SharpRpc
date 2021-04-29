@@ -5,6 +5,8 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Net;
+using System.Security.Cryptography.X509Certificates;
 
 namespace Benchmark.Server
 {
@@ -18,29 +20,29 @@ namespace Benchmark.Server
 
         private static void RunServers()
         {
-            var srv1 = RunServer(ConcurrencyMode.NoQueue, 812);
-            //var srv2 = RunServer(ConcurrencyMode.DataflowX1, 813);
-            var srv3 = RunServer(ConcurrencyMode.PagedQueue, 814);
+            var srv1 = RunServer(812, 813);
 
             Console.Read();
 
             srv1.StopAsync().Wait();
-            //srv2.StopAsync().Wait();
-            srv3.StopAsync().Wait();
 
             Console.Read();
         }
 
-        private static RpcServer RunServer(ConcurrencyMode mode, int port)
+        private static RpcServer RunServer(int port, int sslPort)
         {
-            var tcpEndpoint = new TcpServerEndpoint(port);
+            var tcpEndpoint = new TcpServerEndpoint(IPAddress.Any, BenchmarkContractCfg.GetPort(false), TcpServerSecurity.None);
             BenchmarkContractCfg.ConfigureEndpoint(tcpEndpoint);
-            tcpEndpoint.RxConcurrencyMode = mode;
-            tcpEndpoint.Authenticator = new BasicClientAuthenticator(new AuthValidator());
+            tcpEndpoint.Authenticator = new BasicAuthenticator(new AuthValidator());
 
-            var server = new RpcServer();
+            var serverCert = new StoredCertificate(StoreLocation.LocalMachine, StoreName.My, X509FindType.FindByThumbprint, "‎6e4c04ed965eb8d71a66b8e2b89e5767f2e076d8");
+            var sslEndpoit = new TcpServerEndpoint(IPAddress.Any, BenchmarkContractCfg.GetPort(true), new SslServerSecurity(serverCert));
+            BenchmarkContractCfg.ConfigureEndpoint(sslEndpoit);
+            sslEndpoit.Authenticator = new BasicAuthenticator(new AuthValidator());
+
+            var server = new RpcServer(BenchmarkContract_Gen.CreateBinding(() => new BechmarkServiceImpl()));
             server.AddEndpoint(tcpEndpoint);
-            server.BindService(BenchmarkContract_Gen.CreateBinding(() => new BechmarkServiceImpl()));
+            server.AddEndpoint(sslEndpoit);
             server.SetLogger(new ConsoleLogger(true, true));
             server.Start();
 
