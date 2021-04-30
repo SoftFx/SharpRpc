@@ -4,6 +4,17 @@
     <TargetFramework>netstandard2.0</TargetFramework>
 	 <LangVersion>8.0</LangVersion>
 	 <Configurations>Debug;Release;DebugBuilder</Configurations>
+	 <Version>0.1.0-alpha</Version>
+	 <Authors>Andrei Hilevich</Authors>
+	 <Company>Soft-Fx</Company>
+	 <Product>SharpRpc</Product>
+	 <Description>Code generator for #Rpc. Generates client and server stubs based on #Rpc contract.</Description>
+	 <PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
+	 <PackageProjectUrl>https://github.com/SoftFx/SharpRpc</PackageProjectUrl>
+	 <RepositoryUrl>https://github.com/SoftFx/SharpRpc</RepositoryUrl>
+	 <NeutralLanguage>en</NeutralLanguage>
+	 <PackageReleaseNotes></PackageReleaseNotes>
+	 <PackageTags>#RPC RPC</PackageTags>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='DebugBuilder|AnyCPU'">

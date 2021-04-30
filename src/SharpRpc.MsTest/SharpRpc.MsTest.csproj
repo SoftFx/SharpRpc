@@ -17,7 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\src\SharpRpc\SharpRpc.csproj" />
+    <ProjectReference Include="..\SharpRpc\SharpRpc.csproj" />
   </ItemGroup>
 
 </Project>
