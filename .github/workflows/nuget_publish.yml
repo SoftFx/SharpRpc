@@ -7,6 +7,7 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
+    environment: Nuget
 
     steps:
     - uses: actions/checkout@v2
@@ -27,7 +28,7 @@ jobs:
       uses: brandedoutcast/publish-nuget@v2.5.2
       with:
           PROJECT_FILE_PATH: src/SharpRpc.Builder/SharpRpc.Builder.csproj
-          NUGET_KEY: ${{secrets.NUGET_API_KEY}}
+          NUGET_KEY: ${{secrets.NUGET_KEY}}
           
           
           
