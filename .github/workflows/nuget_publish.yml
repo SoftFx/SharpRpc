@@ -11,19 +11,26 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+
     - name: Setup .NET
       uses: actions/setup-dotnet@v1
       with:
         dotnet-version: 5.0.x
+
     - name: Restore dependencies
       run: dotnet restore
+      working-directory: src/
+
     - name: Build
       run: dotnet build --configuration Release --no-restore
+      working-directory: src/
+
     - name: Publish SharpRpc.Core
       uses: brandedoutcast/publish-nuget@v2.5.2
       with:
           PROJECT_FILE_PATH: src/SharpRpc/SharpRpc.csproj
-          NUGET_KEY: ${{secrets.NUGET_API_KEY}}
+          NUGET_KEY: ${{secrets.NUGET_KEY}}
+
     - name: Publish SharpRpc.Builder
       uses: brandedoutcast/publish-nuget@v2.5.2
       with:
