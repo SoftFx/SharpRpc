@@ -10,7 +10,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace Benchmark.Common
+namespace TestCommon
 {
     [RpcContract]
     [RpcSerializer(SerializerChoice.MessagePack)]
@@ -20,13 +20,7 @@ namespace Benchmark.Common
         void SendUpdate(FooEntity entity);
 
         [Rpc(RpcType.Call)]
-        void SendUpdate2(FooEntity entity);
-
-        [Rpc(RpcType.Call)]
-        void DummyMethod1(int p1, string p2);
-
-        [Rpc(RpcType.Call)]
-        string DummyMethod2(int p1, string p2);
+        void ApplyUpdate(FooEntity entity);
     }
 
     public static class BenchmarkContractCfg

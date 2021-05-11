@@ -11,7 +11,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Benchmark.Common
+namespace TestCommon
 {
     public class BechmarkServiceImpl : BenchmarkContract_Gen.Service
     {
@@ -20,19 +20,9 @@ namespace Benchmark.Common
             return new ValueTask();
         }
 
-        public override ValueTask SendUpdate2(FooEntity entity)
+        public override ValueTask ApplyUpdate(FooEntity entity)
         {
             return new ValueTask();
-        }
-
-        public override ValueTask DummyMethod1(int p1, string p2)
-        {
-            return new ValueTask();
-        }
-
-        public override ValueTask<string> DummyMethod2(int p1, string p2)
-        {
-            return ValueTask.FromResult("");
         }
     }
 }

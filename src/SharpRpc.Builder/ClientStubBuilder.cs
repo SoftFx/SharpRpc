@@ -79,14 +79,14 @@ namespace SharpRpc.Builder
 
             foreach (var callDec in _contract.Calls)
             {
-                if (callDec.CallType == ContractCallType.ClientMessage)
+                if (callDec.CallType == ContractCallType.MessageToServer)
                 {
                     methods.Add(GenerateOneWayCall(callDec, clientStubTypeName, false, false));
                     methods.Add(GenerateOneWayCall(callDec, clientStubTypeName, true, false));
                     methods.Add(GenerateOneWayCall(callDec, clientStubTypeName, false, true));
                     methods.Add(GenerateOneWayCall(callDec, clientStubTypeName, true, true));
                 }
-                else if (callDec.CallType == ContractCallType.ClientCall)
+                else if (callDec.CallType == ContractCallType.CallToServer)
                 {
                     methods.Add(GenerateCall(callDec, clientStubTypeName, false, false));
                     methods.Add(GenerateCall(callDec, clientStubTypeName, true, false));
@@ -233,8 +233,8 @@ namespace SharpRpc.Builder
         {
             var msgArgument = SF.Argument(SF.IdentifierName("message"));
 
-            var methodToInvoke = isTry ? SH.GenericName("TryCallAsync", respMessageType.Full)
-                : SH.GenericName("CallAsync", respMessageType.Full);
+            var methodName = isTry ? "TryCallAsync" : "CallAsync";
+            var methodToInvoke = SH.GenericName(methodName, respMessageType.Full);
 
             if (isAsync)
             {
@@ -276,38 +276,71 @@ namespace SharpRpc.Builder
         {
             var msgArgument = SF.Argument(SF.IdentifierName("message"));
 
+            var methodName = isTry ? "TryCallAsync" : "CallAsync";
+            var methodToInvoke = SH.GenericName(methodName, returnDataType, respMessageType.Full);
+
             if (isAsync)
             {
                 if (isTry)
                 {
-                    retType = SH.GenericType(Names.SystemValueTask, Names.RpcResultStruct.Full);
+                    retType = SH.GenericType(Names.SystemTask, SH.GenericType(Names.RpcResultStruct.Full, returnDataType));
 
                     return SF.ReturnStatement(
-                        SF.InvocationExpression(SF.IdentifierName("TrySendMessageAsync"), SH.CallArguments(msgArgument)));
+                        SF.InvocationExpression(methodToInvoke, SH.CallArguments(msgArgument)));
                 }
                 else
                 {
-                    retType = SF.ParseTypeName(Names.SystemValueTask);
+                    retType = SH.GenericType(Names.SystemTask, returnDataType);
 
                     return SF.ReturnStatement(
-                        SF.InvocationExpression(SF.IdentifierName("SendMessageAsync"), SH.CallArguments(msgArgument)));
+                        SF.InvocationExpression(methodToInvoke, SH.CallArguments(msgArgument)));
                 }
+
+                //if (isTry)
+                //{
+                //    retType = SH.GenericType(Names.SystemValueTask, Names.RpcResultStruct.Full);
+
+                //    return SF.ReturnStatement(
+                //        SF.InvocationExpression(SF.IdentifierName("TrySendMessageAsync"), SH.CallArguments(msgArgument)));
+                //}
+                //else
+                //{
+                //    retType = SF.ParseTypeName(Names.SystemValueTask);
+
+                //    return SF.ReturnStatement(
+                //        SF.InvocationExpression(SF.IdentifierName("SendMessageAsync"), SH.CallArguments(msgArgument)));
+                //}
             }
             else
             {
                 if (isTry)
                 {
-                    retType = SF.ParseTypeName(Names.RpcResultStruct.Full);
+                    retType = SH.GenericName(Names.RpcResultStruct.Full, returnDataType);
 
-                    return SF.ReturnStatement(
-                        SF.InvocationExpression(SF.IdentifierName("TrySendMessage"), SH.CallArguments(msgArgument)));
+                    var baseMethodInvokeExp = SF.InvocationExpression(methodToInvoke, SH.CallArguments(msgArgument));
+                    return SF.ReturnStatement(SH.MemberOf(baseMethodInvokeExp, "Result"));
                 }
                 else
                 {
-                    retType = SF.PredefinedType(SF.Token(SyntaxKind.VoidKeyword));
+                    retType = SF.ParseTypeName(returnDataType);
 
-                    return SH.ThisCallStatement("SendMessage", SH.IdentifierArgument("message"));
+                    var baseMethodInvokeExp = SF.InvocationExpression(methodToInvoke, SH.CallArguments(msgArgument));
+                    return SF.ReturnStatement(SH.MemberOf(baseMethodInvokeExp, "Result"));
                 }
+
+                //if (isTry)
+                //{
+                //    retType = SF.ParseTypeName(Names.RpcResultStruct.Full);
+
+                //    return SF.ReturnStatement(
+                //        SF.InvocationExpression(SF.IdentifierName("TrySendMessage"), SH.CallArguments(msgArgument)));
+                //}
+                //else
+                //{
+                //    retType = SF.PredefinedType(SF.Token(SyntaxKind.VoidKeyword));
+
+                //    return SH.ThisCallStatement("SendMessage", SH.IdentifierArgument("message"));
+                //}
             }
         }
 

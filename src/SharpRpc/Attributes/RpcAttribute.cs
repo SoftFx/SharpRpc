@@ -25,9 +25,24 @@ namespace SharpRpc
 
     public enum RpcType
     {
-        ClientCall          = 0,
-        ClientMessage       = 1,
-        ServerCall          = 2,
-        ServerMessage       = 3
+        /// <summary>
+        /// One way message from client to server.
+        /// </summary>
+        Message = 1,
+
+        /// <summary>
+        /// Remote call from client to server.
+        /// </summary>
+        Call = 2,
+
+        /// <summary>
+        /// Remote call from server to client.
+        /// </summary>
+        Callback = 3,
+
+        /// <summary>
+        /// One way message from server to client.
+        /// </summary>
+        CallbackMessage = 4
     }
 }

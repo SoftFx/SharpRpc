@@ -317,10 +317,10 @@ namespace SharpRpc.Builder
         {
             switch (value)
             {
-                case 0: return ContractCallType.ClientCall;
-                case 1: return ContractCallType.ClientMessage;
-                case 2: return ContractCallType.ServerCall;
-                case 3: return ContractCallType.ServerMessage;
+                case 1: return ContractCallType.MessageToServer;
+                case 2: return ContractCallType.CallToServer;
+                case 3: return ContractCallType.CallToClient;
+                case 4: return ContractCallType.MessageToClient;
             }
 
             throw new Exception("Unknonwn call type: " + value);

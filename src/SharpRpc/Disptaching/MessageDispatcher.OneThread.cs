@@ -115,9 +115,9 @@ namespace SharpRpc
 
                 if (result.Code == RpcRetCode.Ok)
                 {
-                    var sendResult = await Tx.TrySendAsync(requestMsg);
+                    result = await Tx.TrySendAsync(requestMsg);
 
-                    if (sendResult.Code != RpcRetCode.Ok)
+                    if (result.Code != RpcRetCode.Ok)
                     {
                         lock (_lockObj)
                         {

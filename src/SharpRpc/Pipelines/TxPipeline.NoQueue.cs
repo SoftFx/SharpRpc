@@ -381,7 +381,10 @@ namespace SharpRpc
 
                 public void OnResult(RpcResult result)
                 {
-                    SetResult(result);
+                    if (result.Code == RpcRetCode.Ok)
+                        SetResult(result);
+                    else
+                        TrySetException(result.ToException());
                 }
             }
 
@@ -396,10 +399,7 @@ namespace SharpRpc
 
                 public void OnResult(RpcResult result)
                 {
-                    if (result.Code == RpcRetCode.Ok)
-                        SetResult(result);
-                    else
-                        TrySetException(result.ToException());
+                    SetResult(result);
                 }
             }
         }

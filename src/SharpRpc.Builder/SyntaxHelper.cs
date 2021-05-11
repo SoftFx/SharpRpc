@@ -87,6 +87,13 @@ namespace SharpRpc.Builder
                         genericTypeArgs.Select(a => SyntaxFactory.ParseTypeName(a)))));
         }
 
+        public static TypeSyntax GenericType(string typeName, params TypeSyntax[] genericTypeArgs)
+        {
+            return SyntaxFactory.GenericName(SyntaxFactory.Identifier(typeName),
+                SyntaxFactory.TypeArgumentList(
+                    SyntaxFactory.SeparatedList(genericTypeArgs)));
+        }
+
         #endregion
 
         #region Names

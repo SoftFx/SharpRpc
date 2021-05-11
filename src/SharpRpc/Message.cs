@@ -29,7 +29,7 @@ namespace SharpRpc
         //int? ToRecipient { get; }
     }
 
-    public interface IResponse<T> : IMessage
+    public interface IResponse<T> : IResponse
     {
         T Result { get; }
     }

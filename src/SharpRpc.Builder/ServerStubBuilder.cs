@@ -118,19 +118,14 @@ namespace SharpRpc.Builder
             var handlerInvokationExp = SF.AwaitExpression(GenerateRpcInvocation(callDec, "request"));
 
             StatementSyntax handlerInvokationStatement;
-            StatementSyntax catchStatement;
 
             if (callDec.ReturnsData)
-            {
                 handlerInvokationStatement = SH.VarDeclaration("result", handlerInvokationExp);
-                catchStatement = SF.ReturnStatement();
-            }
             else
-            {
                 handlerInvokationStatement = SF.ExpressionStatement(handlerInvokationExp);
-                catchStatement = SF.ReturnStatement(
+
+            var catchStatement = SF.ReturnStatement(
                     SH.InvocationExpression(Names.ServiceCreateFaultResponseMethod, SH.IdentifierArgument("ex")));
-            }
 
             var respStatements = GenerateResponseCreationStatements(callDec).ToArray();
 
@@ -158,7 +153,7 @@ namespace SharpRpc.Builder
 
             foreach (var call in _contract.Calls)
             {
-                if (call.CallType == ContractCallType.ClientMessage)
+                if (call.CallType == ContractCallType.MessageToServer)
                 {
                     var messageType = _contract.GetOnWayMessageClassName(call.MethodName);
                     var typedMessageVarName = "m" + index++;
@@ -189,7 +184,7 @@ namespace SharpRpc.Builder
 
             foreach (var call in _contract.Calls)
             {
-                if (call.CallType == ContractCallType.ClientCall)
+                if (call.CallType == ContractCallType.CallToServer)
                 {
                     var messageType = _contract.GetRequestClassName(call.MethodName);
                     var typedMessageVarName = "r" + index++;

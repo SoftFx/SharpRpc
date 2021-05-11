@@ -54,7 +54,7 @@ namespace SharpRpc.Builder
         {
             foreach (var call in contract.Calls)
             {
-                if (call.CallType == ContractCallType.ClientCall || call.CallType == ContractCallType.ServerCall)
+                if (call.CallType == ContractCallType.CallToServer || call.CallType == ContractCallType.CallToClient)
                 {
                     yield return new MessageBuilder(contract, call, MessageType.Request).GenerateMessage(context, true, Names.RequestClassPostfix);
                     yield return new MessageBuilder(contract, call, MessageType.Response).GenerateMessage(context, false, Names.ResponseClassPostfix);
@@ -241,7 +241,7 @@ namespace SharpRpc.Builder
             else if (MessageType == MessageType.Response)
             {
                 if (RpcInfo.ReturnsData)
-                    baseTypes.Add(SyntaxFactory.SimpleBaseType(SyntaxHelper.GenericType(Names.RequestInterface.Full, RpcInfo.ReturnParam.ParamType)));
+                    baseTypes.Add(SyntaxFactory.SimpleBaseType(SyntaxHelper.GenericType(Names.ResponseInterface.Full, RpcInfo.ReturnParam.ParamType)));
                 else
                     baseTypes.Add(SyntaxFactory.SimpleBaseType(SyntaxHelper.GlobalTypeName(Names.ResponseInterface)));
             }

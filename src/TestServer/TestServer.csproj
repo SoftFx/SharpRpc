@@ -6,12 +6,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="MessagePack" Version="2.2.85" />
     <PackageReference Include="protobuf-net" Version="3.0.73" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\SharpRpc\SharpRpc.csproj" />
+    <ProjectReference Include="..\TestCommon\TestCommon.csproj" />
   </ItemGroup>
 
 </Project>
