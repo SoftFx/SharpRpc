@@ -71,9 +71,24 @@ namespace SharpRpc
                 return new RpcResult(RpcRetCode.InvalidCredentials, authError);
         }
 
-        public override ValueTask<RpcResult> OnDisconnect()
+        public override async ValueTask<RpcResult> OnDisconnect(LogoutOption option)
         {
-            return ValueTask.FromResult(RpcResult.Ok);
+            if (option == LogoutOption.EnsureCompletion)
+                throw new NotSupportedException("LogoutOption.EnsureCompletion is not supported on server side! (yet)");
+
+            lock (_lockObj)
+            {
+                // the session has been already closed
+                if (_state == States.LoggedOut)
+                    return RpcResult.Ok;
+
+                _state = States.LoggedOut;
+            }
+
+            var logoutMsg = Channel.Contract.SystemMessages.CreateLogoutMessage();
+            //logoutMsg.Mode = option;
+
+            return  await Channel.Tx.SendSystemMessage(logoutMsg);
         }
 
         public override RpcResult OnMessage(ISystemMessage message)
@@ -91,6 +106,8 @@ namespace SharpRpc
                 }
                 else if (message is ILogoutMessage logoutMsg)
                 {
+                    _state = States.LoggedOut;
+                    return new RpcResult(RpcRetCode.LogoutRequest, "Connection is closed by client side.");
                 }
             }
 

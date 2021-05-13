@@ -23,14 +23,15 @@ namespace SharpRpc
 
     public interface ILoginMessage : ISystemMessage
     {
-        public string UserName { get; set; }
-        public string Password { get; set; }
-        public LoginResult? ResultCode { get; set; }
-        public string ErrorMessage { get; set; }
+        string UserName { get; set; }
+        string Password { get; set; }
+        LoginResult? ResultCode { get; set; }
+        string ErrorMessage { get; set; }
     }
 
     public interface ILogoutMessage : ISystemMessage
     {
+        //LogoutOption Mode { get; set; }
     }
 
     public interface IHeartbeatMessage : ISystemMessage

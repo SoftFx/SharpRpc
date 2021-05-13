@@ -21,6 +21,7 @@ namespace SharpRpc
         InvalidCredentials,
         ConfigurationError,
         ChannelClosed,
+        LogoutRequest,
         ConnectionShutdown,
         ConnectionAbortedByPeer,
         ConnectionTimeout,

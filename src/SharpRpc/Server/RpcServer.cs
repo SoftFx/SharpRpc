@@ -174,16 +174,21 @@ namespace SharpRpc
                 _sessions.Remove(channel.Id);
             }
 
-            if (fault.Code == RpcRetCode.Ok)
+            if (!IsFaultClose(fault.Code))
                 Logger.Verbose(Name, "Session " + channel.Id + " was closed.");
             else
                 Logger.Verbose(Name, "Session " + channel.Id + " was faulted. Code: " + fault.Code + " Message: " + fault.Fault.Message);
-        }   
+        }
 
         private void ThrowIfConfigProhibited()
         {
             if (_state != ServerState.Idle)
                 throw new InvalidOperationException("Changing configuration in runtime is prohibited!");
+        }
+
+        private bool IsFaultClose(RpcRetCode code)
+        {
+            return code != RpcRetCode.Ok && code != RpcRetCode.ChannelClosed && code != RpcRetCode.LogoutRequest;
         }
     }
 }

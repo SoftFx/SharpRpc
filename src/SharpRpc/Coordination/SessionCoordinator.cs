@@ -28,7 +28,7 @@ namespace SharpRpc
 
         public abstract RpcResult OnMessage(ISystemMessage message);
         public abstract ValueTask<RpcResult> OnConnect(CancellationToken cToken);
-        public abstract ValueTask<RpcResult> OnDisconnect();
+        public abstract ValueTask<RpcResult> OnDisconnect(LogoutOption option);
 
         protected virtual void OnInit() { }
 

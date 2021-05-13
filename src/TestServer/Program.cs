@@ -17,12 +17,6 @@ namespace TestServer
     {
         static void Main(string[] args)
         {
-            //RunSerializersBenchmark();
-            RunServers();
-        }
-
-        private static void RunServers()
-        {
             var srv1 = StartBenchmarkServer();
             var srv2 = StartFunctionTestServer();
 

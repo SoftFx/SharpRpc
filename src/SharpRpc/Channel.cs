@@ -69,7 +69,7 @@ namespace SharpRpc
         private void StartPipelines(ByteTransport transport)
         {
             if (_coordinator == null)
-                _coordinator = new ClientSideCoordinator(false);
+                _coordinator = new ClientSideCoordinator();
 
             _coordinator.Init(this);
 
@@ -122,7 +122,7 @@ namespace SharpRpc
                     return Task.CompletedTask;
             }
             
-            DoDisconnect(ChannelShutdownMode.Normal);
+            DoDisconnect(ChannelShutdownMode.Normal, LogoutOption.Immidiate);
 
             return _disconnectEvent.Task;
         }
@@ -146,7 +146,7 @@ namespace SharpRpc
                     return;
             }
 
-            DoDisconnect(ChannelShutdownMode.Abort);
+            DoDisconnect(ChannelShutdownMode.Abort, LogoutOption.Immidiate);
         }
 
         private void UpdateFault(RpcResult fault)
@@ -245,12 +245,12 @@ namespace SharpRpc
             _transport?.Dispose();
         }
 
-        private async void DoDisconnect(ChannelShutdownMode mode)
+        private async void DoDisconnect(ChannelShutdownMode closeMode, LogoutOption logoutMode)
         {
             _tx.StopProcessingUserMessages(_channelOperationFault);
 
-            if (mode == ChannelShutdownMode.Normal)
-                await _coordinator.OnDisconnect();
+            if (closeMode == ChannelShutdownMode.Normal)
+                await _coordinator.OnDisconnect(logoutMode);
 
             await CloseComponents();
 
@@ -295,10 +295,29 @@ namespace SharpRpc
         Faulted
     }
 
-
     internal enum ChannelShutdownMode
     {
+        /// <summary>
+        /// Close channel with full logout sequnce.
+        /// </summary>
         Normal,
+
+        /// <summary>
+        /// Close channel immediately without logout sequence. This option is typically used in fault situations.
+        /// </summary>
         Abort
+    }
+
+    public enum LogoutOption
+    {
+        /// <summary>
+        /// Close channel immidietly; Do not wait for completion of started calls; Do not require logout response from other side;
+        /// </summary>
+        Immidiate,
+
+        /// <summary>
+        /// Wait for all started calls to complete; Require logout response from other side
+        /// </summary>
+        EnsureCompletion
     }
 }
