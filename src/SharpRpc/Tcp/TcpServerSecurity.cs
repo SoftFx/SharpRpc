@@ -18,6 +18,7 @@ namespace SharpRpc
     {
         public static TcpServerSecurity None { get; } = new NullServerSecurity();
 
+        internal abstract string Name { get; }
         internal abstract void Init();
 
         internal abstract ValueTask<ByteTransport> SecureTransport(Socket socket);
@@ -27,6 +28,8 @@ namespace SharpRpc
             internal override void Init()
             {
             }
+
+            internal override string Name => "None";
 
             internal override ValueTask<ByteTransport> SecureTransport(Socket socket)
             {

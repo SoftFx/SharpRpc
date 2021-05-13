@@ -26,18 +26,7 @@ namespace SharpRpc
 
         public string Name { get; }
 
-        //public ServerCredentials Credentials
-        //{
-        //    get => _creds;
-        //    set
-        //    {
-        //        lock (_stateLockObj)
-        //        {
-        //            ThrowIfImmutable();
-        //            _creds = value ?? throw new ArgumentNullException(nameof(value));
-        //        }
-        //    }
-        //}
+        protected LoggerFacade Logger => _server.Logger;
 
         public Authenticator Authenticator
         {
@@ -63,12 +52,12 @@ namespace SharpRpc
             }
         }
 
-        protected abstract void Start(LoggerFacade logger);
-        protected abstract Task StopAsync(LoggerFacade logger);
+        protected abstract void Start();
+        protected abstract Task StopAsync();
 
         protected void OnConnect(ByteTransport newConnection)
         {
-            _server.Logger.Verbose(Name, "Incoming connection");
+            Logger.Verbose(Name, "Incoming connection");
 
             ClientConnected.Invoke(this, newConnection);
         }
@@ -77,27 +66,27 @@ namespace SharpRpc
 
         internal void InvokeStart()
         {
-            _server.Logger.Info(Name, "Starting...");
+            //Logger.Verbose(Name, "Starting...");
 
-            Start(_server.Logger);
+            Start();
 
-            _server.Logger.Info(Name, "Started.");
+            //Logger.Verbose(Name, "Started.");
         }
 
         internal async Task InvokeStop()
         {
-            _server.Logger.Info(Name, "Stopping...");
+            //Logger.Verbose(Name, "Stopping...");
 
             try
             {
-                await StopAsync(_server.Logger);
+                await StopAsync();
             }
             catch (Exception ex)
             {
                 _server.Logger.Error(Name, ex, "Stop failed! " + ex.Message);
             }
 
-            _server.Logger.Info(Name, "Stopping...");
+            //Logger.Verbose(Name, "Stopped.");
         }
     }
 }

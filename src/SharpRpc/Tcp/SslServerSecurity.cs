@@ -32,6 +32,8 @@ namespace SharpRpc
             _certSrc = serverCertificate ?? throw new ArgumentNullException(nameof(serverCertificate));
         }
 
+        internal override string Name => "SSL";
+
         internal override void Init()
         {
             _cert = LoadCertificate();

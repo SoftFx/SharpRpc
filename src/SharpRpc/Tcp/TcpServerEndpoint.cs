@@ -23,13 +23,15 @@ namespace SharpRpc
         private volatile bool _stopFlag;
         private readonly IPEndPoint _ipEndpoint;
         private readonly TcpServerSecurity _security;
+        private bool _ipv6Only = true;
 
         public TcpServerEndpoint(IPEndPoint ipEndpoint, TcpServerSecurity security)
         {
             _security = security ?? throw new ArgumentNullException("security");
             _ipEndpoint = ipEndpoint;
 
-            _listener = new Socket(_ipEndpoint.Address.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+            _listener = new Socket(ipEndpoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+            _listener.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.IPv6Only, false);
         }
 
         public TcpServerEndpoint(IPAddress address, int port, TcpServerSecurity security)
@@ -47,6 +49,8 @@ namespace SharpRpc
             if (!int.TryParse(addressParts[1].Trim(), out int port) || port < 0)
                 throw new ArgumentException("Invalid port. Port must be a positive integer.");
 
+            _security = security ?? throw new ArgumentNullException("security");
+
             IPHostEntry ipHostInfo = Dns.GetHostEntry(addressParts[0].Trim());
             var ipAddress = ipHostInfo.AddressList[0];
             _ipEndpoint = new IPEndPoint(ipAddress, port);
@@ -54,13 +58,29 @@ namespace SharpRpc
             _listener = new Socket(ipAddress.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
         }
 
-        protected LoggerFacade Logger { get; private set; }
-
-        protected override void Start(LoggerFacade logger)
+        /// <summary>
+        /// Setting this option to false enables socket to listen at both IPv6 and IPv4 protocols simultaneously.
+        /// This option only works if endpoint is initially configured for IPv6 communications.
+        /// Default value: true.
+        /// </summary>
+        public bool IPv6Only
         {
-            Logger = logger;
-            _stopFlag = false;
+            get => _ipv6Only;
+            set
+            {
+                lock (_stateLockObj)
+                {
+                    ThrowIfImmutable();
+                    _ipv6Only = value;
+                }
+            }
+        }
 
+        protected override void Start()
+        {
+            Logger.Info(Name, "listening at {0}, security: {1}", _ipEndpoint, _security.Name);
+
+            _stopFlag = false;
             _security.Init();
 
             _listener.Bind(_ipEndpoint);
@@ -69,7 +89,7 @@ namespace SharpRpc
             _listenerTask = AcceptLoop();
         }
 
-        protected override async Task StopAsync(LoggerFacade logger)
+        protected override async Task StopAsync()
         {
             _stopFlag = true;
 
