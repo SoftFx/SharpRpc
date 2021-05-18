@@ -19,14 +19,22 @@ namespace SharpRpc
             Type = type;
         }
 
+        /// <summary>
+        /// Specifies both call destination (cliet or server) and call type (one way message or request-responce).
+        /// </summary>
         public RpcType Type { get;  }
-    }
 
+        /// <summary>
+        /// Adds means to create preliminary serialized message. This allows to optimize multicasting
+        /// by removing superfluous serilizations of same data. Affects only one-way messages.
+        /// </summary>
+        public bool EnablePrebuild { get; set; }
+    }
 
     public enum RpcType
     {
         /// <summary>
-        /// One way message from client to server.
+        /// One-way message from client to server.
         /// </summary>
         Message = 1,
 
@@ -41,7 +49,7 @@ namespace SharpRpc
         Callback = 3,
 
         /// <summary>
-        /// One way message from server to client.
+        /// One-way message from server to client.
         /// </summary>
         CallbackMessage = 4
     }

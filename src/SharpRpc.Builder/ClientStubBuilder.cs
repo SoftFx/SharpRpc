@@ -85,6 +85,14 @@ namespace SharpRpc.Builder
                     methods.Add(GenerateOneWayCall(callDec, clientStubTypeName, true, false));
                     methods.Add(GenerateOneWayCall(callDec, clientStubTypeName, false, true));
                     methods.Add(GenerateOneWayCall(callDec, clientStubTypeName, true, true));
+
+                    if (callDec.EnablePrebuild)
+                    {
+                        methods.Add(GeneratePrebuiltMessageSender(callDec, clientStubTypeName, false, false));
+                        methods.Add(GeneratePrebuiltMessageSender(callDec, clientStubTypeName, true, false));
+                        methods.Add(GeneratePrebuiltMessageSender(callDec, clientStubTypeName, false, true));
+                        methods.Add(GeneratePrebuiltMessageSender(callDec, clientStubTypeName, true, true));
+                    }
                 }
                 else if (callDec.CallType == ContractCallType.CallToServer)
                 {
@@ -113,6 +121,26 @@ namespace SharpRpc.Builder
             var method = SF.MethodDeclaration(retType, methodName)
                 .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
                 .AddParameterListParameters(methodParams.ToArray())
+                .WithBody(SF.Block(bodyStatements));
+
+            return method;
+        }
+
+        private MethodDeclarationSyntax GeneratePrebuiltMessageSender(CallDeclaration callDec, TypeString clientStubTypeName, bool isAsync, bool isTry)
+        {
+            var bodyStatements = new List<StatementSyntax>();
+            var msgClassName = _contract.GetPrebuiltMessageClassName(callDec.MethodName);
+            var msgParam = SH.Parameter("message", SH.FullTypeName(msgClassName));
+
+
+            //bodyStatements.AddRange(GenerateCreateAndFillMessageStatements(callDec, msgClassName));
+            bodyStatements.Add(GenerateSendMessageStatement(isAsync, isTry, out var retType));
+
+            var methodName = AtttributeMethodName(callDec, isAsync, isTry);
+
+            var method = SF.MethodDeclaration(retType, methodName)
+                .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
+                .AddParameterListParameters(msgParam)
                 .WithBody(SF.Block(bodyStatements));
 
             return method;
@@ -158,7 +186,7 @@ namespace SharpRpc.Builder
             return methodName;
         }
 
-        private List<ParameterSyntax> GenerateMethodParams(CallDeclaration callDec)
+        internal static List<ParameterSyntax> GenerateMethodParams(CallDeclaration callDec)
         {
             var methodParams = new List<ParameterSyntax>();
 
@@ -174,7 +202,7 @@ namespace SharpRpc.Builder
             return methodParams;
         }
 
-        private IEnumerable<StatementSyntax> GenerateCreateAndFillMessageStatements(CallDeclaration callDec, TypeString msgClassName)
+        internal static IEnumerable<StatementSyntax> GenerateCreateAndFillMessageStatements(CallDeclaration callDec, TypeString msgClassName)
         {
             var msgCreateClause = SF.EqualsValueClause(
                 SF.ObjectCreationExpression(SF.ParseTypeName(msgClassName.Full))
@@ -344,7 +372,7 @@ namespace SharpRpc.Builder
             }
         }
 
-        private TypeSyntax GetTypeSyntax(ParamDeclaration param)
+        private static TypeSyntax GetTypeSyntax(ParamDeclaration param)
         {
             if (param == null || param.ParamType == null)
                 return SF.PredefinedType(SF.Token(SyntaxKind.VoidKeyword));

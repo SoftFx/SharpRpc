@@ -56,6 +56,17 @@ namespace SharpRpc.Builder
                     SyntaxFactory.SeparatedList<AttributeSyntax>(attributeDeclarations)));
         }
 
+        public static T GetArgumentOrDefault<T>(this AttributeData attr, string paramName, T defaultVal = default(T))
+        {
+            foreach (var arg in attr.NamedArguments)
+            {
+                if (arg.Key == paramName)
+                    return (T)arg.Value.Value;
+            }
+
+            return defaultVal;
+        }
+
         #endregion
 
         #region Types
@@ -107,6 +118,11 @@ namespace SharpRpc.Builder
         }
 
         #endregion
+
+        public static SyntaxToken PublicToken()
+        {
+            return SyntaxFactory.Token(SyntaxKind.PublicKeyword);
+        }
 
         public static PredefinedTypeSyntax VoidToken()
         {
@@ -169,6 +185,13 @@ namespace SharpRpc.Builder
 
             return SyntaxFactory.VariableDeclaration(SyntaxFactory.IdentifierName("var"), ToSeparatedList(varDeclarator))
                 .AsLocalDeclaration();
+        }
+
+        public static FieldDeclarationSyntax FieldDeclaration(string fieldName, TypeSyntax fieldType)
+        {
+            return SyntaxFactory.FieldDeclaration(
+                SyntaxFactory.VariableDeclaration(fieldType)
+                .AddVariables(SyntaxFactory.VariableDeclarator(fieldName)));
         }
 
         public static ExpressionStatementSyntax AssignmentStatement(ExpressionSyntax left, ExpressionSyntax right)

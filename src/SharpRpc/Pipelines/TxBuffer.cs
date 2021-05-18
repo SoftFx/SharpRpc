@@ -83,7 +83,12 @@ namespace SharpRpc
             //    IsCurrentSegmentLocked = true;
 
             _marker.OnMessageStart();
-            _serializer.Serialize(message, this);
+
+            if (message is IPrebuiltMessage mmsg)
+                mmsg.WriteTo(0, this);
+            else
+                _serializer.Serialize(message, this);
+
             _marker.OnMessageEnd();
 
             DequeueRequest toSignal = null;
@@ -207,6 +212,7 @@ namespace SharpRpc
 
         public Span<byte> GetSpan(int sizeHint = 0)
         {
+            EnsureSpace(sizeHint);
             return new Span<byte>(CurrentSegment, CurrentOffset, SegmentSize - CurrentOffset);
         }
 

@@ -17,6 +17,11 @@ namespace SharpRpc
     {
     }
 
+    public interface IPrebuiltMessage : IMessage
+    {
+        void WriteTo(ushort serializedId, MessageWriter writer);
+    }
+
     public interface IRequest : IMessage
     {
         string CallId { get; set; }

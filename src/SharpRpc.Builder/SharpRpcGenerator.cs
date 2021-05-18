@@ -56,6 +56,7 @@ namespace SharpRpc.Builder
         private void GenerateStubs(ContractDeclaration contractInfo, GeneratorExecutionContext context)
         {
             var contractGenClassName = contractInfo.FacadeClassName;
+            var hasPrebuilder = contractInfo.Calls.Any(c => c.EnablePrebuild && c.IsOneWay);
 
             var clientBuilder = new ClientStubBuilder(contractInfo);
             var serverBuilder = new ServerStubBuilder(contractInfo);
@@ -132,6 +133,18 @@ namespace SharpRpc.Builder
                .AddMembers(clientBuilder.GenerateCode(), serverBuilder.GenerateCode())
                .AddMembers(sAdapterClasses)
                .AddMembers(messageBundleClass, systemBundleClass, messageFactoryClass);
+
+            if (hasPrebuilder)
+            {
+                var prebuiltMessages = SerializerFixture.GeneratePrebuildMessages(contractInfo).ToArray();
+
+                var prebuiltMessageBundleClass = SF.ClassDeclaration(contractInfo.PrebuiltBundleClassName.Short)
+                    .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
+                    .AddMembers(prebuiltMessages);
+
+                var prebuildClass = SerializerFixture.GeneratePrebuildTool(contractInfo);
+                contractGenClass = contractGenClass.AddMembers(prebuildClass, prebuiltMessageBundleClass);
+            }
 
             var stubNamespace = SF.NamespaceDeclaration(SF.IdentifierName(contractInfo.Namespace))
                 .AddMembers(contractGenClass);
@@ -270,7 +283,6 @@ namespace SharpRpc.Builder
                     throw new Exception("Invalid property type!");
 
                 var callType = GetCallType(typeArg.Value);
-
                 var callInfo = new CallDeclaration(methodModel.Name, callType);
 
                 int index = 1;
@@ -279,6 +291,8 @@ namespace SharpRpc.Builder
 
                 if (!methodModel.ReturnsVoid)
                     callInfo.ReturnParam = CollectParamInfo(0, methodModel.ReturnType);
+
+                callInfo.EnablePrebuild = callAttr.GetArgumentOrDefault<bool>(Names.PrebuildCallOption);
 
                 return callInfo;
             }
@@ -298,20 +312,20 @@ namespace SharpRpc.Builder
             return new ParamDeclaration(index, paramTypeFullName, paramName);
         }
 
-        private bool TryGetAttributeValue(AttributeData data, string name, out TypedConstant value)
-        {
-            foreach (var arg in data.NamedArguments)
-            {
-                if (arg.Key == name)
-                {
-                    value = arg.Value;
-                    return true;
-                }
-            }
+        //private bool TryGetAttributeValue(AttributeData data, string name, out TypedConstant value)
+        //{
+        //    foreach (var arg in data.NamedArguments)
+        //    {
+        //        if (arg.Key == name)
+        //        {
+        //            value = arg.Value;
+        //            return true;
+        //        }
+        //    }
 
-            value = default(TypedConstant);
-            return false;
-        }
+        //    value = default(TypedConstant);
+        //    return false;
+        //}
 
         private ContractCallType GetCallType(object value)
         {

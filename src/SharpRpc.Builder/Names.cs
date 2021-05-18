@@ -33,6 +33,8 @@ namespace SharpRpc.Builder
         public static readonly TypeString LogoutMessageInterface = new TypeString("SharpRpc.ILogoutMessage");
         public static readonly TypeString HeartbeatMessageInterface = new TypeString("SharpRpc.IHeartbeatMessage");
         public static readonly TypeString MessageFactoryInterface = new TypeString("SharpRpc.ISystemMessageFactory");
+        public static readonly TypeString RpcPrebuiltMessage = new TypeString("SharpRpc.PrebuiltMessage");
+        public static readonly TypeString RpcMultiPrebuiltMessage = new TypeString("SharpRpc.MultiPrebuiltMessage");
 
         public static readonly TypeString MessageReaderClass = new TypeString("SharpRpc.MessageReader");
         public static readonly TypeString MessageWriterClass = new TypeString("SharpRpc.MessageWriter");
@@ -41,8 +43,11 @@ namespace SharpRpc.Builder
         public static readonly TypeString RpcServiceBaseClass = new TypeString("SharpRpc.RpcServiceBase");
 
         public static readonly TypeString RpcSerializerInterface = new TypeString("SharpRpc.IRpcSerializer");
+        public static readonly TypeString RpcPreserializeTool = new TypeString("SharpRpc.PreserializeTool");
         public static readonly TypeString SerializerChoiceEnum = new TypeString("SharpRpc.SerializerChoice");
         public static readonly TypeString RpcResultStruct = new TypeString("SharpRpc.RpcResult");
+
+        public static readonly TypeString RpcSegmentedByteArray = new TypeString("SharpRpc.SegmentedByteArray");
 
         public static readonly TypeString RpcConfigurationException = new TypeString("SharpRpc.RpcConfigurationException");
         
@@ -50,6 +55,8 @@ namespace SharpRpc.Builder
         public static readonly string RequestClassPostfix = "Request";
         public static readonly string ResponseClassPostfix = "Response";
         public static readonly string ResponseResultProperty = "Result";
+
+        public static readonly string PrebuildCallOption = "EnablePrebuild";
 
         public static readonly string RpcServiceBaseOnMessageMethod = "OnMessage";
         public static readonly string RpcServiceBaseOnRequestMethod = "OnRequest";

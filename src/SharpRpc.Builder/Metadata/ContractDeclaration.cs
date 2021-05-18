@@ -22,6 +22,7 @@ namespace SharpRpc.Builder
             FacadeClassName = new TypeString(InterfaceName.Namespace, InterfaceName.Short + "_Gen");
             MessageBundleClassName = new TypeString(FacadeClassName.Full, "Messages");
             SystemBundleClassName = new TypeString(FacadeClassName.Full, "SystemMessages");
+            PrebuiltBundleClassName = new TypeString(FacadeClassName.Full, "PrebuiltMessages");
             MessageFactoryClassName = new TypeString(FacadeClassName.Full, "SystemMessagesFactory");
             BaseMessageClassName = new TypeString(MessageBundleClassName.Full, "MessageBase");
             LoginMessageClassName = new TypeString(SystemBundleClassName.Short, "Login");
@@ -37,6 +38,7 @@ namespace SharpRpc.Builder
         public TypeString FacadeClassName { get; }
         public TypeString MessageBundleClassName { get; }
         public TypeString SystemBundleClassName { get; }
+        public TypeString PrebuiltBundleClassName { get; }
         public TypeString MessageFactoryClassName { get; }
         public TypeString ClientStubClassName { get; }
         public TypeString ServiceStubClassName { get; }
@@ -67,6 +69,11 @@ namespace SharpRpc.Builder
         public TypeString GetOnWayMessageClassName(string contractMethodName)
         {
             return GetMessageClassName(contractMethodName, Names.MessageClassPostfix);
+        }
+
+        public TypeString GetPrebuiltMessageClassName(string contracMethodName)
+        {
+            return new TypeString(PrebuiltBundleClassName.Short, contracMethodName);
         }
 
         public TypeString GetRequestClassName(string contractMethodName)

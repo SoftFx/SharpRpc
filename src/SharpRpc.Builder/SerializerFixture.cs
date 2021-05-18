@@ -10,6 +10,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using System.Text;
 using SF = Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 using SH = SharpRpc.Builder.SyntaxHelper;
@@ -62,6 +63,97 @@ namespace SharpRpc.Builder
                .WithBody(SF.Block(ifRoot));
 
             return method;
+        }
+
+        public static IEnumerable<ClassDeclarationSyntax> GeneratePrebuildMessages(ContractDeclaration contract)
+        {
+            bool singleAdapter = contract.Serializers.Count == 1;
+
+            foreach (var callDef in contract.Calls)
+            {
+                if (callDef.IsOneWay && callDef.EnablePrebuild)
+                {
+                    var msgName = contract.GetPrebuiltMessageClassName(callDef.MethodName);
+                    var baseType = singleAdapter ? Names.RpcPrebuiltMessage : Names.RpcMultiPrebuiltMessage;
+
+                    var constructorInitializer = SF.ConstructorInitializer(SyntaxKind.BaseConstructorInitializer)
+                        .AddArgumentListArguments(SH.IdentifierArgument("bytes"));
+
+                    var bytesParam = SH.Parameter("bytes", Names.RpcSegmentedByteArray.Full);
+
+                    var constructor = SF.ConstructorDeclaration(msgName.Short)
+                        .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
+                        .AddParameterListParameters(bytesParam)
+                        .WithInitializer(constructorInitializer)
+                        .WithBody(SF.Block());
+
+                    yield return SF.ClassDeclaration(msgName.Short)
+                        .AddBaseListTypes(SF.SimpleBaseType(SH.FullTypeName(baseType)))
+                        .AddModifiers(SH.PublicToken())
+                        .AddMembers(constructor);
+                }
+            }
+        }
+
+        public static ClassDeclarationSyntax GeneratePrebuildTool(ContractDeclaration contract)
+        {
+            bool singleAdapter = contract.Serializers.Count == 1;
+
+            var preserializerField = SH.FieldDeclaration("_preserializer", SH.FullTypeName(Names.RpcPreserializeTool))
+                .AddModifiers(SF.Token(SyntaxKind.PrivateKeyword), SF.Token(SyntaxKind.ReadOnlyKeyword));
+
+            var preserializerCreation = SH.AssignmentStatement(
+                SF.IdentifierName("_preserializer"),
+                SF.ObjectCreationExpression(SH.FullTypeName(Names.RpcPreserializeTool)).WithoutArguments());
+
+            var constructor = SF.ConstructorDeclaration("Prebuilder")
+                .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
+                .WithBody(SF.Block(preserializerCreation));
+
+            var prebuildMethods = new List<MethodDeclarationSyntax>();
+
+            foreach (var callDef in contract.Calls)
+            {
+                if (callDef.IsOneWay && callDef.EnablePrebuild)
+                    prebuildMethods.Add(GenPrebuildMethod(callDef, contract, singleAdapter));
+            }
+            
+            return SF.ClassDeclaration("Prebuilder")
+                .AddModifiers(SH.PublicToken())
+                .AddMembers(preserializerField, constructor)
+                .AddMembers(prebuildMethods.ToArray());
+        }
+
+        private static MethodDeclarationSyntax GenPrebuildMethod(CallDeclaration callDef, ContractDeclaration contract, bool singleAdapter)
+        {
+            var bodyStatements = new List<StatementSyntax>();
+            var msgClassName = contract.GetOnWayMessageClassName(callDef.MethodName);
+            var pMessageClassName = contract.GetPrebuiltMessageClassName(callDef.MethodName);
+
+            var pMsgCreationStatement = SF.ObjectCreationExpression(SH.FullTypeName(pMessageClassName))
+                .AddArgumentListArguments(SH.IdentifierArgument("bytes"));
+
+            bodyStatements.AddRange(ClientStubBuilder.GenerateCreateAndFillMessageStatements(callDef, msgClassName));
+            bodyStatements.Add(GenSerializerInvoke(singleAdapter));
+
+            bodyStatements.Add(SF.ReturnStatement(pMsgCreationStatement));
+
+            var methodParams = ClientStubBuilder.GenerateMethodParams(callDef);
+            return SF.MethodDeclaration(SH.FullTypeName(pMessageClassName), "Prebuild" + callDef.MethodName)
+                .AddModifiers(SH.PublicToken())
+                .AddParameterListParameters(methodParams.ToArray())
+                .WithBody(SF.Block(bodyStatements ));
+        }
+
+        private static StatementSyntax GenSerializerInvoke(bool singleAdapter)
+        {
+            var methodToCall = SH.MemeberOfIdentifier("_preserializer",
+                singleAdapter ? "SerializeOnSingleAdapter" : "SerializeOnAllAdapters");
+
+            var invokeExpression = SF.InvocationExpression(methodToCall)
+                .WithArguments(SH.IdentifierArgument("message"));
+
+            return SH.VarDeclaration("bytes", invokeExpression);
         }
     }
 }

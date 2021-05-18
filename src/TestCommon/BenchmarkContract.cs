@@ -16,7 +16,7 @@ namespace TestCommon
     [RpcSerializer(SerializerChoice.MessagePack)]
     public interface BenchmarkContract
     {
-        [Rpc(RpcType.Message)]
+        [Rpc(RpcType.Message, EnablePrebuild = true)]
         void SendUpdate(FooEntity entity);
 
         [Rpc(RpcType.Call)]
