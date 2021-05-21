@@ -57,9 +57,10 @@ namespace SharpRpc.Builder
         {
             var contractGenClassName = contractInfo.FacadeClassName;
             var hasPrebuilder = contractInfo.Calls.Any(c => c.EnablePrebuild && c.IsOneWay);
+            var hasCallbacks = contractInfo.Calls.Any(c => c.IsCallback);
 
-            var clientBuilder = new ClientStubBuilder(contractInfo);
-            var serverBuilder = new ServerStubBuilder(contractInfo);
+            var clientBuilder = new TxStubBuilder(contractInfo, false);
+            var serverBuilder = new RxStubBuilder(contractInfo, false);
 
             var baseMsgNode = MessageBuilder.GenerateMessageBase(contractInfo);
 
@@ -133,6 +134,16 @@ namespace SharpRpc.Builder
                .AddMembers(clientBuilder.GenerateCode(), serverBuilder.GenerateCode())
                .AddMembers(sAdapterClasses)
                .AddMembers(messageBundleClass, systemBundleClass, messageFactoryClass);
+
+            if (hasCallbacks)
+            {
+                var callbackClientBuilder = new TxStubBuilder(contractInfo, true);
+                var callbackServiceBuilder = new RxStubBuilder(contractInfo, true);
+                var callbackClientClass = callbackClientBuilder.GenerateCode();
+                var callbackServiceClass = callbackServiceBuilder.GenerateCode();
+
+                contractGenClass = contractGenClass.AddMembers(callbackClientClass, callbackServiceClass);
+            }
 
             if (hasPrebuilder)
             {

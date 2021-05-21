@@ -18,25 +18,31 @@ using SH = SharpRpc.Builder.SyntaxHelper;
 
 namespace SharpRpc.Builder
 {
-    internal class ServerStubBuilder
+    internal class RxStubBuilder
     {
         private readonly ContractDeclaration _contract;
+        private readonly bool _isCallbackStub;
 
-        public ServerStubBuilder(ContractDeclaration contract)
+        public RxStubBuilder(ContractDeclaration contract, bool isCallback)
         {
             _contract = contract;
+            _isCallbackStub = isCallback;
         }
 
         public ClassDeclarationSyntax GenerateCode()
         {
-            var contractType = _contract.InterfaceName;
-            var serverStubType = new TypeString(contractType.Namespace, "Service");
+            var serverStubType = _isCallbackStub ? _contract.CallbackServiceStubClassName : _contract.ServiceStubClassName;
 
-            return SF.ClassDeclaration(serverStubType.Short)
+            var stubClass = SF.ClassDeclaration(serverStubType.Short)
                 .AddModifiers(SF.Token(SyntaxKind.PublicKeyword), SF.Token(SyntaxKind.AbstractKeyword))
                 .AddBaseListTypes(SF.SimpleBaseType(SF.ParseTypeName(Names.RpcServiceBaseClass.Full)))
                 .AddMembers(GenerateRpcMethods(serverStubType))
                 .AddMembers(GenerateOnMessageOverride(), GenerateOnRequestOverride());
+
+            if (!_isCallbackStub && _contract.HasCallbacks)
+                stubClass = stubClass.AddMembers(GenerateClientStubProperty(), GenerateInitOverride());
+
+            return stubClass;
         }
 
         public MethodDeclarationSyntax GenerateBindMethod()
@@ -72,7 +78,7 @@ namespace SharpRpc.Builder
         {
             var methods = new List<MethodDeclarationSyntax>();
 
-            foreach (var callDec in _contract.Calls)
+            foreach (var callDec in GetAffectedCalls())
             {
                 methods.Add(GenerateStubMethod(callDec));
 
@@ -151,7 +157,7 @@ namespace SharpRpc.Builder
 
             var index = 0;
 
-            foreach (var call in _contract.Calls)
+            foreach (var call in GetAffectedCalls())
             {
                 if (call.CallType == ContractCallType.MessageToServer)
                 {
@@ -182,9 +188,9 @@ namespace SharpRpc.Builder
 
             var index = 0;
 
-            foreach (var call in _contract.Calls)
+            foreach (var call in GetAffectedCalls())
             {
-                if (call.CallType == ContractCallType.CallToServer)
+                if (call.IsRequestResponceCall)
                 {
                     var messageType = _contract.GetRequestClassName(call.MethodName);
                     var typedMessageVarName = "r" + index++;
@@ -259,6 +265,36 @@ namespace SharpRpc.Builder
                 return SF.PredefinedType(SF.Token(SyntaxKind.VoidKeyword));
             else
                 return SF.ParseTypeName(param.ParamType);
+        }
+
+        private MemberDeclarationSyntax GenerateInitOverride()
+        {
+            var callbackClientCreation = SF.ObjectCreationExpression(SH.ShortTypeName(_contract.CallbackClientStubClassName))
+                .AddArgumentListArguments(SH.IdentifierArgument("channel"));
+
+            var createCallbackStubStatement = SH.AssignmentStatement(
+                SF.IdentifierName("Client"),
+                callbackClientCreation);
+
+            return SF.MethodDeclaration(SH.VoidToken(), Names.RpcServiceBaseOnInitMethod)
+               .AddModifiers(SF.Token(SyntaxKind.ProtectedKeyword), SF.Token(SyntaxKind.OverrideKeyword))
+               .AddParameterListParameters(SH.Parameter("channel", Names.RpcChannelClass.Full))
+               .WithBody(SF.Block(createCallbackStubStatement));
+        }
+
+        private MemberDeclarationSyntax GenerateClientStubProperty()
+        {
+            var clientStubType = SH.ShortTypeName(_contract.CallbackClientStubClassName);
+            return SF.PropertyDeclaration(clientStubType, "Client")
+                .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
+                .AddAutoGetter()
+                .AddPrivateAutoSetter();
+        }
+
+        private List<CallDeclaration> GetAffectedCalls()
+        {
+            return (_isCallbackStub ? _contract.Calls.Where(c => c.IsCallback)
+                : _contract.Calls.Where(c => !c.IsCallback)).ToList();
         }
     }
 }

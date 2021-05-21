@@ -16,7 +16,17 @@ namespace SharpRpc
     {
         public ClientBase(ClientEndpoint endpoint, ContractDescriptor descriptor)
         {
-            Channel = new Channel(endpoint, descriptor, new MsgHandler());
+            Channel = new Channel(endpoint, descriptor, new NullHandler());
+        }
+
+        public ClientBase(ClientEndpoint endpoint, ContractDescriptor descriptor, RpcServiceBase callbackHandler)
+        {
+            Channel = new Channel(endpoint, descriptor, callbackHandler ?? throw new ArgumentNullException("callbackHandler"));
+        }
+
+        public ClientBase(Channel channel)
+        {
+            Channel = channel ?? throw new ArgumentNullException("channel");
         }
 
         public Channel Channel { get; }
@@ -65,16 +75,20 @@ namespace SharpRpc
             return Channel.Dispatcher.TryCall<TResp, T>(requestMsg);
         }
 
-        private class MsgHandler : IUserMessageHandler
+        private class NullHandler : IUserMessageHandler
         {
+            public void Init(Channel ch)
+            {
+            }
+
             public ValueTask ProcessMessage(IMessage message)
             {
-                return new ValueTask();
+                throw new RpcException("No message handler for " + message.GetType().Name, RpcRetCode.UnexpectedMessage);
             }
 
             public ValueTask<IResponse> ProcessRequest(IRequest message)
             {
-                throw new NotImplementedException();
+                throw new RpcException("No message handler for " + message.GetType().Name, RpcRetCode.UnexpectedMessage);
             }
         }
     }

@@ -57,7 +57,12 @@ namespace SharpRpc
                     return new RpcResult(RpcRetCode.LoginTimeout, "Login oepration timed out!");
 
                 if (loginResp.ResultCode == LoginResult.Ok)
+                {
+                    // enable message queue
+                    Channel.Dispatcher.AllowMessages();
+
                     return RpcResult.Ok;
+                }
                 else if (loginResp.ResultCode == LoginResult.InvalidCredentials)
                     return new RpcResult(RpcRetCode.InvalidCredentials, "Login failed: " + loginResp.ErrorMessage);
                 else

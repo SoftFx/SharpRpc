@@ -16,21 +16,35 @@ using SH = SharpRpc.Builder.SyntaxHelper;
 
 namespace SharpRpc.Builder
 {
-    internal class ClientStubBuilder
+    internal class TxStubBuilder
     {
         private readonly ContractDeclaration _contract;
+        private readonly bool _isCallback;
 
-        public ClientStubBuilder(ContractDeclaration contract)
+        public TxStubBuilder(ContractDeclaration contract, bool isCallbackClient)
         {
             _contract = contract;
+            _isCallback = isCallbackClient;
         }
 
         public ClassDeclarationSyntax GenerateCode()
         {
+            if (_isCallback)
+                return GenerateServerSideStub();
+            else
+                return GenerateClientSideStub();
+        }
+
+        private ClassDeclarationSyntax GenerateClientSideStub()
+        {
             var clientStubType = _contract.ClientStubClassName;
+            var addHandlerParam = !_isCallback && _contract.HasCallbacks;
 
             var constructorInitializer = SF.ConstructorInitializer(SyntaxKind.BaseConstructorInitializer)
                 .AddArgumentListArguments(SH.IdentifierArgument("endpoint"), SH.IdentifierArgument("descriptor"));
+
+            if (addHandlerParam)
+                constructorInitializer = constructorInitializer.AddArgumentListArguments(SH.IdentifierArgument("callbackHandler"));
 
             var endpointConsParam = SH.Parameter("endpoint", Names.RpcClientEndpointBaseClass.Full);
             var descriptorConsParam = SH.Parameter("descriptor", Names.ContractDescriptorClass.Full);
@@ -38,6 +52,35 @@ namespace SharpRpc.Builder
             var constructor = SF.ConstructorDeclaration(clientStubType.Short)
                 .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
                 .AddParameterListParameters(endpointConsParam, descriptorConsParam)
+                .WithInitializer(constructorInitializer)
+                .WithBody(SF.Block());
+
+            if (addHandlerParam)
+            {
+                var handlerType = SH.ShortTypeName(_contract.CallbackServiceStubClassName);
+                var handlerConsParam = SH.Parameter("callbackHandler", handlerType);
+                constructor = constructor.AddParameterListParameters(handlerConsParam);
+            }
+
+            return SF.ClassDeclaration(clientStubType.Short)
+                .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
+                .AddBaseListTypes(SF.SimpleBaseType(SF.ParseTypeName(Names.RpcClientBaseClass.Full)))
+                .AddMembers(constructor)
+                .AddMembers(GenerateCallMethods(clientStubType));
+        }
+
+        private ClassDeclarationSyntax GenerateServerSideStub()
+        {
+            var clientStubType = _contract.CallbackClientStubClassName;
+
+            var constructorInitializer = SF.ConstructorInitializer(SyntaxKind.BaseConstructorInitializer)
+                .AddArgumentListArguments(SH.IdentifierArgument("channel"));
+
+            var channelConsParam = SH.Parameter("channel", Names.RpcChannelClass.Full);
+
+            var constructor = SF.ConstructorDeclaration(clientStubType.Short)
+                .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
+                .AddParameterListParameters(channelConsParam)
                 .WithInitializer(constructorInitializer)
                 .WithBody(SF.Block());
 
@@ -50,6 +93,8 @@ namespace SharpRpc.Builder
 
         public MethodDeclarationSyntax GenerateFactoryMethod()
         {
+            var addHandlerParam = !_isCallback && _contract.HasCallbacks;
+
             var serializerCreateClause = SH.InvocationExpression(Names.FacadeSerializerAdapterFactoryMethod, SF.Argument(SF.IdentifierName("serializer")));
             var serializerVarStatement = SH.VarDeclaration("adapter", serializerCreateClause);
 
@@ -59,6 +104,9 @@ namespace SharpRpc.Builder
             var clientCreateExpression = SF.ObjectCreationExpression(SH.ShortTypeName(_contract.ClientStubClassName))
                 .WithArgumentList(SH.CallArguments(SH.IdentifierArgument("endpoint"), SH.IdentifierArgument("descriptor")));
 
+            if (addHandlerParam)
+                clientCreateExpression = clientCreateExpression.AddArgumentListArguments(SH.IdentifierArgument("callbackHandler"));
+
             var returnStatement = SF.ReturnStatement(clientCreateExpression);
 
             var endpointParam = SH.Parameter("endpoint", Names.RpcClientEndpointBaseClass.Full);
@@ -67,9 +115,20 @@ namespace SharpRpc.Builder
             var serializerParam = SH.Parameter("serializer", Names.SerializerChoiceEnum.Full)
                 .WithDefault(SF.EqualsValueClause(serializerDefValue));
 
+            var paramList = new List<ParameterSyntax>();
+            paramList.Add(endpointParam);
+
+            if (addHandlerParam)
+            {
+                var handlerType = SH.ShortTypeName(_contract.CallbackServiceStubClassName);
+                paramList.Add(SH.Parameter("callbackHandler", handlerType));
+            }
+
+            paramList.Add(serializerParam);
+
             return SF.MethodDeclaration(SF.ParseTypeName(_contract.ClientStubClassName.Short), "CreateClient")
                 .AddModifiers(SF.Token(SyntaxKind.PublicKeyword), SF.Token(SyntaxKind.StaticKeyword))
-                .AddParameterListParameters(endpointParam, serializerParam)
+                .AddParameterListParameters(paramList.ToArray())
                 .WithBody(SF.Block(serializerVarStatement, descriptorVarStatement, returnStatement));
         }
 
@@ -79,7 +138,10 @@ namespace SharpRpc.Builder
 
             foreach (var callDec in _contract.Calls)
             {
-                if (callDec.CallType == ContractCallType.MessageToServer)
+                bool addMessage = _isCallback ? (callDec.CallType == ContractCallType.MessageToClient) : (callDec.CallType == ContractCallType.MessageToServer);
+                bool addCall = _isCallback ? (callDec.CallType == ContractCallType.CallToClient) : (callDec.CallType == ContractCallType.CallToServer);
+
+                if (addMessage)
                 {
                     methods.Add(GenerateOneWayCall(callDec, clientStubTypeName, false, false));
                     methods.Add(GenerateOneWayCall(callDec, clientStubTypeName, true, false));
@@ -94,7 +156,7 @@ namespace SharpRpc.Builder
                         methods.Add(GeneratePrebuiltMessageSender(callDec, clientStubTypeName, true, true));
                     }
                 }
-                else if (callDec.CallType == ContractCallType.CallToServer)
+                else if (addCall)
                 {
                     methods.Add(GenerateCall(callDec, clientStubTypeName, false, false));
                     methods.Add(GenerateCall(callDec, clientStubTypeName, true, false));

@@ -29,5 +29,20 @@ namespace TestCommon
 
         [Rpc(RpcType.Call)]
         string TestCall3(int p1, string p2);
+
+        [Rpc(RpcType.Call)]
+        string InvokeCallback(int callbackNo, int p1, string p2);
+
+        [Rpc(RpcType.CallbackMessage)]
+        void TestCallbackNotify1(int p1, string p2);
+
+        [Rpc(RpcType.Callback)]
+        void TestCallback1(int p1, string p2);
+
+        [Rpc(RpcType.Callback)]
+        int TestCallback2(int p1, string p2);
+
+        [Rpc(RpcType.Callback)]
+        string TestCallback3(int p1, string p2);
     }
 }

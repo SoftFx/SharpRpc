@@ -52,7 +52,8 @@ namespace TestServer
 
         private static RpcServer StartFunctionTestServer()
         {
-            var tcpEndpoint = new TcpServerEndpoint(IPAddress.Any, 812, TcpServerSecurity.None);
+            var tcpEndpoint = new TcpServerEndpoint(IPAddress.IPv6Any, 812, TcpServerSecurity.None);
+            tcpEndpoint.IPv6Only = false;
 
             var server = new RpcServer(FunctionTestContract_Gen.CreateBinding(() => new FunctionTestService()));
             server.AddEndpoint(tcpEndpoint);

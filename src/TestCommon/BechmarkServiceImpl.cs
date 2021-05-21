@@ -13,7 +13,7 @@ using System.Threading.Tasks;
 
 namespace TestCommon
 {
-    public class BechmarkServiceImpl : BenchmarkContract_Gen.Service
+    public class BechmarkServiceImpl : BenchmarkContract_Gen.ServiceBase
     {
         public override ValueTask SendUpdate(FooEntity entity)
         {

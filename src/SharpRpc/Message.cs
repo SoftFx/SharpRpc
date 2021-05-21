@@ -34,6 +34,18 @@ namespace SharpRpc
         //int? ToRecipient { get; }
     }
 
+    public interface IFault : IMessage
+    {
+        string CallId { get; set; }
+        RpcFault Fault { get; }
+    }
+
+    public interface IFault<T> : IFault
+        where T : RpcFault
+    {
+        T ExactFault { get; set; }
+    }
+
     public interface IResponse<T> : IResponse
     {
         T Result { get; }

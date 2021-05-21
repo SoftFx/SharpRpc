@@ -18,6 +18,7 @@ namespace SharpRpc
         ILoginMessage CreateLoginMessage();
         ILogoutMessage CreateLogoutMessage();
         IHeartbeatMessage CreateHeartBeatMessage();
+        //T CreateFaultMessage<T>() where T : RpcFault;
         //IBasicAuthData CreateBasicAuthData();
     }
 

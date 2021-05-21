@@ -29,7 +29,16 @@ namespace SharpRpc
 
         protected IResponse CreateFaultResponse(Exception ex)
         {
-            throw new NotImplementedException();
+            throw new NotImplementedException();   
+        }
+
+        protected virtual void OnInit(Channel channel)
+        {
+        }
+
+        internal void InvokeInit(Channel channel)
+        {
+            OnInit(channel);
         }
 
         ValueTask IUserMessageHandler.ProcessMessage(IMessage message)

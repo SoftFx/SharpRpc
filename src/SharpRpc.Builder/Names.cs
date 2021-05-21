@@ -19,6 +19,7 @@ namespace SharpRpc.Builder
 
         public static readonly TypeString RpcClientBaseClass = new TypeString("SharpRpc.ClientBase");
         public static readonly TypeString RpcClientEndpointBaseClass = new TypeString("SharpRpc.ClientEndpoint");
+        public static readonly TypeString RpcChannelClass = new TypeString("SharpRpc.Channel");
         public static readonly TypeString ContractDescriptorClass = new TypeString("SharpRpc.ContractDescriptor");
         public static readonly TypeString ServiceBindingClass = new TypeString("SharpRpc.ServiceBinding");
 
@@ -58,6 +59,7 @@ namespace SharpRpc.Builder
 
         public static readonly string PrebuildCallOption = "EnablePrebuild";
 
+        public static readonly string RpcServiceBaseOnInitMethod = "OnInit";
         public static readonly string RpcServiceBaseOnMessageMethod = "OnMessage";
         public static readonly string RpcServiceBaseOnRequestMethod = "OnRequest";
         public static readonly string RpcServiceBaseOnUnknownMessage = "OnUnknownMessage";

@@ -31,7 +31,9 @@ namespace SharpRpc.Builder
             //AuthDataClassName = new TypeString(SystemBundleClassName.Short, "AuthData");
             //BasicAuthDataClassName = new TypeString(SystemBundleClassName.Short, "BasicAuthData");
             ClientStubClassName = new TypeString(FacadeClassName.Full, "Client");
-            ServiceStubClassName = new TypeString(FacadeClassName.Full, "Service");
+            ServiceStubClassName = new TypeString(FacadeClassName.Full, "ServiceBase");
+            CallbackClientStubClassName = new TypeString(FacadeClassName.Full, "CallbackClient");
+            CallbackServiceStubClassName = new TypeString(FacadeClassName.Full, "CallbackServiceBase");
         }
 
         public TypeString InterfaceName { get; }
@@ -41,7 +43,9 @@ namespace SharpRpc.Builder
         public TypeString PrebuiltBundleClassName { get; }
         public TypeString MessageFactoryClassName { get; }
         public TypeString ClientStubClassName { get; }
+        public TypeString CallbackClientStubClassName { get; }
         public TypeString ServiceStubClassName { get; }
+        public TypeString CallbackServiceStubClassName { get; }
         public string Namespace => InterfaceName.Namespace;
         public TypeString BaseMessageClassName { get; }
         public TypeString LoginMessageClassName { get; }
@@ -50,6 +54,8 @@ namespace SharpRpc.Builder
         //public TypeString AuthDataClassName { get; }
         //public TypeString BasicAuthDataClassName { get; }
         public List<CallDeclaration> Calls { get; } = new List<CallDeclaration>();
+
+        public bool HasCallbacks => Calls.Any(c => c.IsCallback);
 
         internal IReadOnlyList<SerializerDeclaration> Serializers => _serializers;
 

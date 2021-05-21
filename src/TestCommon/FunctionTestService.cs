@@ -14,7 +14,7 @@ using SharpRpc;
 
 namespace TestCommon
 {
-    public class FunctionTestService : FunctionTestContract_Gen.Service
+    public class FunctionTestService : FunctionTestContract_Gen.ServiceBase
     {
         public override ValueTask TestCall1(int p1, string p2)
         {
@@ -43,6 +43,21 @@ namespace TestCommon
                 throw new Exception("Invalid input!");
 
             return new ValueTask();
+        }
+
+        public async override ValueTask<string> InvokeCallback(int callbackNo, int p1, string p2)
+        {
+            if (callbackNo == 1)
+            {
+                await Client.TestCallback1Async(p1, p2);
+                return "void";
+            }
+            else if (callbackNo == 2)
+                return (await Client.TestCallback2Async(p1, p2)).ToString();
+            else if (callbackNo == 3)
+                return await Client.TestCallback3Async(p1, p2);
+
+            throw new Exception("There is no callabck number " + callbackNo);
         }
     }
 }

@@ -257,6 +257,14 @@ namespace SharpRpc.Builder
                 .WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken)));
         }
 
+        public static PropertyDeclarationSyntax AddPrivateAutoSetter(this PropertyDeclarationSyntax propertyDeclaration)
+        {
+            return propertyDeclaration.AddAccessorListAccessors(
+                SyntaxFactory.AccessorDeclaration(SyntaxKind.SetAccessorDeclaration)
+                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PrivateKeyword))
+                .WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken)));
+        }
+
         public static MethodDeclarationSyntax WithoutBody(this MethodDeclarationSyntax method)
         {
             return method.WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken));

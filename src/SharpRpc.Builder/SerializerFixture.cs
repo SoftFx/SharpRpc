@@ -133,12 +133,12 @@ namespace SharpRpc.Builder
             var pMsgCreationStatement = SF.ObjectCreationExpression(SH.FullTypeName(pMessageClassName))
                 .AddArgumentListArguments(SH.IdentifierArgument("bytes"));
 
-            bodyStatements.AddRange(ClientStubBuilder.GenerateCreateAndFillMessageStatements(callDef, msgClassName));
+            bodyStatements.AddRange(TxStubBuilder.GenerateCreateAndFillMessageStatements(callDef, msgClassName));
             bodyStatements.Add(GenSerializerInvoke(singleAdapter));
 
             bodyStatements.Add(SF.ReturnStatement(pMsgCreationStatement));
 
-            var methodParams = ClientStubBuilder.GenerateMethodParams(callDef);
+            var methodParams = TxStubBuilder.GenerateMethodParams(callDef);
             return SF.MethodDeclaration(SH.FullTypeName(pMessageClassName), "Prebuild" + callDef.MethodName)
                 .AddModifiers(SH.PublicToken())
                 .AddParameterListParameters(methodParams.ToArray())

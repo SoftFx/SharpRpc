@@ -32,7 +32,7 @@ namespace SharpRpc
             public override void Start()
             {
                 lock (_lockObj)
-                    _workerTask = InvokeMessageHandlerLoop();
+                    _workerTask = MessageHandlerLoop();
             }
 
             public override void AllowMessages()
@@ -129,7 +129,6 @@ namespace SharpRpc
 
                 if (result.Code != RpcRetCode.Ok)
                     callTask.Fail(result);
-
             }
 
             private void SignalDataReady()
@@ -169,7 +168,7 @@ namespace SharpRpc
                 }
             }
 
-            private async Task InvokeMessageHandlerLoop()
+            private async Task MessageHandlerLoop()
             {
                 while (true)
                 {
@@ -184,9 +183,7 @@ namespace SharpRpc
                         }
                         else if (item.Message is IRequest req)
                         {
-                            var respToSend = await MessageHandler.ProcessRequest(req);
-                            respToSend.CallId = req.CallId;
-                            await Tx.TrySendAsync(respToSend);
+                            ProcessRequest(req);
                         }
                         else
                         {
@@ -201,6 +198,13 @@ namespace SharpRpc
                         }
                     }
                 }
+            }
+
+            private async void ProcessRequest(IRequest request)
+            {
+                var respToSend = await MessageHandler.ProcessRequest(request);
+                respToSend.CallId = request.CallId;
+                await Tx.TrySendAsync(respToSend);
             }
 
             private struct MessageTaskPair

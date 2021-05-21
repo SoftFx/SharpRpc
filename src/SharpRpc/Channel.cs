@@ -44,8 +44,8 @@ namespace SharpRpc
 
         internal Channel(Endpoint endpoint, ContractDescriptor descriptor, IUserMessageHandler msgHandler)
         {
-            _endpoint = endpoint;
-            _descriptor = descriptor;
+            _endpoint = endpoint ?? throw new ArgumentNullException("endpoint");
+            _descriptor = descriptor ?? throw new ArgumentNullException("descriptor");
 
             _tx = new TxPipeline.NoQueue(descriptor, endpoint);
             _tx.ConnectionRequested += OnConnectionRequested;
@@ -109,15 +109,13 @@ namespace SharpRpc
 
                 if (State == ChannelState.Online)
                     State = ChannelState.Disconnecting;
-                else if (State == ChannelState.Disconnecting)
+                else if (State == ChannelState.Disconnecting || State == ChannelState.Connecting)
                     return _disconnectEvent.Task;
                 else if (State == ChannelState.New)
                 {
                     State = ChannelState.Closed;
                     return Task.CompletedTask;
                 }
-                else if (State == ChannelState.Connecting)
-                    return _disconnectEvent.Task;
                 else
                     return Task.CompletedTask;
             }
@@ -215,6 +213,7 @@ namespace SharpRpc
                 Closed?.Invoke(this, _channelDisplayFault);
 
                 _connectEvent.SetResult(_channelDisplayFault);
+                _disconnectEvent.SetResult(RpcResult.Ok);
             }
             else
                 _connectEvent.SetResult(RpcResult.Ok);
