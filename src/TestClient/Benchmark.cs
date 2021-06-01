@@ -19,19 +19,19 @@ namespace TestClient
 {
     internal class Benchmark
     {
-        public static void LaunchTestSeries(string address)
+        public static void LaunchTestSeries(string address, int multiplier)
         {
-            DoTest(address, 500000, 1, true, false, false);
-            DoTest(address, 500000, 1, true, true, false);
-            DoTest(address, 500000, 1, true, false, true);
-            DoTest(address, 500000, 1, true, true, true);
+            DoTest(address, 500000 * multiplier, 1, true, false, false);
+            DoTest(address, 500000 * multiplier, 1, true, true, false);
+            DoTest(address, 500000 * multiplier, 1, true, false, true);
+            DoTest(address, 500000 * multiplier, 1, true, true, true);
 
             //DoTest(5000000, 1, true, true, ConcurrencyMode.PagedQueue, true);
 
-            DoTest(address, 1000, 1, false, false, false);
-            DoTest(address, 1000, 1, false, true, false);
-            DoTest(address, 1000, 1, false, false, true);
-            DoTest(address, 1000, 1, false, true, true);
+            DoTest(address, 1000 * multiplier, 1, false, false, false);
+            DoTest(address, 1000 * multiplier, 1, false, true, false);
+            DoTest(address, 1000 * multiplier, 1, false, false, true);
+            DoTest(address, 1000 * multiplier, 1, false, true, true);
         }
 
         private static void DoTest(string serverAddress, int msgCount, int clientCount, bool oneWay, bool async, bool enableSsl)
@@ -197,10 +197,7 @@ namespace TestClient
         private static TcpSecurity GetSecurity(bool secure)
         {
             if (secure)
-            {
-                //var cert = new StoredCertificate(StoreLocation.LocalMachine, StoreName.My, X509FindType.FindByThumbprint, "ad1a42f5598388af3d656a9a03ebf01823995f5a");
-                return new SslSecurity();
-            }
+                return new SslSecurity((s, cert, chain, errs) => true);
             else
                 return TcpSecurity.None;
         }

@@ -19,20 +19,11 @@ namespace SharpRpc
 {
     public class SslSecurity : TcpSecurity
     {
-        private readonly CertificateSource _serverCertSrc;
+        private readonly RemoteCertificateValidationCallback _customCertValidator;
 
-        public SslSecurity()
+        public SslSecurity(RemoteCertificateValidationCallback serverCertValidator = null)
         {
-        }
-
-        public SslSecurity(X509Certificate2 serverCertificate)
-        {
-            _serverCertSrc = new CertificateSource.File(serverCertificate);
-        }
-
-        public SslSecurity(StoredCertificate serverCertificate)
-        {
-            _serverCertSrc = serverCertificate;
+            _customCertValidator = serverCertValidator;
         }
 
         internal async override ValueTask<ByteTransport> SecureTransport(Socket socket, string targetHost)
@@ -40,25 +31,14 @@ namespace SharpRpc
             var stream = new NetworkStream(socket, true);
             var sslStream = new SslStream(stream);
 
-            //var cert = _certSrc.GetCertificate();
             var options = new SslClientAuthenticationOptions();
             options.EncryptionPolicy = EncryptionPolicy.RequireEncryption;
             options.EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13;
             options.TargetHost = targetHost;
 
-            //if (_serverCertSrc != null)
-            //{
-            //    options.LocalCertificateSelectionCallback = ProvideSuppliedCertificate;
-            //}
-
-            //if (_certSrc != null)
-            //{
-            //    options.ClientCertificates = new X509CertificateCollection();
-            //    options.ClientCertificates.Add(cert);
-            //}
-
             options.TargetHost = targetHost;
-            //options.RemoteCertificateValidationCallback = ValidateServerCertificate;
+            if (_customCertValidator != null)
+                options.RemoteCertificateValidationCallback = _customCertValidator;
 
             try
             {
@@ -71,15 +51,5 @@ namespace SharpRpc
 
             return new SslTransport(sslStream);
         }
-
-        //private bool ValidateServerCertificate(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
-        //{
-        //    return true;
-        //}
-
-        //private X509Certificate ProvideSuppliedCertificate(object sender, string targetHost, X509CertificateCollection localCertificates, X509Certificate remoteCertificate, string[] acceptableIssuers)
-        //{
-        //    return _serverCertSrc.GetCertificate();
-        //}
     }
 }

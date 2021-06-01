@@ -24,7 +24,23 @@ namespace TestClient
 
             if (choice == "1")
             {
-                Benchmark.LaunchTestSeries(address);
+                Console.WriteLine("Choose multiplier:");
+
+                Console.WriteLine("1. x1");
+                Console.WriteLine("2. x10");
+                Console.WriteLine("3. x40");
+                Console.Write(">");
+
+                var mChoice = Console.ReadLine();
+
+                if (mChoice == "1")
+                    Benchmark.LaunchTestSeries(address, 1);
+                else if (mChoice == "2")
+                    Benchmark.LaunchTestSeries(address, 10);
+                else if (mChoice == "3")
+                    Benchmark.LaunchTestSeries(address, 40);
+                else
+                    Console.WriteLine("Invalid input.");
                 Console.Read();
             }
             else if (choice == "2")
