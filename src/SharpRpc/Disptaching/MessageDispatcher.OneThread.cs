@@ -179,7 +179,21 @@ namespace SharpRpc
                     {
                         if (item.Message is IResponse resp)
                         {
-                            item.Task.Complete(resp);
+                            if (resp is IRequestFault faultMsg)
+                            {
+                                //var result = default(RpcResult);
+
+                                //if (faultMsg.Code == RequestFaultCode.RegularFault)
+                                //    result = new RpcResult(RpcRetCode.RequestFaulted, new RpcFaultStub(faultMsg.Text));
+                                ////else if(faultMsg.Code == RequestFaultCode.CustomFault)
+                                ////    result = new RpcResult(RpcRetCode.RequestFaulted, faultMsg
+                                //else
+                                //    result = new RpcResult(RpcRetCode.RequestCrashed, new RpcFaultStub("Request fauled due to unexpected exception in request handler."));
+
+                                item.Task.Fail(faultMsg);
+                            }
+                            else
+                                item.Task.Complete(resp);
                         }
                         else if (item.Message is IRequest req)
                         {

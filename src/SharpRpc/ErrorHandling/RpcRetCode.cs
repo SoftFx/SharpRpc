@@ -31,6 +31,8 @@ namespace SharpRpc
         SerializationError,
         DeserializationError,
         MessageHandlerFailure,
-        UnexpectedMessage
+        UnexpectedMessage,
+        RequestFaulted,
+        RequestCrashed
     }
 }

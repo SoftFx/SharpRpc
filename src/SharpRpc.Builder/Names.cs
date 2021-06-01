@@ -16,6 +16,7 @@ namespace SharpRpc.Builder
         public static readonly TypeString ContractAttributeClass = new TypeString("SharpRpc.RpcContractAttribute");
         public static readonly TypeString RpcAttributeClass = new TypeString("SharpRpc.RpcAttribute");
         public static readonly TypeString RpcSerializerAttributeClass = new TypeString("SharpRpc.RpcSerializerAttribute");
+        public static readonly TypeString RpcFaultAttributeClass = new TypeString("SharpRpc.RpcFaultAttribute");
 
         public static readonly TypeString RpcClientBaseClass = new TypeString("SharpRpc.ClientBase");
         public static readonly TypeString RpcClientEndpointBaseClass = new TypeString("SharpRpc.ClientEndpoint");
@@ -26,6 +27,9 @@ namespace SharpRpc.Builder
         public static readonly TypeString MessageInterface = new TypeString("SharpRpc.IMessage");
         public static readonly TypeString RequestInterface = new TypeString("SharpRpc.IRequest");
         public static readonly TypeString ResponseInterface = new TypeString("SharpRpc.IResponse");
+        public static readonly TypeString FaultMessageInterface = new TypeString("SharpRpc.IRequestFault");
+
+        public static readonly TypeString BasicRpcFault = new TypeString("SharpRpc.RpcFault");
 
         public static readonly TypeString LoginMessageInterface = new TypeString("SharpRpc.ILoginMessage");
         public static readonly TypeString LoginResultEnum = new TypeString("SharpRpc.LoginResult");
@@ -51,7 +55,8 @@ namespace SharpRpc.Builder
         public static readonly TypeString RpcSegmentedByteArray = new TypeString("SharpRpc.SegmentedByteArray");
 
         public static readonly TypeString RpcConfigurationException = new TypeString("SharpRpc.RpcConfigurationException");
-        
+        public static readonly TypeString RpcFaultException = new TypeString("SharpRpc.RpcFaultException");
+
         public static readonly string MessageClassPostfix = "Message";
         public static readonly string RequestClassPostfix = "Request";
         public static readonly string ResponseClassPostfix = "Response";
@@ -65,6 +70,8 @@ namespace SharpRpc.Builder
         public static readonly string RpcServiceBaseOnUnknownMessage = "OnUnknownMessage";
         public static readonly string RpcServiceBaseOnUnknownRequest = "OnUnknownRequest";
 
+        public static readonly string RpcFaultAttributeTypesProperty = "FaultTypes";
+
         public static readonly string RpcSerializeMethod = "Serialize";
         public static readonly string RpcDeserializeMethod = "Deserialize";
 
@@ -73,7 +80,9 @@ namespace SharpRpc.Builder
 
         public static readonly string FacadeSerializerAdapterFactoryMethod = "CreateSerializationAdapter";
         public static readonly string FacadeCreateDescriptorMethod = "CreateDescriptor";
-        public static readonly string ServiceCreateFaultResponseMethod = "CreateFaultResponse";
+        public static readonly string ServiceOnRegularFaultMethod = "OnRegularFault";
+        public static readonly string ServiceOnUnexpectedFaultMethod = "OnUnexpectedFault";
+        public static readonly string ServiceOnCustomFaultMethod = "OnCustomFault";
 
         public static readonly string SystemTask = "System.Threading.Tasks.Task";
         public static readonly string SystemValueTask = "System.Threading.Tasks.ValueTask";

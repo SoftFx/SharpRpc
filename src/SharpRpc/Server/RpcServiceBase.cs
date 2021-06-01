@@ -14,6 +14,8 @@ namespace SharpRpc
 {
     public abstract class RpcServiceBase : IUserMessageHandler
     {
+        private Channel _ch;
+
         protected abstract ValueTask OnMessage(IMessage message);
         protected abstract ValueTask<IResponse> OnRequest(IRequest message);
 
@@ -27,17 +29,39 @@ namespace SharpRpc
             throw new NotImplementedException();
         }
 
-        protected IResponse CreateFaultResponse(Exception ex)
+        protected IResponse OnCustomFault<T>(string callId, T fault)
+            where T : RpcFault
         {
-            throw new NotImplementedException();   
+            var resp = _ch.Contract.SystemMessages.CreateFaultMessage<T>(fault);
+            resp.CallId = callId;
+            resp.FaultData = fault;
+            return resp;
         }
 
-        protected virtual void OnInit(Channel channel)
+        protected IResponse OnRegularFault(string callId, string exceptionMessage)
         {
+            // TO DO : log!
+
+            var faultMsg = _ch.Contract.SystemMessages.CreateFaultMessage();
+            faultMsg.CallId = callId;
+            faultMsg.Code = RequestFaultCode.RegularFault;
+            faultMsg.Text = exceptionMessage;
+            return faultMsg;
         }
+
+        protected IResponse OnUnexpectedFault(string callId, Exception ex)
+        {
+            var faultMsg = _ch.Contract.SystemMessages.CreateFaultMessage();
+            faultMsg.CallId = callId;
+            faultMsg.Code = RequestFaultCode.UnexpectedFault;
+            return faultMsg;
+        }
+
+        protected virtual void OnInit(Channel channel) { }
 
         internal void InvokeInit(Channel channel)
         {
+            _ch = channel;
             OnInit(channel);
         }
 

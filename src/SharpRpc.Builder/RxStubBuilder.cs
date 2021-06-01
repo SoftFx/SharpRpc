@@ -12,6 +12,7 @@ using Microsoft.CodeAnalysis.Text;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using SF = Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 using SH = SharpRpc.Builder.SyntaxHelper;
@@ -130,16 +131,11 @@ namespace SharpRpc.Builder
             else
                 handlerInvokationStatement = SF.ExpressionStatement(handlerInvokationExp);
 
-            var catchStatement = SF.ReturnStatement(
-                    SH.InvocationExpression(Names.ServiceCreateFaultResponseMethod, SH.IdentifierArgument("ex")));
-
             var respStatements = GenerateResponseCreationStatements(callDec).ToArray();
 
-            var defaultCatch = SF.CatchClause(SF.CatchDeclaration(SF.ParseTypeName(Names.SystemException), SF.Identifier("ex")),
-                null, SF.Block(catchStatement));
-
             var tryCtachBlock = SF.TryStatement()
-                .AddCatches(defaultCatch)
+                .AddCatches(GenerateCustomCatches(callDec).ToArray())
+                .AddCatches(GenerateRegularCatch(), GenerateUnexpectedCatch())
                 .WithBlock(SF.Block(handlerInvokationStatement).AddStatements(respStatements));
 
             var retType = SH.GenericType(Names.SystemValueTask, Names.ResponseInterface.Full);
@@ -295,6 +291,49 @@ namespace SharpRpc.Builder
         {
             return (_isCallbackStub ? _contract.Calls.Where(c => c.IsCallback)
                 : _contract.Calls.Where(c => !c.IsCallback)).ToList();
+        }
+
+        private IEnumerable<CatchClauseSyntax> GenerateCustomCatches(CallDeclaration call)
+        {
+            foreach (var customFault in call.Faults)
+                yield return GenerateCustomFaultCatch(customFault);
+        }
+
+        private CatchClauseSyntax GenerateRegularCatch()
+        {
+            var callIdArgument = SF.Argument(SH.MemeberOfIdentifier("request", "CallId"));
+            var textArgument = SF.Argument(SH.MemeberOfIdentifier("ex", "Message"));
+
+            var retStatement = SF.ReturnStatement(
+                    SH.InvocationExpression(Names.ServiceOnRegularFaultMethod, callIdArgument, textArgument));
+
+            return SF.CatchClause(SF.CatchDeclaration(SH.FullTypeName(Names.RpcFaultException), SF.Identifier("ex")),
+                null, SF.Block(retStatement));
+        }
+
+        private CatchClauseSyntax GenerateUnexpectedCatch()
+        {
+            var callIdArgument = SF.Argument(SH.MemeberOfIdentifier("request", "CallId"));
+
+            var retStatement = SF.ReturnStatement(
+                    SH.InvocationExpression(Names.ServiceOnUnexpectedFaultMethod, callIdArgument, SH.IdentifierArgument("ex")));
+
+            return SF.CatchClause(SF.CatchDeclaration(SF.ParseTypeName(Names.SystemException), SF.Identifier("ex")),
+                null, SF.Block(retStatement));
+        }
+
+        private CatchClauseSyntax GenerateCustomFaultCatch(string faultType)
+        {
+            var callIdArgument = SF.Argument(SH.MemeberOfIdentifier("request", "CallId"));
+            var faultArgument = SF.Argument(SH.MemeberOfIdentifier("ex", "Fault"));
+
+            var retStatement = SF.ReturnStatement(
+                    SH.InvocationExpression(Names.ServiceOnCustomFaultMethod, callIdArgument, faultArgument));
+
+            var exceptionType = SH.GenericName(Names.RpcFaultException.Full, faultType);
+
+            return SF.CatchClause(SF.CatchDeclaration(exceptionType, SF.Identifier("ex")),
+                null, SF.Block(retStatement));
         }
     }
 }

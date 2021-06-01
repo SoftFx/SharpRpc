@@ -88,6 +88,7 @@ namespace SharpRpc
         {
             void Complete(IResponse respMessage);
             void Fail(RpcResult result);
+            void Fail(IRequestFault faultMessage);
         }
 
         private class CallTask<TResp> : TaskCompletionSource<RpcResult>, ITask
@@ -102,6 +103,11 @@ namespace SharpRpc
             {
                 SetException(result.ToException());
             }
+
+            public void Fail(IRequestFault faultMessage)
+            {
+                SetException(faultMessage.CreateException());
+            }
         }
 
         private class TryCallTask<TResp> : TaskCompletionSource<RpcResult>, ITask
@@ -114,6 +120,12 @@ namespace SharpRpc
 
             public void Fail(RpcResult result)
             {
+                SetResult(result);
+            }
+
+            public void Fail(IRequestFault faultMessage)
+            {
+                var result = new RpcResult(faultMessage.Code.ToRetCode(), faultMessage.GetFault());
                 SetResult(result);
             }
         }
@@ -131,6 +143,11 @@ namespace SharpRpc
             {
                 SetException(result.ToException());
             }
+
+            public void Fail(IRequestFault faultMessage)
+            {
+                SetException(faultMessage.CreateException());
+            }
         }
 
         private class TryCallTask<TResp, TReturn> : TaskCompletionSource<RpcResult<TReturn>>, ITask
@@ -145,6 +162,12 @@ namespace SharpRpc
             public void Fail(RpcResult result)
             {
                 SetResult(new RpcResult<TReturn>(result.Code, result.Fault));
+            }
+
+            public void Fail(IRequestFault faultMessage)
+            {
+                var result = new RpcResult<TReturn>(faultMessage.Code.ToRetCode(), faultMessage.GetFault());
+                SetResult(result);
             }
         }
     }

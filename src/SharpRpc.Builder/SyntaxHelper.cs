@@ -56,7 +56,7 @@ namespace SharpRpc.Builder
                     SyntaxFactory.SeparatedList<AttributeSyntax>(attributeDeclarations)));
         }
 
-        public static T GetArgumentOrDefault<T>(this AttributeData attr, string paramName, T defaultVal = default(T))
+        public static T GetNamedArgumentOrDefault<T>(this AttributeData attr, string paramName, T defaultVal = default(T))
         {
             foreach (var arg in attr.NamedArguments)
             {
@@ -65,6 +65,26 @@ namespace SharpRpc.Builder
             }
 
             return defaultVal;
+        }
+
+        public static T GetConstructorArgumentOrDefault<T>(this AttributeData attr, int argumentNo, T defaultVal = default(T))
+        {
+            var args = attr.ConstructorArguments.ToList();
+
+            if (args.Count <= argumentNo)
+                return defaultVal;
+
+            return (T)args[argumentNo].Value;
+        }
+
+        public static T[] GetConstructorArgumentArray<T>(this AttributeData attr, int argumentNo)
+        {
+            var args = attr.ConstructorArguments.ToList();
+
+            if (args.Count <= argumentNo)
+                return new T[0];
+
+            return args[argumentNo].Values.Select(i => (T)i.Value).ToArray();
         }
 
         #endregion
@@ -122,6 +142,16 @@ namespace SharpRpc.Builder
         public static SyntaxToken PublicToken()
         {
             return SyntaxFactory.Token(SyntaxKind.PublicKeyword);
+        }
+
+        public static SyntaxToken VirtualToken()
+        {
+            return SyntaxFactory.Token(SyntaxKind.VirtualKeyword);
+        }
+
+        public static SyntaxToken OverrideToken()
+        {
+            return SyntaxFactory.Token(SyntaxKind.OverrideKeyword);
         }
 
         public static PredefinedTypeSyntax VoidToken()
@@ -291,6 +321,18 @@ namespace SharpRpc.Builder
                                     SyntaxKind.SimpleMemberAccessExpression,
                                     SyntaxFactory.ParseTypeName(enumType),
                                     SyntaxFactory.IdentifierName(valueName));
+        }
+
+        public static ObjectCreationExpressionSyntax AddInitializer(this ObjectCreationExpressionSyntax exp, params ExpressionSyntax[] initNodes)
+        {
+            return exp.WithInitializer(SyntaxFactory.InitializerExpression(SyntaxKind.ObjectInitializerExpression,
+                SyntaxFactory.SeparatedList(initNodes)));
+        }
+
+        public static ExpressionSyntax PropertyInitializer(string propName, ExpressionSyntax value)
+        {
+            return SyntaxFactory.AssignmentExpression(SyntaxKind.SimpleAssignmentExpression,
+                SyntaxFactory.IdentifierName(propName), value);
         }
     }
 }

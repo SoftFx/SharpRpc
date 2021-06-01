@@ -22,6 +22,7 @@ namespace SharpRpc.Builder
 
         public string MethodName { get; }
         public ContractCallType CallType { get; }
+        public List<string> Faults { get; } = new List<string>();
         public bool IsOneWay => CallType == ContractCallType.MessageToClient || CallType == ContractCallType.MessageToServer;
         public bool IsCallback => CallType == ContractCallType.CallToClient || CallType == ContractCallType.MessageToClient;
         public bool IsRequestResponceCall => CallType == ContractCallType.CallToClient || CallType == ContractCallType.CallToServer;

@@ -25,6 +25,7 @@ namespace SharpRpc.Builder
         private INamedTypeSymbol _contractAttrSymbol;
         private INamedTypeSymbol _rpcAttrSymbol;
         private INamedTypeSymbol _serializerAttrSymbol;
+        private INamedTypeSymbol _faultContractAttribute;
 
         public void Initialize(GeneratorInitializationContext context)
         {
@@ -88,7 +89,7 @@ namespace SharpRpc.Builder
 
             var sFixture = new SerializerFixture()
                 .AddHierachy(baseMsgNode);
-                //.AddHierachy(authBaseNode);
+            //.AddHierachy(authBaseNode);
 
             var sAdapterClasses = sFixture
                 .GenerateSerializationAdapters(contractInfo, context)
@@ -113,8 +114,8 @@ namespace SharpRpc.Builder
             var systemBundleClass = SF.ClassDeclaration(contractInfo.SystemBundleClassName.Short)
                 .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
                 .AddMembers(systemMessageClasses);
-                //.AddMembers(baseAuthClass)
-                //.AddMembers(systemAuthDataClasses);
+            //.AddMembers(baseAuthClass)
+            //.AddMembers(systemAuthDataClasses);
 
             var messageBundleClass = SF.ClassDeclaration(contractInfo.MessageBundleClassName.Short)
                 .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
@@ -223,6 +224,15 @@ namespace SharpRpc.Builder
             return null;
         }
 
+        private IEnumerable<AttributeData> FindAttributes(ISymbol declaration, INamedTypeSymbol attrTypeSymbol)
+        {
+            foreach (var attr in declaration.GetAttributes())
+            {
+                if (SymbolEqualityComparer.Default.Equals(attr.AttributeClass, attrTypeSymbol))
+                    yield return attr;
+            }
+        }
+
         private IEnumerable<AttributeData> FindAllAttributes(ISymbol declaration, INamedTypeSymbol attrTypeSymbol)
         {
             foreach (var attr in declaration.GetAttributes())
@@ -248,7 +258,7 @@ namespace SharpRpc.Builder
                 var methodDec = member as MethodDeclarationSyntax;
                 if (methodDec != null)
                 {
-                    var callData = CollectCallData(methodDec, sm);
+                    var callData = CollectCallData(methodDec, sm, contractInfo);
                     if (callData != null)
                         contractInfo.Calls.Add(callData);
                 }
@@ -281,7 +291,7 @@ namespace SharpRpc.Builder
             return result;
         }
 
-        private CallDeclaration CollectCallData(MethodDeclarationSyntax methodDec, SemanticModel sm)
+        private CallDeclaration CollectCallData(MethodDeclarationSyntax methodDec, SemanticModel sm, ContractDeclaration contract)
         {
             var methodModel = (IMethodSymbol)sm.GetDeclaredSymbol(methodDec);
             var callAttr = FindAttribute(methodModel, _rpcAttrSymbol);
@@ -303,7 +313,9 @@ namespace SharpRpc.Builder
                 if (!methodModel.ReturnsVoid)
                     callInfo.ReturnParam = CollectParamInfo(0, methodModel.ReturnType);
 
-                callInfo.EnablePrebuild = callAttr.GetArgumentOrDefault<bool>(Names.PrebuildCallOption);
+                callInfo.EnablePrebuild = callAttr.GetNamedArgumentOrDefault<bool>(Names.PrebuildCallOption);
+
+                CollectFaultContracts(methodModel, callInfo, contract);
 
                 return callInfo;
             }
@@ -321,6 +333,28 @@ namespace SharpRpc.Builder
             var paramTypeFullName = type.ToDisplayString(FulluQualifiedSymbolFormat);
 
             return new ParamDeclaration(index, paramTypeFullName, paramName);
+        }
+
+        private void CollectFaultContracts(IMethodSymbol methodModel, CallDeclaration callInfo, ContractDeclaration contract)
+        {
+            foreach (var faultContractAttr in FindAttributes(methodModel, _faultContractAttribute).ToList())
+            {
+                var faultDataTypes = faultContractAttr.GetConstructorArgumentArray<ITypeSymbol>(0);
+
+                if (faultDataTypes != null)
+                {
+                    foreach (var faultType in faultDataTypes)
+                    {
+                        var faultTypeName = faultType.ToDisplayString(FulluQualifiedSymbolFormat);
+
+                        if (!callInfo.Faults.Contains(faultTypeName))
+                        {
+                            callInfo.Faults.Add(faultTypeName);
+                            contract.RegisterFault(faultTypeName);
+                        }
+                    }
+                }
+            }
         }
 
         //private bool TryGetAttributeValue(AttributeData data, string name, out TypedConstant value)
@@ -356,6 +390,7 @@ namespace SharpRpc.Builder
             _contractAttrSymbol = GetSymbolOrThrow(Names.ContractAttributeClass.Full, context);
             _rpcAttrSymbol = GetSymbolOrThrow(Names.RpcAttributeClass.Full, context);
             _serializerAttrSymbol = GetSymbolOrThrow(Names.RpcSerializerAttributeClass.Full, context);
+            _faultContractAttribute = GetSymbolOrThrow(Names.RpcFaultAttributeClass.Full, context);
         }
 
         private INamedTypeSymbol GetSymbolOrThrow(string metadataName, GeneratorExecutionContext context)

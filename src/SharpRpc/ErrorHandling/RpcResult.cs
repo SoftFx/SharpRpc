@@ -18,7 +18,7 @@ namespace SharpRpc
         {
             Code = code;
             if (code != RpcRetCode.Ok)
-                Fault = fault ?? new RpcFault("");
+                Fault = fault ?? new RpcFaultStub("");
             else
                 Fault = null;
         }
@@ -27,7 +27,7 @@ namespace SharpRpc
         {
             Code = code;
             if (code != RpcRetCode.Ok)
-                Fault = new RpcFault(message ?? "");
+                Fault = new RpcFaultStub(message ?? "");
             else
                 Fault = null;
         }
@@ -64,14 +64,14 @@ namespace SharpRpc
         {
             Code = code;
             Result = default(T);
-            Fault = fault ?? new RpcFault("");
+            Fault = fault ?? new RpcFaultStub("");
         }
 
         public RpcResult(RpcRetCode code, string message)
         {
             Code = code;
             Result = default(T);
-            Fault = new RpcFault(message ?? "");
+            Fault = new RpcFaultStub(message ?? "");
         }
 
         public RpcRetCode Code { get; }
@@ -90,13 +90,31 @@ namespace SharpRpc
         }
     }
 
-    public class RpcFault
+    public interface RpcFault
     {
-        public RpcFault(string message)
+        public string Message { get; }
+    }
+
+    public class RpcFaultStub : RpcFault
+    {
+        public RpcFaultStub(string message)
         {
             Message = message;
         }
 
-        public string Message { get; protected set; }
+        public RpcFaultStub(RequestFaultCode code, string text)
+        {
+            Message = GetFaultMessage(code, text);
+        }
+
+        public string Message { get; }
+
+        internal static string GetFaultMessage(RequestFaultCode code, string text)
+        {
+            if (code != RequestFaultCode.UnexpectedFault)
+                return text;
+            else
+                return "Request faulted due to unhandled exception in the request handler.";
+        }
     }
 }

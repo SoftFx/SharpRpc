@@ -10,6 +10,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using MessagePack;
 using SharpRpc;
 
 namespace TestCommon
@@ -28,7 +29,15 @@ namespace TestCommon
         string TestCall2(int p1, string p2);
 
         [Rpc(RpcType.Call)]
-        string TestCall3(int p1, string p2);
+        string TestCrash(int p1, string p2);
+
+        [Rpc(RpcType.Call)]
+        string TestRpcException(int p1, string p2);
+
+        [Rpc(RpcType.Call)]
+        [RpcFault(typeof(TestFault1))]
+        [RpcFault(typeof(TestFault2))]
+        void TestCallFault(int faultNo);
 
         [Rpc(RpcType.Call)]
         string InvokeCallback(int callbackNo, int p1, string p2);
@@ -44,5 +53,39 @@ namespace TestCommon
 
         [Rpc(RpcType.Callback)]
         string TestCallback3(int p1, string p2);
+    }
+
+    [MessagePackObject]
+    public class TestFault1 : RpcFault
+    {
+        [Key(1)]
+        public string Message { get; set; }
+
+        public override bool Equals(object obj)
+        {
+            return obj is TestFault1 tf && tf.Message == Message;
+        }
+
+        public override int GetHashCode()
+        {
+            return Message.GetHashCode();
+        }
+    }
+
+    [MessagePackObject]
+    public class TestFault2 : RpcFault
+    {
+        [Key(1)]
+        public string Message { get; set; }
+
+        public override bool Equals(object obj)
+        {
+            return obj is TestFault2 tf && tf.Message == Message;
+        }
+
+        public override int GetHashCode()
+        {
+            return Message.GetHashCode();
+        }
     }
 }

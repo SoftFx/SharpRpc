@@ -32,9 +32,14 @@ namespace TestCommon
             return ValueTask.FromResult("123");
         }
 
-        public override ValueTask<string> TestCall3(int p1, string p2)
+        public override ValueTask<string> TestCrash(int p1, string p2)
         {
-            throw new Exception("Test Exception");
+            throw new Exception("This is test unexpected expcetion.");
+        }
+
+        public override ValueTask<string> TestRpcException(int p1, string p2)
+        {
+            throw new RpcFaultException("Test exception");
         }
 
         public override ValueTask TestNotify1(int p1, string p2)
@@ -43,6 +48,14 @@ namespace TestCommon
                 throw new Exception("Invalid input!");
 
             return new ValueTask();
+        }
+
+        public override ValueTask TestCallFault(int faultNo)
+        {
+            if (faultNo == 1)
+                throw RpcFaultException.Create(new TestFault1 { Message = "Fault Message 1" });
+            else
+                throw RpcFaultException.Create(new TestFault2 { Message = "Fault Message 2" });
         }
 
         public async override ValueTask<string> InvokeCallback(int callbackNo, int p1, string p2)

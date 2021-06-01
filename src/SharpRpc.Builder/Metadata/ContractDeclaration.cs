@@ -15,6 +15,7 @@ namespace SharpRpc.Builder
     public class ContractDeclaration
     {
         private List<SerializerDeclaration> _serializers = new List<SerializerDeclaration>();
+        private List<string> _faultTypesById = new List<string>();
 
         public ContractDeclaration(string typeFullName)
         {
@@ -27,6 +28,7 @@ namespace SharpRpc.Builder
             BaseMessageClassName = new TypeString(MessageBundleClassName.Full, "MessageBase");
             LoginMessageClassName = new TypeString(SystemBundleClassName.Short, "Login");
             LogoutMessageClassName = new TypeString(SystemBundleClassName.Short, "Logout");
+            FaultMessageClassName = new TypeString(SystemBundleClassName.Short, "RequestFault");
             HeartbeatMessageClassName = new TypeString(SystemBundleClassName.Short, "Heartbeat");
             //AuthDataClassName = new TypeString(SystemBundleClassName.Short, "AuthData");
             //BasicAuthDataClassName = new TypeString(SystemBundleClassName.Short, "BasicAuthData");
@@ -50,10 +52,12 @@ namespace SharpRpc.Builder
         public TypeString BaseMessageClassName { get; }
         public TypeString LoginMessageClassName { get; }
         public TypeString LogoutMessageClassName { get; }
+        public TypeString FaultMessageClassName { get; }
         public TypeString HeartbeatMessageClassName { get; }
         //public TypeString AuthDataClassName { get; }
         //public TypeString BasicAuthDataClassName { get; }
         public List<CallDeclaration> Calls { get; } = new List<CallDeclaration>();
+        public List<string> FaultTypes => _faultTypesById;
 
         public bool HasCallbacks => Calls.Any(c => c.IsCallback);
 
@@ -92,9 +96,32 @@ namespace SharpRpc.Builder
             return GetMessageClassName(contractMethodName, Names.ResponseClassPostfix);
         }
 
+        public TypeString GetCustomFaultMessageClassName(string faultDataType)
+        {
+            var id = GetFaultTypeId(faultDataType);
+
+            return new TypeString(SystemBundleClassName.Short, "CustomRequestFault" + id);
+        }
+
         public TypeString GetMessageClassName(string contractMethodName, string postfix)
         {
             return new TypeString(MessageBundleClassName.Short, contractMethodName + postfix);
+        }
+
+        public void RegisterFault(string faultType)
+        {
+            if (!_faultTypesById.Contains(faultType))
+                _faultTypesById.Add(faultType);
+        }
+
+        private int GetFaultTypeId(string faultType)
+        {
+            var index = _faultTypesById.IndexOf(faultType);
+
+            if (index < 0)
+                throw new Exception("Fault type is not registered: " + faultType);
+
+            return index;
         }
     }
 }
