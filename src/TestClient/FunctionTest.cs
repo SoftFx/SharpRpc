@@ -8,6 +8,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using SharpRpc;
@@ -29,6 +30,7 @@ namespace TestClient
                 TestCall2(client);
                 TestFaults(client);
                 TestCalbacks(client);
+                TestComplexData(client);
 
                 Console.WriteLine("Done testing.");
             }
@@ -128,6 +130,46 @@ namespace TestClient
             Console.WriteLine("TestFaults.Custom1.Try");
 
             AssertCustomFault(RpcRetCode.RequestCrashed, new TestFault1 { Message = "Fault Message 1" }, () => client.TryTestCallFault(1));
+        }
+
+        private static void TestComplexData(FunctionTestContract_Gen.Client client)
+        {
+            Console.WriteLine("TestComplexData.Call");
+
+            var list1 = new List<DateTime>();
+            list1.Add(new DateTime(2011, 10, 10));
+            list1.Add(new DateTime(2012, 10, 10));
+
+            var list2 = new List<DateTime>();
+            list2.Add(new DateTime(2013, 10, 10));
+            list2.Add(new DateTime(2014, 10, 10));
+
+            var list3 = new List<DateTime>();
+            list3.Add(new DateTime(2015, 10, 10));
+            list3.Add(new DateTime(2016, 10, 10));
+
+            var listOfList = new List<List<DateTime>>();
+            listOfList.Add(list2);
+            listOfList.Add(list3);
+
+            var dictionary = new Dictionary<int, int>();
+            dictionary.Add(1, 2);
+            dictionary.Add(2, 4);
+            dictionary.Add(5, 6);
+
+            var r1 = client.ComplexTypesCall(list1, listOfList, dictionary);
+
+            if (r1.Count != 3)
+                throw new Exception("");
+
+            if (r1[0].Item1 != 4023)
+                throw new Exception();
+
+            if (r1[1].Item1 != 8058)
+                throw new Exception();
+
+            if (r1[2].Item1 != 20)
+                throw new Exception();
         }
 
         private static void AssertFault(RpcRetCode expectedCode, string expectedMessageStart, Func<RpcResult> call)

@@ -330,9 +330,9 @@ namespace SharpRpc.Builder
 
         private ParamDeclaration CollectParamInfo(int index, ITypeSymbol type, string paramName = null)
         {
-            var paramTypeFullName = type.ToDisplayString(FulluQualifiedSymbolFormat);
+            //var paramTypeFullName = type.ToString(); //type.ToDisplayString(FulluQualifiedSymbolFormat);
 
-            return new ParamDeclaration(index, paramTypeFullName, paramName);
+            return new ParamDeclaration(index, type.ToString(), paramName);
         }
 
         private void CollectFaultContracts(IMethodSymbol methodModel, CallDeclaration callInfo, ContractDeclaration contract)

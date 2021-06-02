@@ -53,6 +53,9 @@ namespace TestCommon
 
         [Rpc(RpcType.Callback)]
         string TestCallback3(int p1, string p2);
+
+        [Rpc(RpcType.Call)]
+        List<Tuple<int>> ComplexTypesCall(List<DateTime> list, List<List<DateTime>> listOfLists, Dictionary<int, int> dictionary);
     }
 
     [MessagePackObject]

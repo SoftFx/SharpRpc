@@ -72,5 +72,18 @@ namespace TestCommon
 
             throw new Exception("There is no callabck number " + callbackNo);
         }
+
+        public override ValueTask<List<Tuple<int>>> ComplexTypesCall(List<DateTime> list, List<List<DateTime>> listOfLists, Dictionary<int, int> dictionary)
+        {
+            var t1 = list.Sum(d => d.Year);
+            var t2 = listOfLists.SelectMany(l => l).Sum(d => d.Year);
+            var t3 = dictionary.Values.Sum() + dictionary.Keys.Sum();
+
+            var result = new List<Tuple<int>>();
+            result.Add(new Tuple<int>(t1));
+            result.Add(new Tuple<int>(t2));
+            result.Add(new Tuple<int>(t3));
+            return ValueTask.FromResult(result);
+        }
     }
 }
