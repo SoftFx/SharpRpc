@@ -155,7 +155,7 @@ namespace SharpRpc.Builder
 
             foreach (var call in GetAffectedCalls())
             {
-                if (call.CallType == ContractCallType.MessageToServer)
+                if (call.IsOneWay)
                 {
                     var messageType = _contract.GetOnWayMessageClassName(call.MethodName);
                     var typedMessageVarName = "m" + index++;

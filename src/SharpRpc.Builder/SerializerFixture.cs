@@ -40,9 +40,12 @@ namespace SharpRpc.Builder
 
         public static MethodDeclarationSyntax GenerateSerializerFactory(ContractDeclaration contractInfo)
         {
+            var hasSomeSerializers = contractInfo.Serializers.Count > 0;
+            var exceptionMessage = hasSomeSerializers ? "Specified serializer is not supported by this contract." : "No serializer is specified in the contract.";
+
             StatementSyntax ifRoot = SF.ThrowStatement(
                 SF.ObjectCreationExpression(SF.ParseTypeName(Names.RpcConfigurationException.Full))
-                .AddArgumentListArguments(SF.Argument(SH.LiteralExpression(""))));
+                .AddArgumentListArguments(SF.Argument(SH.LiteralExpression(exceptionMessage))));
 
             foreach (var serializer in contractInfo.Serializers)
             {
