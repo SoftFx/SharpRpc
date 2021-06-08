@@ -200,8 +200,6 @@ namespace SharpRpc
         public void Advance(int count)
         {
             MoveOffset(count);
-            //_currentOffset += count;
-            //Size += count;
         }
 
         public Memory<byte> GetMemory(int sizeHint = 0)
@@ -224,15 +222,11 @@ namespace SharpRpc
                 sizeHint = _minAllocSize;
 
             var spaceInCurrentSegment = SegmentSize - CurrentOffset;
-            //var spaceInCurrentChunk = _marker.GetCurrentChunkCapacity();
 
             if (spaceInCurrentSegment < sizeHint)
                 CompleteCurrentSegment();
 
             _marker.OnAlloc();
-
-            //else if (spaceInCurrentChunk < sizeHint)
-            //ReopenChunk();
         }
 
         private void CompleteCurrentSegment()
@@ -261,42 +255,24 @@ namespace SharpRpc
 
         private void Write(byte[] buffer, int offset, int count)
         {
-            throw new NotImplementedException();
+            while (count > 0)
+            {
+                EnsureSpace(_minAllocSize);
 
-            //while (count > 0)
-            //{
-            //    var space = _segmentSize - _currentOffset;
-            //    var copyOpSize = Math.Min(count, space);
+                var spaceLeft = SegmentSize - CurrentOffset;
+                var copySize = Math.Min(spaceLeft, count);
+                Buffer.BlockCopy(buffer, offset, CurrentSegment, CurrentOffset, copySize);
 
-            //    //Array.Copy(buffer, offset, _currentSegment.Memory.Span, _currentOffset, toCopy);
-
-            //    var srcSpan = buffer.AsSpan(offset, copyOpSize);
-            //    var dstSpan = srcSpan.Slice(_currentOffset, copyOpSize);
-
-            //    srcSpan.CopyTo(dstSpan);
-
-            //    count -= copyOpSize;
-            //    _currentOffset += copyOpSize;
-
-            //    if (_currentOffset >= _segmentSize)
-            //    {
-            //        Comple
-
-            //        _completeSegments.Add(new ArraySegment<byte>(_currentSegment, 0, _currentOffset));
-            //        _currentSegment = new byte[_segmentSize];
-            //        _currentOffset = 0;
-            //    }
-            //}
+                CurrentOffset += copySize;
+                offset += copySize;
+                count -= copySize;
+            }
         }
 
         private void MoveOffset(int size)
         {
             CurrentOffset += size;
             DataSize += size;
-
-            //if (CurrentOffset > SegmentSize)
-            //{
-            //}
         }
 
         #region MessageWriter implementation
@@ -316,21 +292,4 @@ namespace SharpRpc
             }
         }
     }
-
-    //internal struct ByteSegment
-    //{
-    //    public ByteSegment(byte[] bytes, int len)
-    //    {
-    //        Bytes = bytes;
-    //        Length = len;
-    //    }
-
-    //    public byte[] Bytes { get; }
-    //    public int Length { get; }
-
-    //    public ArraySegment<byte> ToArraySegment()
-    //    {
-    //        return new ArraySegment<byte>(Bytes, 0, Length);
-    //    }
-    //}
 }

@@ -10,6 +10,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using SF = Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
@@ -105,9 +106,16 @@ namespace SharpRpc.Builder
             var preserializerField = SH.FieldDeclaration("_preserializer", SH.FullTypeName(Names.RpcPreserializeTool))
                 .AddModifiers(SF.Token(SyntaxKind.PrivateKeyword), SF.Token(SyntaxKind.ReadOnlyKeyword));
 
+            var adapters = contract.Serializers.Select(s =>
+            {
+                var adapterType = SH.ShortTypeName(s.AdapterClassName);
+                return SF.Argument(SF.ObjectCreationExpression(adapterType).WithoutArguments());
+            });
+
             var preserializerCreation = SH.AssignmentStatement(
                 SF.IdentifierName("_preserializer"),
-                SF.ObjectCreationExpression(SH.FullTypeName(Names.RpcPreserializeTool)).WithoutArguments());
+                SF.ObjectCreationExpression(SH.FullTypeName(Names.RpcPreserializeTool))
+                .AddArgumentListArguments(adapters.ToArray()));
 
             var constructor = SF.ConstructorDeclaration("Prebuilder")
                 .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))

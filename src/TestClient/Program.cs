@@ -41,6 +41,7 @@ namespace TestClient
                     Benchmark.LaunchTestSeries(address, 40);
                 else
                     Console.WriteLine("Invalid input.");
+                Console.WriteLine("Done. PRess enty key to exit...");
                 Console.Read();
             }
             else if (choice == "2")

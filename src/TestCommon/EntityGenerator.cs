@@ -7,43 +7,35 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace TestCommon
 {
-    public class EntityGenerator
+    public static class EntityGenerator
     {
-        private readonly Random _rnd = new Random();
-        private readonly List<FooEntity> _entitiesCache = new List<FooEntity>();
-        private int _index = -1;
-
-        public EntityGenerator()
+        public static IEnumerable<FooEntity> GenerateRandomEntities()
         {
+            var rnd = new Random();
+
             for (int i = 0; i < 10000; i++)
-                _entitiesCache.Add(Generate());
+                yield return GenerateEntity(rnd);
         }
 
-        public FooEntity Next()
-        {
-            _index++;
-            if (_index >= _entitiesCache.Count)
-                _index = 0;
-            return _entitiesCache[_index];
-        }
-
-        private FooEntity Generate()
+        private static FooEntity GenerateEntity(Random rnd)
         {
             var entity = new FooEntity();
             entity.Created = DateTime.Now;
-            entity.Bid = _rnd.NextDouble();
-            entity.Ask = _rnd.NextDouble();
+            entity.Bid = rnd.NextDouble();
+            entity.Ask = rnd.NextDouble();
             entity.Symbol = "EURUSD";
-            entity.BidBook = GenerateBook();
-            entity.AskBook = GenerateBook();
+            entity.BidBook = GenerateBook(rnd);
+            entity.AskBook = GenerateBook(rnd);
             return entity;
         }
 
-        private List<FooSubEntity> GenerateBook()
+        private static List<FooSubEntity> GenerateBook(Random rnd)
         {
             int size = 5;
 
@@ -52,8 +44,8 @@ namespace TestCommon
             for (int i = 0; i < size; i++)
             {
                 var subEntity = new FooSubEntity();
-                subEntity.Price = _rnd.NextDouble();
-                subEntity.Volume = _rnd.NextDouble();
+                subEntity.Price = rnd.NextDouble();
+                subEntity.Volume = rnd.NextDouble();
                 list.Add(subEntity);
             }
 

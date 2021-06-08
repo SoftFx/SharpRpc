@@ -14,6 +14,7 @@ using System.Linq;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Tasks;
+using System.Dynamic;
 
 namespace TestClient
 {
@@ -21,36 +22,55 @@ namespace TestClient
     {
         public static void LaunchTestSeries(string address, int multiplier)
         {
-            DoTest(address, 500000 * multiplier, 1, true, false, false);
-            DoTest(address, 500000 * multiplier, 1, true, true, false);
-            DoTest(address, 500000 * multiplier, 1, true, false, true);
-            DoTest(address, 500000 * multiplier, 1, true, true, true);
+            DoTest(address, 500000 * multiplier, 1, TestOptions.OneWay);
+            DoTest(address, 500000 * multiplier, 1, TestOptions.OneWay | TestOptions.Async);
+            DoTest(address, 500000 * multiplier, 1, TestOptions.OneWay | TestOptions.Prebuild);
+            DoTest(address, 500000 * multiplier, 1, TestOptions.OneWay | TestOptions.Async | TestOptions.Prebuild);
+
+            //DoTest(address, 500000 * multiplier, 1, TestOptions.OneWay | TestOptions.SSL);
+            //DoTest(address, 500000 * multiplier, 1, TestOptions.OneWay | TestOptions.Async | TestOptions.SSL);
 
             //DoTest(5000000, 1, true, true, ConcurrencyMode.PagedQueue, true);
 
-            DoTest(address, 1000 * multiplier, 1, false, false, false);
-            DoTest(address, 1000 * multiplier, 1, false, true, false);
-            DoTest(address, 1000 * multiplier, 1, false, false, true);
-            DoTest(address, 1000 * multiplier, 1, false, true, true);
+            DoTest(address, 1000 * multiplier, 1, TestOptions.None);
+            DoTest(address, 1000 * multiplier, 1, TestOptions.Async);
+            //DoTest(address, 1000 * multiplier, 1, TestOptions.SSL);
+            //DoTest(address, 1000 * multiplier, 1, TestOptions.Async | TestOptions.SSL);
         }
 
-        private static void DoTest(string serverAddress, int msgCount, int clientCount, bool oneWay, bool async, bool enableSsl)
+        private static void DoTest(string serverAddress, int msgCount, int clientCount, TestOptions options) //, bool oneWay, bool async, bool enableSsl)
         {
             var nameBuilder = new StringBuilder();
             nameBuilder.Append("Test: ");
             nameBuilder.Append("X").Append(clientCount);
+
+            var oneWay = options.HasFlag(TestOptions.OneWay);
+            var async = options.HasFlag(TestOptions.Async);
+            var enableSsl = options.HasFlag(TestOptions.SSL);
+            var prebuild = options.HasFlag(TestOptions.Prebuild);
+
             if (oneWay)
                 nameBuilder.Append(" | OneWay");
             if (async)
                 nameBuilder.Append(" | Async");
             if (enableSsl)
                 nameBuilder.Append(" | SSL");
+            if (prebuild)
+                nameBuilder.Append(" | Prebuild");
 
             Console.WriteLine(nameBuilder.ToString());
 
             var gens = Enumerable
                 .Range(0, clientCount)
-                .Select(i => new EntityGenerator())
+                .Select(i => new EntitySet<FooEntity>(EntityGenerator.GenerateRandomEntities()))
+                .ToList();
+
+            var prebuilder = new BenchmarkContract_Gen.Prebuilder();
+
+            var prebuildGens = Enumerable
+                .Range(0, clientCount)
+                .Select(i => new EntitySet<BenchmarkContract_Gen.PrebuiltMessages.SendUpdate>(
+                    EntityGenerator.GenerateRandomEntities().Select(e => prebuilder.PrebuildSendUpdate(e))))
                 .ToList();
 
             var clients = Enumerable
@@ -74,9 +94,17 @@ namespace TestClient
             {
                 try
                 {
-                    var sendLoops = clients
-                            .Zip(gens, (c, g) => oneWay ? SendMessages(c, msgCount, g, async) : DoCalls(c, msgCount, g, async))
-                            .ToArray();
+                    var sendLoops = new Task[clientCount];
+
+                    for (int i = 0; i < clientCount; i++)
+                    {
+                        var client = clients[i];
+
+                        if (oneWay)
+                            sendLoops[i] = SendMessages(client, msgCount, gens[i], prebuildGens[i], async, prebuild);
+                        else
+                            sendLoops[i] = DoCalls(client, msgCount, gens[i], async);
+                    }
 
                     Task.WaitAll(sendLoops);
                 }
@@ -114,65 +142,80 @@ namespace TestClient
                 Console.WriteLine("Test failed: " + ex.Message);
             }
 
+            var toWait = 5;
+
             Console.WriteLine();
-            Console.WriteLine("Pause 10 sec...");
+            Console.WriteLine("Pause " + toWait + "  sec...");
             Console.WriteLine();
 
             GC.Collect(2, GCCollectionMode.Forced, true, true);
 
-            Task.Delay(TimeSpan.FromSeconds(10));
+            Task.Delay(TimeSpan.FromSeconds(toWait)).Wait();
         }
 
-        private static Task SendMessages(BenchmarkContract_Gen.Client client, int msgCount, EntityGenerator generator, bool isAsync)
+        private static Task SendMessages(BenchmarkContract_Gen.Client client, int msgCount, EntitySet<FooEntity> set,
+            EntitySet<BenchmarkContract_Gen.PrebuiltMessages.SendUpdate> prebultSet, bool isAsync, bool usePrebuilt)
         {
             if (isAsync)
-                return SendMsgAsyncLoop(client, msgCount, generator);
+                return SendMsgAsyncLoop(client, msgCount, set, prebultSet, usePrebuilt);
             else
-                return Task.Factory.StartNew(() => SendMessageLoop(client, msgCount, generator));
+                return Task.Factory.StartNew(() => SendMessageLoop(client, msgCount, set, prebultSet, usePrebuilt));
         }
 
-        private static Task DoCalls(BenchmarkContract_Gen.Client client, int msgCount, EntityGenerator generator, bool isAsync)
+        private static Task DoCalls(BenchmarkContract_Gen.Client client, int msgCount, EntitySet<FooEntity> set, bool isAsync)
         {
             if (isAsync)
-                return AsyncCallLoop(client, msgCount, generator);
+                return AsyncCallLoop(client, msgCount, set);
             else
-                return Task.Factory.StartNew(() => SyncCallLoop(client, msgCount, generator));
+                return Task.Factory.StartNew(() => SyncCallLoop(client, msgCount, set));
         }
 
-        private static void SendMessageLoop(BenchmarkContract_Gen.Client client, int msgCount, EntityGenerator generator)
+        private static void SendMessageLoop(BenchmarkContract_Gen.Client client, int msgCount, EntitySet<FooEntity> set,
+            EntitySet<BenchmarkContract_Gen.PrebuiltMessages.SendUpdate> prebultSet, bool userPrebuild)
         {
-            for (int i = 0; i < msgCount; i++)
+            if (userPrebuild)
             {
-                var msg = generator.Next();
-                client.SendUpdate(msg);
+                for (int i = 0; i < msgCount; i++)
+                    client.SendUpdate(prebultSet.Next());
+            }
+            else
+            {
+                for (int i = 0; i < msgCount; i++)
+                    client.SendUpdate(set.Next());
             }
         }
 
-        private static async Task SendMsgAsyncLoop(BenchmarkContract_Gen.Client client, int msgCount, EntityGenerator generator)
+        private static async Task SendMsgAsyncLoop(BenchmarkContract_Gen.Client client, int msgCount, EntitySet<FooEntity> set,
+            EntitySet<BenchmarkContract_Gen.PrebuiltMessages.SendUpdate> prebultSet, bool usePrebuild)
         {
             await Task.Yield();
 
-            for (int i = 0; i < msgCount; i++)
+            if (usePrebuild)
             {
-                var msg = generator.Next();
-                await client.SendUpdateAsync(msg);
+                for (int i = 0; i < msgCount; i++)
+                    await client.SendUpdateAsync(prebultSet.Next());
             }
+            else
+            {
+                for (int i = 0; i < msgCount; i++)
+                    await client.SendUpdateAsync(set.Next());
+            }   
         }
 
-        private static async Task AsyncCallLoop(BenchmarkContract_Gen.Client client, int msgCount, EntityGenerator generator)
+        private static async Task AsyncCallLoop(BenchmarkContract_Gen.Client client, int msgCount, EntitySet<FooEntity> set)
         {
             for (int i = 0; i < msgCount; i++)
             {
-                var msg = generator.Next();
+                var msg = set.Next();
                 await client.ApplyUpdateAsync(msg);
             }
         }
 
-        private static void SyncCallLoop(BenchmarkContract_Gen.Client client, int msgCount, EntityGenerator generator)
+        private static void SyncCallLoop(BenchmarkContract_Gen.Client client, int msgCount, EntitySet<FooEntity> set)
         {
             for (int i = 0; i < msgCount; i++)
             {
-                var msg = generator.Next();
+                var msg = set.Next();
                 client.ApplyUpdate(msg);
             }
         }
@@ -200,6 +243,16 @@ namespace TestClient
                 return new SslSecurity((s, cert, chain, errs) => true);
             else
                 return TcpSecurity.None;
+        }
+
+        [Flags]
+        private enum TestOptions
+        {
+            None = 0,
+            OneWay = 1,
+            Async = 2,
+            SSL = 4,
+            Prebuild = 8
         }
     }
 }
