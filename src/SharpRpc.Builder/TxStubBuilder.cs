@@ -288,14 +288,14 @@ namespace SharpRpc.Builder
             {
                 if (isTry)
                 {
-                    retType = SH.GenericType(Names.SystemValueTask, Names.RpcResultStruct.Full);
+                    retType = SH.GenericType(_contract.Compatibility.GetAsyncWrapper(), Names.RpcResultStruct.Full);
 
                     return SF.ReturnStatement(
                         SF.InvocationExpression(SF.IdentifierName("TrySendMessageAsync"), SH.CallArguments(msgArgument)));
                 }
                 else
                 {
-                    retType = SF.ParseTypeName(Names.SystemValueTask);
+                    retType = SF.ParseTypeName(_contract.Compatibility.GetAsyncWrapper());
 
                     return SF.ReturnStatement(
                         SF.InvocationExpression(SF.IdentifierName("SendMessageAsync"), SH.CallArguments(msgArgument)));

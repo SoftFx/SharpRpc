@@ -12,7 +12,6 @@ using System.Diagnostics;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Threading.Tasks.Dataflow;
 
 namespace SharpRpc
 {
@@ -28,15 +27,25 @@ namespace SharpRpc
 
         public abstract RpcResult TrySend(IMessage message);
         public abstract void Send(IMessage message);
+#if NET5_0_OR_GREATER
         public abstract ValueTask<RpcResult> TrySendAsync(IMessage message);
         public abstract ValueTask<RpcResult> SendSystemMessage(ISystemMessage message);
         public abstract ValueTask SendAsync(IMessage message);
+#else
+        public abstract Task<RpcResult> TrySendAsync(IMessage message);
+        public abstract Task<RpcResult> SendSystemMessage(ISystemMessage message);
+        public abstract Task SendAsync(IMessage message);
+#endif
         public abstract void Start(ByteTransport transport);
         public abstract void StartProcessingUserMessages();
         public abstract void StopProcessingUserMessages(RpcResult fault);
         public abstract Task Close(TimeSpan gracefulCloseTimeout);
 
+#if NET5_0_OR_GREATER
         protected abstract ValueTask<ArraySegment<byte>> DequeueNextSegment();
+#else
+        protected abstract Task<ArraySegment<byte>> DequeueNextSegment();
+#endif
 
         protected void SignalCommunicationError(RpcResult fault)
         {

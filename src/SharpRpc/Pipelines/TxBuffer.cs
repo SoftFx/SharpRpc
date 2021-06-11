@@ -6,7 +6,6 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 using System;
-using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -14,7 +13,11 @@ using System.Threading.Tasks;
 
 namespace SharpRpc
 {
-    internal partial class TxBuffer : IBufferWriter<byte>, MessageWriter
+#if NET5_0_OR_GREATER
+    internal partial class TxBuffer : MessageWriter, System.Buffers.IBufferWriter<byte>
+#else
+    internal partial class TxBuffer : MessageWriter
+#endif
     {
         private readonly object _lockObj;
         private readonly StreamProxy _streamProxy;
@@ -39,7 +42,7 @@ namespace SharpRpc
 
             //_dataArrivedEvent = dataArrivedCallback;
 
-            _memManager = new MemoryManager(segmentSize, 5);
+            _memManager = MemoryManager.Create(segmentSize, 5);
             //_minAllocSize = minSizeHint;
             _streamProxy = new StreamProxy(this);
 
@@ -137,14 +140,18 @@ namespace SharpRpc
         //    _marker.OnMessageEnd();
         //}
 
+#if NET5_0_OR_GREATER
         public ValueTask<ArraySegment<byte>> DequeueNext()
+#else
+        public Task<ArraySegment<byte>> DequeueNext()
+#endif
         {
             lock (_lockObj)
             {
-                if (_dequeuedSegment != null)
+                if (_dequeuedSegment.Array != null)
                 {
                     _memManager.FreeSegment(_dequeuedSegment);
-                    _dequeuedSegment = null;
+                    _dequeuedSegment = new ArraySegment<byte>();
                 }
 
                 var hasCurrentData = IsCurrentDataAvailable;
@@ -153,14 +160,17 @@ namespace SharpRpc
                 {
                     var result = Dequeue();
                     SpaceFreed?.Invoke(this);
-                    return new ValueTask<ArraySegment<byte>>(result);
+                    return FwAdapter.WrappResult(result);
+
                 }
                 else if (_isClosed)
-                    return new ValueTask<ArraySegment<byte>>(new ArraySegment<byte>());
+                {
+                    return FwAdapter.WrappResult(new ArraySegment<byte>());
+                }
                 else
                 {
                     _dequeueWaitHandle = new DequeueRequest();
-                    return new ValueTask<ArraySegment<byte>>(_dequeueWaitHandle.Task);
+                    return FwAdapter.WrappResult(_dequeueWaitHandle.Task);
                 }
             }
         }
@@ -196,7 +206,7 @@ namespace SharpRpc
         }
 
         #region IBufferWriter implementation
-
+#if NET5_0_OR_GREATER
         public void Advance(int count)
         {
             MoveOffset(count);
@@ -213,7 +223,7 @@ namespace SharpRpc
             EnsureSpace(sizeHint);
             return new Span<byte>(CurrentSegment, CurrentOffset, SegmentSize - CurrentOffset);
         }
-
+#endif
         #endregion
 
         private void EnsureSpace(int sizeHint)
@@ -277,9 +287,11 @@ namespace SharpRpc
 
         #region MessageWriter implementation
 
-        IBufferWriter<byte> MessageWriter.ByteBuffer => this;
+#if NET5_0_OR_GREATER
+        System.Buffers.IBufferWriter<byte> MessageWriter.ByteBuffer => this;
+#endif
         System.IO.Stream MessageWriter.ByteStream => _streamProxy;
-
+        
         #endregion
 
         public class DequeueRequest : TaskCompletionSource<ArraySegment<byte>>

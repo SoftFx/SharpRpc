@@ -25,7 +25,13 @@ namespace SharpRpc
         public void WriteTo(ushort serializedId, MessageWriter writer)
         {
             foreach (var segment in _msgBytes)
+            {
+#if NET5_0_OR_GREATER
                 writer.ByteStream.Write(segment);
+#else
+                writer.ByteStream.Write(segment.Array, segment.Offset, segment.Count);
+#endif
+            }
         }
     }
 
@@ -43,7 +49,13 @@ namespace SharpRpc
             var msgBytes = _msgBytesPerSerializer[serializedId];
 
             foreach (var segment in msgBytes)
+            {
+#if NET5_0_OR_GREATER
                 writer.ByteStream.Write(segment);
+#else
+                writer.ByteStream.Write(segment.Array, segment.Offset, segment.Count);
+#endif
+            }
         }
     }
 }

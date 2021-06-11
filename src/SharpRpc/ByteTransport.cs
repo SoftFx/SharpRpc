@@ -15,8 +15,13 @@ namespace SharpRpc
 {
     public abstract class ByteTransport
     {
+#if NET5_0_OR_GREATER
         public abstract ValueTask Send(ArraySegment<byte> data, CancellationToken cToken);
         public abstract ValueTask<int> Receive(ArraySegment<byte> buffer, CancellationToken cToken);
+#else
+        public abstract Task Send(ArraySegment<byte> data, CancellationToken cToken);
+        public abstract Task<int> Receive(ArraySegment<byte> buffer, CancellationToken cToken);
+#endif
         public abstract RpcResult TranslateException(Exception ex);
 
         public abstract Task Shutdown();

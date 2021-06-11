@@ -79,7 +79,7 @@ namespace TestClient
                 .ToList();
 
             var connects = clients
-                .Select(c => c.Channel.TryConnectAsync().AsTask())
+                .Select(c => c.Channel.TryConnectAsync().ToTask())
                 .ToArray();
 
             Task.WaitAll(connects);

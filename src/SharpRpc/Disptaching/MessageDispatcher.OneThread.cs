@@ -149,7 +149,11 @@ namespace SharpRpc
                 eventCpy?.SetResult(false);
             }
 
+#if NET5_0_OR_GREATER
             private ValueTask<bool> TryDequeueNextPage()
+#else
+            private Task<bool> TryDequeueNextPage()
+#endif
             {
                 lock (_lockObj)
                 {
@@ -158,13 +162,13 @@ namespace SharpRpc
                     if (_queue.Count > 0)
                     {
                         _queue.DequeueRange(_batch, _pageSize);
-                        return new ValueTask<bool>(true);
+                        return FwAdapter.AsyncTrue;
                     }
                     else if (_completed)
-                        return new ValueTask<bool>(false);
+                        return FwAdapter.AsyncFalse;
 
                     _dataAvaialableEvent = new TaskCompletionSource<bool>();
-                    return new ValueTask<bool>(_dataAvaialableEvent.Task);
+                    return FwAdapter.WrappResult(_dataAvaialableEvent.Task);
                 }
             }
 

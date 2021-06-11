@@ -77,6 +77,8 @@ namespace SharpRpc.Builder
 
         public static readonly string WriterBufferProperty = "ByteBuffer";
         public static readonly string ReaderBufferProperty = "ByteBuffer";
+        public static readonly string WriterStreamProperty = "ByteStream";
+        public static readonly string ReaderStreamProperty = "ByteStream";
 
         public static readonly string FacadeSerializerAdapterFactoryMethod = "CreateSerializationAdapter";
         public static readonly string FacadeCreateDescriptorMethod = "CreateDescriptor";

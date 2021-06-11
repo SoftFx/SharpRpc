@@ -9,7 +9,6 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Reflection.Metadata.Ecma335;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -41,7 +40,11 @@ namespace SharpRpc
         public event Action<RpcResult> CommunicationFaulted;
 
         protected abstract ArraySegment<byte> AllocateRxBuffer();
+#if NET5_0_OR_GREATER
         protected abstract ValueTask<bool> OnBytesArrived(int count);
+#else
+        protected abstract Task<bool> OnBytesArrived(int count);
+#endif
         protected abstract void OnCommunicationError(RpcResult fault);
 
         public abstract void Start();

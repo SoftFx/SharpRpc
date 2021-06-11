@@ -78,12 +78,16 @@ namespace SharpRpc
                 return ProcessMessage(message);
             }
 
+#if NET5_0_OR_GREATER
             public override ValueTask<RpcResult> TrySendAsync(IMessage message)
+#else
+            public override Task<RpcResult> TrySendAsync(IMessage message)
+#endif
             {
                 lock (_lockObj)
                 {
                     if (_fault.Code != RpcRetCode.Ok)
-                        return new ValueTask<RpcResult>(_fault);
+                        return FwAdapter.WrappResult(_fault);
 
                     CheckConnectionFlags();
 
@@ -91,7 +95,7 @@ namespace SharpRpc
                     {
                         var waitItem = new AsyncTryItem(message);
                         _asyncQueue.Enqueue(waitItem);
-                        return new ValueTask<RpcResult>(waitItem.Task);
+                        return FwAdapter.WrappResult(waitItem.Task);
                     }
                     else
                     {
@@ -100,15 +104,19 @@ namespace SharpRpc
                     }
                 }
 
-                return new ValueTask<RpcResult>(ProcessMessage(message));
+                return FwAdapter.WrappResult(ProcessMessage(message));
             }
 
+#if NET5_0_OR_GREATER
             public override ValueTask<RpcResult> SendSystemMessage(ISystemMessage message)
+#else
+            public override Task<RpcResult> SendSystemMessage(ISystemMessage message)
+#endif
             {
                 lock (_lockObj)
                 {
                     if (_isClosing)
-                        return new ValueTask<RpcResult>(_fault);
+                        return FwAdapter.WrappResult(_fault);
 
                     CheckConnectionFlags();
 
@@ -116,7 +124,7 @@ namespace SharpRpc
                     {
                         var waitItem = new AsyncTryItem(message);
                         _systemQueue.Enqueue(waitItem);
-                        return new ValueTask<RpcResult>(waitItem.Task);
+                        return FwAdapter.WrappResult(waitItem.Task);
                     }
                     else
                     {
@@ -125,10 +133,14 @@ namespace SharpRpc
                     }
                 }
 
-                return new ValueTask<RpcResult>(ProcessMessage(message));
+                return FwAdapter.WrappResult(ProcessMessage(message));
             }
 
+#if NET5_0_OR_GREATER
             public override ValueTask SendAsync(IMessage message)
+#else
+            public override Task SendAsync(IMessage message)
+#endif
             {
                 lock (_lockObj)
                 {
@@ -140,7 +152,7 @@ namespace SharpRpc
                     {
                         var waitItem = new AsyncThrowItem(message);
                         _asyncQueue.Enqueue(waitItem);
-                        return new ValueTask(waitItem.Task);
+                        return FwAdapter.WrappResult((Task)waitItem.Task);
                     }
                     else
                     {
@@ -151,7 +163,7 @@ namespace SharpRpc
 
                 ProcessMessage(message).ThrowIfNotOk();
 
-                return new ValueTask();
+                return FwAdapter.AsyncVoid;
             }
 
             public override void Send(IMessage message)
@@ -220,7 +232,11 @@ namespace SharpRpc
                 return error;
             }
 
+#if NET5_0_OR_GREATER
             protected override ValueTask<ArraySegment<byte>> DequeueNextSegment()
+#else
+            protected override Task<ArraySegment<byte>> DequeueNextSegment()
+#endif
             {
                 return _buffer.DequeueNext();
             }

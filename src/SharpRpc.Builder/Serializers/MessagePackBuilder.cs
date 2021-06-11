@@ -69,19 +69,21 @@ namespace SharpRpc.Builder
 
         public override ClassDeclarationSyntax GenerateSerializerAdapter(TypeString serilizerClassName, TypeString baseMessageClassName, GeneratorExecutionContext context)
         {
+            var compatibility = new ContractCompatibility(context);
+
             return SF.ClassDeclaration(serilizerClassName.Short)
                 .AddModifiers(SF.Token(SyntaxKind.PrivateKeyword))
                 .AddBaseListTypes(SF.SimpleBaseType(SF.ParseTypeName(Names.RpcSerializerInterface.Full)))
-                .AddMembers(GenerateSerializeMehtod(baseMessageClassName))
-                .AddMembers(GenerateDeserializeMehtod(baseMessageClassName));
+                .AddMembers(GenerateSerializeMehtod(compatibility, baseMessageClassName))
+                .AddMembers(GenerateDeserializeMehtod(compatibility, baseMessageClassName));
         }
 
-        private MethodDeclarationSyntax GenerateSerializeMehtod(TypeString baseMessageClassName)
+        private MethodDeclarationSyntax GenerateSerializeMehtod(ContractCompatibility compatibility, TypeString baseMessageClassName)
         {
             var messageParam = SH.Parameter("message", Names.MessageInterface.Full);
             var messageWriterParam = SH.Parameter("writer", Names.MessageWriterClass.Full);
 
-            var writerBufferProperty = SH.MemeberOfIdentifier("writer", Names.WriterBufferProperty);
+            var writerBufferProperty = SH.MemeberOfIdentifier("writer", compatibility.IsNet5 ? Names.WriterBufferProperty : Names.WriterStreamProperty);
             var messageBaseCast = SF.CastExpression(SF.ParseName(baseMessageClassName.Full), SF.IdentifierName("message"));
 
             var serilizerCall = SF.InvocationExpression(SH.GenericType(SerializerMethod, baseMessageClassName.Full),
@@ -93,11 +95,11 @@ namespace SharpRpc.Builder
                 .WithBody(SH.MethodBody(SF.ExpressionStatement(serilizerCall)));
         }
 
-        private MethodDeclarationSyntax GenerateDeserializeMehtod(TypeString baseMessageClassName)
+        private MethodDeclarationSyntax GenerateDeserializeMehtod(ContractCompatibility compatibility, TypeString baseMessageClassName)
         {
             var messageReaderParam = SH.Parameter("reader", Names.MessageReaderClass.Full);
 
-            var readerBufferProperty = SH.MemeberOfIdentifier("reader", Names.ReaderBufferProperty);
+            var readerBufferProperty = SH.MemeberOfIdentifier("reader", compatibility.IsNet5 ?  Names.ReaderBufferProperty : Names.ReaderStreamProperty);
 
             var serilizerCall = SF.InvocationExpression(SH.GenericType(DeserializerMethod, baseMessageClassName.Full),
                 SH.CallArguments(SF.Argument(readerBufferProperty)));
@@ -109,5 +111,6 @@ namespace SharpRpc.Builder
                 .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
                 .WithBody(SH.MethodBody(retStatement));
         }
+
     }
 }

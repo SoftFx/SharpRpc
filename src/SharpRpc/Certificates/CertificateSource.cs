@@ -11,9 +11,9 @@ using System.Security.Cryptography.X509Certificates;
 
 namespace SharpRpc
 {
-    internal interface CertificateSource
+    public abstract class CertificateSource
     {
-        X509Certificate2 GetCertificate();
+        public abstract X509Certificate2 GetCertificate();
 
         public class File : CertificateSource
         {
@@ -24,7 +24,7 @@ namespace SharpRpc
                 _cert = cert;
             }
 
-            public X509Certificate2 GetCertificate()
+            public override X509Certificate2 GetCertificate()
             {
                 return _cert;
             }

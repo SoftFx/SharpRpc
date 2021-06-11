@@ -255,6 +255,7 @@ namespace TestClient
 
         private class CallbackHandler : FunctionTestContract_Gen.CallbackServiceBase
         {
+#if NET5_0_OR_GREATER
             public override ValueTask TestCallbackNotify1(int p1, string p2)
             {
                 if (p1 != 10 || p2 != "11")
@@ -283,6 +284,36 @@ namespace TestClient
             {
                 throw new Exception("Test Exception");
             }
+#else
+            public override Task TestCallbackNotify1(int p1, string p2)
+            {
+                if (p1 != 10 || p2 != "11")
+                    throw new Exception("Invalid input!");
+
+                return Task.CompletedTask;
+            }
+
+            public override Task TestCallback1(int p1, string p2)
+            {
+                if (p1 != 10 || p2 != "11")
+                    throw new Exception("Invalid input!");
+
+                return Task.CompletedTask;
+            }
+
+            public override Task<int> TestCallback2(int p1, string p2)
+            {
+                if (p1 != 10 || p2 != "11")
+                    throw new Exception("Invalid input!");
+
+                return Task.FromResult(21);
+            }
+
+            public override Task<string> TestCallback3(int p1, string p2)
+            {
+                throw new Exception("Test Exception");
+            }
+#endif
         }
     }
 }

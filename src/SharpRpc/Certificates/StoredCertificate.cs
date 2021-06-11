@@ -30,17 +30,27 @@ namespace SharpRpc
             _findVal = findValue;
         }
 
-        public X509Certificate2 GetCertificate()
+        public override X509Certificate2 GetCertificate()
         {
             try
             {
-                var store = new X509Store(_name, _location, OpenFlags.ReadOnly | OpenFlags.OpenExistingOnly);
-                var found = store.Certificates.Find(_findType, _findVal, false);
+                var store = new X509Store(_name, _location);
+                store.Open(OpenFlags.ReadOnly | OpenFlags.OpenExistingOnly);
 
-                if (found.Count == 0)
-                    throw new CertLoadError("Cannnot find certificate with secified search criteria in store.");
+                try
+                {
+                    var found = store.Certificates.Find(_findType, _findVal, false);
 
-                return found[0];
+                    if (found.Count == 0)
+                        throw new CertLoadError("Cannnot find certificate with secified search criteria in store.");
+
+                    return found[0];
+                }
+                finally
+                {
+                    store.Close();
+                    store.Dispose();
+                }
             }
             catch (ArgumentException aex)
             {

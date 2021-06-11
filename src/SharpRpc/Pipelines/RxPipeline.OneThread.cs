@@ -40,12 +40,16 @@ namespace SharpRpc
                     return _buffer.GetRxSegment();
             }
 
+#if NET5_0_OR_GREATER
             protected override ValueTask<bool> OnBytesArrived(int count)
+#else
+            protected override Task<bool> OnBytesArrived(int count)
+#endif
             {
                 lock (_lockObj)
                 {
                     if (_isClosing)
-                        return new ValueTask<bool>(false);
+                        return FwAdapter.AsyncFalse;
 
                     var arrivedData = _buffer.CommitDataRx(count);
 
@@ -55,12 +59,12 @@ namespace SharpRpc
 
                         _awaitingSegment = arrivedData;
                         _enqeueuWaitHandler = new TaskCompletionSource<bool>();
-                        return new ValueTask<bool>(_enqeueuWaitHandler.Task);
+                        return FwAdapter.WrappResult(_enqeueuWaitHandler.Task);
                     }
                     else
                     {
                         LaunchWorker(arrivedData);
-                        return new ValueTask<bool>(true);
+                        return FwAdapter.AsyncTrue;
                     }
                 }
             }

@@ -30,7 +30,11 @@ namespace SharpRpc
             _authPlugin = serverEndpoint.Authenticator;
         }
 
+#if NET5_0_OR_GREATER
         public override async ValueTask<RpcResult> OnConnect(CancellationToken cToken)
+#else
+        public override async Task<RpcResult> OnConnect(CancellationToken cToken)
+#endif
         {
             ILoginMessage loginMsg;
 
@@ -71,7 +75,11 @@ namespace SharpRpc
                 return new RpcResult(RpcRetCode.InvalidCredentials, authError);
         }
 
+#if NET5_0_OR_GREATER
         public override async ValueTask<RpcResult> OnDisconnect(LogoutOption option)
+#else
+        public override async Task<RpcResult> OnDisconnect(LogoutOption option)
+#endif
         {
             if (option == LogoutOption.EnsureCompletion)
                 throw new NotSupportedException("LogoutOption.EnsureCompletion is not supported on server side! (yet)");

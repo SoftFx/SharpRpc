@@ -138,7 +138,7 @@ namespace SharpRpc.Builder
                 .AddCatches(GenerateRegularCatch(), GenerateUnexpectedCatch())
                 .WithBlock(SF.Block(handlerInvokationStatement).AddStatements(respStatements));
 
-            var retType = SH.GenericType(Names.SystemValueTask, Names.ResponseInterface.Full);
+            var retType = SH.GenericType(_contract.Compatibility.GetAsyncWrapper(), Names.ResponseInterface.Full);
 
             return SF.MethodDeclaration(retType, methodName)
                .AddModifiers(SF.Token(SyntaxKind.PrivateKeyword), SF.Token(SyntaxKind.AsyncKeyword))
@@ -159,17 +159,34 @@ namespace SharpRpc.Builder
                 {
                     var messageType = _contract.GetOnWayMessageClassName(call.MethodName);
                     var typedMessageVarName = "m" + index++;
-
-                    var isExpression = SF.IsPatternExpression(SF.IdentifierName("message"),
-                        SF.DeclarationPattern(SF.ParseTypeName(messageType.Full), SF.SingleVariableDesignation(SF.Identifier(typedMessageVarName))));
-
                     var rpcMethodCall = SF.ReturnStatement(GenerateRpcInvocation(call, typedMessageVarName));
 
-                    ifRoot = SF.IfStatement(isExpression, rpcMethodCall, SF.ElseClause(ifRoot));
+                    ExpressionSyntax ifExpression;
+                    StatementSyntax ifBody;
+
+                    if (_contract.Compatibility.SupportsPatternMatching)
+                    {
+                        ifExpression = SF.IsPatternExpression(SF.IdentifierName("message"),
+                            SF.DeclarationPattern(SF.ParseTypeName(messageType.Full), SF.SingleVariableDesignation(SF.Identifier(typedMessageVarName))));
+
+                        ifBody = rpcMethodCall;
+                    }
+                    else
+                    {
+                        ifExpression = SF.BinaryExpression(SyntaxKind.IsExpression,
+                            SF.IdentifierName("message"), SF.ParseTypeName(messageType.Full));
+
+                        var castVariable = SH.VarDeclaration(typedMessageVarName,
+                            SF.CastExpression(SF.ParseTypeName(messageType.Full), SF.IdentifierName("message")));
+
+                        ifBody = SF.Block(castVariable, rpcMethodCall);
+                    }
+
+                    ifRoot = SF.IfStatement(ifExpression, ifBody, SF.ElseClause(ifRoot));
                 }
             }
 
-            var method = SF.MethodDeclaration(SF.ParseTypeName(Names.SystemValueTask), Names.RpcServiceBaseOnMessageMethod)
+            var method = SF.MethodDeclaration(SF.ParseTypeName(_contract.Compatibility.GetAsyncWrapper()), Names.RpcServiceBaseOnMessageMethod)
                .AddModifiers(SF.Token(SyntaxKind.ProtectedKeyword), SF.Token(SyntaxKind.OverrideKeyword))
                .AddParameterListParameters(SH.Parameter("message", Names.MessageInterface.Full))
                .WithBody(SF.Block(ifRoot));
@@ -190,21 +207,38 @@ namespace SharpRpc.Builder
                 {
                     var messageType = _contract.GetRequestClassName(call.MethodName);
                     var typedMessageVarName = "r" + index++;
-
-                    var isExpression = SF.IsPatternExpression(SF.IdentifierName("request"),
-                        SF.DeclarationPattern(SF.ParseTypeName(messageType.Full), SF.SingleVariableDesignation(SF.Identifier(typedMessageVarName))));
-
                     var methodToInvoke = "Invoke" + call.MethodName;
 
                     var rpcMethodCall = SF.ReturnStatement(
                         SF.InvocationExpression(SF.IdentifierName(methodToInvoke))
                         .WithArguments(SH.IdentifierArgument(typedMessageVarName)));
 
-                    ifRoot = SF.IfStatement(isExpression, rpcMethodCall, SF.ElseClause(ifRoot));
+                    ExpressionSyntax ifExpression;
+                    StatementSyntax ifBody;
+
+                    if (_contract.Compatibility.SupportsPatternMatching)
+                    {
+                        ifExpression = SF.IsPatternExpression(SF.IdentifierName("request"),
+                            SF.DeclarationPattern(SF.ParseTypeName(messageType.Full), SF.SingleVariableDesignation(SF.Identifier(typedMessageVarName))));
+
+                        ifBody = rpcMethodCall;
+                    }
+                    else
+                    {
+                        ifExpression = SF.BinaryExpression(SyntaxKind.IsExpression,
+                               SF.IdentifierName("request"), SF.ParseTypeName(messageType.Full));
+
+                        var castVariable = SH.VarDeclaration(typedMessageVarName,
+                            SF.CastExpression(SF.ParseTypeName(messageType.Full), SF.IdentifierName("request")));
+
+                        ifBody = SF.Block(castVariable, rpcMethodCall);
+                    }
+
+                    ifRoot = SF.IfStatement(ifExpression, ifBody, SF.ElseClause(ifRoot));
                 }
             }
 
-            var retType = SH.GenericType(Names.SystemValueTask, Names.ResponseInterface.Full);
+            var retType = SH.GenericType(_contract.Compatibility.GetAsyncWrapper(), Names.ResponseInterface.Full);
 
             return SF.MethodDeclaration(retType, Names.RpcServiceBaseOnRequestMethod)
                .AddModifiers(SF.Token(SyntaxKind.ProtectedKeyword), SF.Token(SyntaxKind.OverrideKeyword))
@@ -250,9 +284,9 @@ namespace SharpRpc.Builder
         private TypeSyntax GetValueTaskOf(ParamDeclaration param)
         {
             if (param == null || param.ParamType == null)
-                return SF.ParseTypeName(Names.SystemValueTask);
+                return SF.ParseTypeName(_contract.Compatibility.GetAsyncWrapper());
             else
-                return SH.GenericType(Names.SystemValueTask, param.ParamType);
+                return SH.GenericType(_contract.Compatibility.GetAsyncWrapper(), param.ParamType);
         }
 
         private TypeSyntax GetTypeSyntax(ParamDeclaration param)

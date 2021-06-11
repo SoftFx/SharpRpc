@@ -21,7 +21,11 @@ namespace SharpRpc
         internal abstract string Name { get; }
         internal abstract void Init();
 
+#if NET5_0_OR_GREATER
         internal abstract ValueTask<ByteTransport> SecureTransport(Socket socket);
+#else
+        internal abstract Task<ByteTransport> SecureTransport(Socket socket);
+#endif
 
         private class NullServerSecurity : TcpServerSecurity
         {
@@ -31,10 +35,17 @@ namespace SharpRpc
 
             internal override string Name => "None";
 
+#if NET5_0_OR_GREATER
             internal override ValueTask<ByteTransport> SecureTransport(Socket socket)
             {
                 return new ValueTask<ByteTransport>(new TcpTransport(socket));
             }
+#else
+            internal override Task<ByteTransport> SecureTransport(Socket socket)
+            {
+                return Task.FromResult<ByteTransport>(new TcpTransport(socket));
+            }
+#endif
         }
     }
 }

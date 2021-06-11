@@ -31,7 +31,12 @@ namespace SharpRpc
             Channel.Dispatcher.Start();
         }
 
+
+#if NET5_0_OR_GREATER
         public override async ValueTask<RpcResult> OnConnect(CancellationToken cToken)
+#else
+        public override async Task<RpcResult> OnConnect(CancellationToken cToken)
+#endif
         {
             lock (_lockObj)
             {
@@ -70,7 +75,11 @@ namespace SharpRpc
             }
         }
 
+#if NET5_0_OR_GREATER
         public override async ValueTask<RpcResult> OnDisconnect(LogoutOption option)
+#else
+        public override async Task<RpcResult> OnDisconnect(LogoutOption option)
+#endif
         {
             lock (_lockObj)
             {

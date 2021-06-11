@@ -92,7 +92,7 @@ namespace SharpRpc
 
     public interface RpcFault
     {
-        public string Message { get; }
+        string Message { get; }
     }
 
     public class RpcFaultStub : RpcFault

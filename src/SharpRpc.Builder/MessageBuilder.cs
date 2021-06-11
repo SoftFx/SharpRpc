@@ -130,7 +130,9 @@ namespace SharpRpc.Builder
                 var retStatement = SyntaxFactory.ReturnStatement(
                     SyntaxFactory.CastExpression(retType, messageCreation));
 
-                var label = SyntaxFactory.CaseSwitchLabel(SyntaxFactory.IdentifierName(faultDataType));
+                var label = contract.Compatibility.SupportsPatternMatching
+                    ? SyntaxFactory.CaseSwitchLabel(SyntaxFactory.IdentifierName(faultDataType))
+                    : SyntaxFactory.CaseSwitchLabel(SyntaxHelper.LiteralExpression(faultDataType));
 
                 cases.Add(SyntaxFactory.SwitchSection()
                     .AddLabels(label)
@@ -145,7 +147,9 @@ namespace SharpRpc.Builder
                 .AddLabels(SyntaxFactory.DefaultSwitchLabel())
                 .AddStatements(SyntaxFactory.ThrowStatement(exceptionCreationExp)));
 
-            var switchArg = SyntaxFactory.IdentifierName("fault"); //SyntaxHelper.MemberOf(SyntaxFactory.TypeOfExpression(SyntaxFactory.IdentifierName("T")), "FullName");
+            var switchArg = contract.Compatibility.SupportsPatternMatching
+                ? (ExpressionSyntax)SyntaxFactory.IdentifierName("fault")
+                : SyntaxHelper.MemberOf(SyntaxFactory.TypeOfExpression(SyntaxFactory.IdentifierName("T")), "FullName");
 
             var switchStatement = SyntaxFactory.SwitchStatement(switchArg)
                 .AddSections(cases.ToArray());

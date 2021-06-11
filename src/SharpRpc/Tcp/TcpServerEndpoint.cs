@@ -7,7 +7,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -98,10 +97,17 @@ namespace SharpRpc
             await _listenerTask;
         }
 
+#if NET5_0_OR_GREATER
         protected virtual ValueTask<ByteTransport> GetTransport(Socket socket)
         {
             return new ValueTask<ByteTransport>(new TcpTransport(socket));
         }
+#else
+        protected virtual Task<ByteTransport> GetTransport(Socket socket)
+        {
+            return Task.FromResult<ByteTransport>(new TcpTransport(socket));
+        }
+#endif
 
         private async Task AcceptLoop()
         {

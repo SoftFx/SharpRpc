@@ -58,7 +58,7 @@ namespace SharpRpc
 
         public T Fault { get; }
 
-        public static RpcFaultException<T> Create(T fault) => new(fault);
+        public static RpcFaultException<T> Create(T fault) => new RpcFaultException<T>(fault);
     }
 
     public class RpcConfigurationException : RpcException

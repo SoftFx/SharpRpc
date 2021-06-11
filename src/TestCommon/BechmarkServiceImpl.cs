@@ -15,14 +15,22 @@ namespace TestCommon
 {
     public class BechmarkServiceImpl : BenchmarkContract_Gen.ServiceBase
     {
+#if NET5_0_OR_GREATER
         public override ValueTask SendUpdate(FooEntity entity)
+#else
+        public override Task SendUpdate(FooEntity entity)
+#endif
         {
-            return new ValueTask();
+            return FwAdapter.AsyncVoid;
         }
 
+#if NET5_0_OR_GREATER
         public override ValueTask ApplyUpdate(FooEntity entity)
+#else
+        public override Task ApplyUpdate(FooEntity entity)
+#endif
         {
-            return new ValueTask();
+            return FwAdapter.AsyncVoid;
         }
     }
 }

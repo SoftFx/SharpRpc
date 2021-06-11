@@ -6,7 +6,6 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 using System;
-using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -19,13 +18,21 @@ namespace SharpRpc
         public void WriteAllTo(MessageWriter writer)
         {
             foreach (var segment in this)
+            {
+#if NET5_0_OR_GREATER
                 writer.ByteStream.Write(segment);
+#else
+                writer.ByteStream.Write(segment.Array, segment.Offset, segment.Count);
+#endif
+            }
         }
 
         public void Dispose()
         {
+#if NET5_0_OR_GREATER
             foreach (var segment in this)
-                ArrayPool<byte>.Shared.Return(segment.Array);
+                System.Buffers.ArrayPool<byte>.Shared.Return(segment.Array);
+#endif
 
             Clear();
         }

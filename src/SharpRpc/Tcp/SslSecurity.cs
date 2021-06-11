@@ -26,23 +26,30 @@ namespace SharpRpc
             _customCertValidator = serverCertValidator;
         }
 
+#if NET5_0_OR_GREATER
         internal async override ValueTask<ByteTransport> SecureTransport(Socket socket, string targetHost)
+#else
+        internal async override Task<ByteTransport> SecureTransport(Socket socket, string targetHost)
+#endif
         {
             var stream = new NetworkStream(socket, true);
             var sslStream = new SslStream(stream);
 
-            var options = new SslClientAuthenticationOptions();
-            options.EncryptionPolicy = EncryptionPolicy.RequireEncryption;
-            options.EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13;
-            options.TargetHost = targetHost;
-
-            options.TargetHost = targetHost;
-            if (_customCertValidator != null)
-                options.RemoteCertificateValidationCallback = _customCertValidator;
-
             try
             {
+#if NET5_0_OR_GREATER
+                var options = new SslClientAuthenticationOptions();
+                options.EncryptionPolicy = EncryptionPolicy.RequireEncryption;
+                options.EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13;
+                options.TargetHost = targetHost;
+
+                if (_customCertValidator != null)
+                    options.RemoteCertificateValidationCallback = _customCertValidator;
+
                 await sslStream.AuthenticateAsClientAsync(options);
+#else
+                await sslStream.AuthenticateAsClientAsync(targetHost, null, SslProtocols.Tls11 | SslProtocols.Tls12, false);
+#endif
             }
             catch (AuthenticationException aex)
             {

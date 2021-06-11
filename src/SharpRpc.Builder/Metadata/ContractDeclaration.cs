@@ -17,9 +17,10 @@ namespace SharpRpc.Builder
         private List<SerializerDeclaration> _serializers = new List<SerializerDeclaration>();
         private List<string> _faultTypesById = new List<string>();
 
-        public ContractDeclaration(string typeFullName)
+        public ContractDeclaration(string typeFullName, ContractCompatibility compatibility)
         {
             InterfaceName = new TypeString(typeFullName);
+            Compatibility = compatibility;
             FacadeClassName = new TypeString(InterfaceName.Namespace, InterfaceName.Short + "_Gen");
             MessageBundleClassName = new TypeString(FacadeClassName.Full, "Messages");
             SystemBundleClassName = new TypeString(FacadeClassName.Full, "SystemMessages");
@@ -58,6 +59,7 @@ namespace SharpRpc.Builder
         //public TypeString BasicAuthDataClassName { get; }
         public List<CallDeclaration> Calls { get; } = new List<CallDeclaration>();
         public List<string> FaultTypes => _faultTypesById;
+        public ContractCompatibility Compatibility { get; }
 
         public bool HasCallbacks => Calls.Any(c => c.IsCallback);
 

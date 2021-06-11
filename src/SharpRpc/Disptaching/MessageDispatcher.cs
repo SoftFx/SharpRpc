@@ -10,7 +10,6 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
-using System.Threading.Tasks.Dataflow;
 
 namespace SharpRpc
 {
@@ -174,8 +173,13 @@ namespace SharpRpc
 
     internal interface IUserMessageHandler
     {
+#if NET5_0_OR_GREATER
         ValueTask ProcessMessage(IMessage message);
         ValueTask<IResponse> ProcessRequest(IRequest message);
+#else
+        Task ProcessMessage(IMessage message);
+        Task<IResponse> ProcessRequest(IRequest message);
+#endif
     }
 
     //public enum ConcurrencyMode

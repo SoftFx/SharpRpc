@@ -6,7 +6,6 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 using System;
-using System.Buffers;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.IO;
@@ -51,7 +50,11 @@ namespace SharpRpc
             return _writer.CompleteWrite();
         }
 
-        private class SegmentWriter : Stream, MessageWriter, IBufferWriter<byte>
+#if NET5_0_OR_GREATER
+        private class SegmentWriter : Stream, MessageWriter, System.Buffers.IBufferWriter<byte>
+#else
+        private class SegmentWriter : Stream, MessageWriter
+#endif
         {
             private readonly int _memeoryMinSize = 128;
             private readonly int _segmentSize = 512;
@@ -65,7 +68,9 @@ namespace SharpRpc
                 AllocateNewSegment();
             }
 
-            public IBufferWriter<byte> ByteBuffer => this;
+#if NET5_0_OR_GREATER
+            public System.Buffers.IBufferWriter<byte> ByteBuffer => this;
+#endif
             public Stream ByteStream => this;
 
             public SegmentedByteArray CompleteWrite()
@@ -80,7 +85,11 @@ namespace SharpRpc
 
             private void AllocateNewSegment()
             {
-                _currentSegment = ArrayPool<byte>.Shared.Rent(_segmentSize);
+#if NET5_0_OR_GREATER
+                _currentSegment = System.Buffers.ArrayPool<byte>.Shared.Rent(_segmentSize);
+#else
+                _currentSegment = new byte[_segmentSize];
+#endif
             }
 
             private void CompleteSegment()
@@ -100,7 +109,7 @@ namespace SharpRpc
             }
 
             #region IBufferWriter<byte>
-
+#if NET5_0_OR_GREATER
             public void Advance(int count)
             {
                 _currentOffset += count;
@@ -117,7 +126,7 @@ namespace SharpRpc
                 EnsureSpace(sizeHint);
                 return new Span<byte>(_currentSegment, _currentOffset, _currentSegment.Length - _currentOffset);
             }
-
+#endif
             #endregion
 
             #region Stream
@@ -152,7 +161,7 @@ namespace SharpRpc
                     count -= copySize;
                 }
             }
-
+            
             #endregion
         }
     }

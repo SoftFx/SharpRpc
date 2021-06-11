@@ -41,12 +41,20 @@ namespace SharpRpc
             return Channel.Tx.TrySend(message);
         }
 
+#if NET5_0_OR_GREATER
         protected ValueTask<RpcResult> TrySendMessageAsync(IMessage message)
+#else
+        protected Task<RpcResult> TrySendMessageAsync(IMessage message)
+#endif
         {
             return Channel.Tx.TrySendAsync(message);
         }
 
+#if NET5_0_OR_GREATER
         protected ValueTask SendMessageAsync(IMessage message)
+#else
+        protected Task SendMessageAsync(IMessage message)
+#endif
         {
             return Channel.Tx.SendAsync(message);
         }
@@ -81,12 +89,20 @@ namespace SharpRpc
             {
             }
 
+#if NET5_0_OR_GREATER
             public ValueTask ProcessMessage(IMessage message)
+#else
+            public Task ProcessMessage(IMessage message)
+#endif
             {
                 throw new RpcException("No message handler for " + message.GetType().Name, RpcRetCode.UnexpectedMessage);
             }
 
+#if NET5_0_OR_GREATER
             public ValueTask<IResponse> ProcessRequest(IRequest message)
+#else
+            public Task<IResponse> ProcessRequest(IRequest message)
+#endif
             {
                 throw new RpcException("No message handler for " + message.GetType().Name, RpcRetCode.UnexpectedMessage);
             }

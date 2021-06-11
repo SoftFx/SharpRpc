@@ -6,7 +6,6 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 using System;
-using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -45,13 +44,17 @@ namespace SharpRpc
 
     public interface MessageWriter
     {
-        IBufferWriter<byte> ByteBuffer { get; } 
+#if NET5_0_OR_GREATER
+        System.Buffers.IBufferWriter<byte> ByteBuffer { get; }
+#endif
         Stream ByteStream { get; }
     }
 
     public interface MessageReader
     {
-        ReadOnlySequence<byte> ByteBuffer { get; }
+#if NET5_0_OR_GREATER
+        System.Buffers.ReadOnlySequence<byte> ByteBuffer { get; }
+#endif
         Stream ByteStream { get; }
     }
 }

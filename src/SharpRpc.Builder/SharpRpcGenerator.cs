@@ -42,6 +42,7 @@ namespace SharpRpc.Builder
                     Debugger.Launch();
                 }
 #endif
+
                 var contracts = GetRpcContracts(context).ToList();
 
                 foreach (var contractInfo in contracts)
@@ -193,7 +194,7 @@ namespace SharpRpc.Builder
                 var contractAttr = FindAttribute(interfaceDec, _contractAttrSymbol, sm);
 
                 if (contractAttr != null)
-                    yield return CollectContractData(interfaceDec, sm);
+                    yield return CollectContractData(interfaceDec, context, sm);
             }
         }
 
@@ -242,13 +243,14 @@ namespace SharpRpc.Builder
             }
         }
 
-        private ContractDeclaration CollectContractData(InterfaceDeclarationSyntax contractTypeDec, SemanticModel sm)
+        private ContractDeclaration CollectContractData(InterfaceDeclarationSyntax contractTypeDec, GeneratorExecutionContext context, SemanticModel sm)
         {
             var contractSmbInfo = sm.GetDeclaredSymbol(contractTypeDec);
+            var compatibilityAdapter = new ContractCompatibility(context);
             if (contractSmbInfo == null)
-                return new ContractDeclaration("Error");
+                return new ContractDeclaration("Error", compatibilityAdapter);
             var fullyQualifiedName = contractSmbInfo.ToDisplayString(FulluQualifiedSymbolFormat);
-            var contractInfo = new ContractDeclaration(fullyQualifiedName);
+            var contractInfo = new ContractDeclaration(fullyQualifiedName, compatibilityAdapter);
 
             foreach (var builder in CollectSerializersData(contractSmbInfo))
                 contractInfo.AddSerializer(builder);

@@ -12,7 +12,10 @@ namespace TestClient
         {
             var address = args.FirstOrDefault() ?? "localhost";
 
-            Console.WriteLine("SharpRpc test client. Server address: " + address);
+            Console.Title = "#RPC Client";
+            Console.WriteLine("SharpRpc test client.");
+            Console.WriteLine("Framework: " + AppDomain.CurrentDomain.SetupInformation.TargetFrameworkName);
+            Console.WriteLine("Target server: " + address);
             Console.WriteLine("Choose action:");
 
             Console.WriteLine("1. Benchmark");
@@ -54,7 +57,7 @@ namespace TestClient
                 var endpoint = new TcpClientEndpoint("localhost", 812, TcpSecurity.None);
                 BenchmarkContractCfg.ConfigureEndpoint(endpoint);
                 var client = BenchmarkContract_Gen.CreateClient(endpoint);
-                var connectRet = client.Channel.TryConnectAsync().AsTask().Result;
+                var connectRet = client.Channel.TryConnectAsync().ToTask().Result;
 
                 TimerCallback statusCheckAction = s =>
                 {

@@ -80,7 +80,11 @@ namespace SharpRpc
             _tx.Start(transport);
         }
 
+#if NET5_0_OR_GREATER
         public ValueTask<RpcResult> TryConnectAsync()
+#else
+        public Task<RpcResult> TryConnectAsync()
+#endif
         {
             bool invokeConnect = false;
 
@@ -92,13 +96,13 @@ namespace SharpRpc
                     invokeConnect = true;
                 }
                 else
-                    return new ValueTask<RpcResult>(new RpcResult(RpcRetCode.InvalidChannelState, "TryConnectAsync() cannot be called while channel in state: " + State));
+                    return FwAdapter.WrappResult(new RpcResult(RpcRetCode.InvalidChannelState, "TryConnectAsync() cannot be called while channel in state: " + State));
             }
 
             if (invokeConnect)
                 DoConnect();
 
-            return new ValueTask<RpcResult>(_connectEvent.Task);
+            return FwAdapter.WrappResult(_connectEvent.Task);
         }
 
         public Task CloseAsync()

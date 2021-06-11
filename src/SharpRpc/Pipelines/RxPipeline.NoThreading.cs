@@ -41,10 +41,14 @@ namespace SharpRpc
                 return _buffer.GetRxSegment();
             }
 
+#if NET5_0_OR_GREATER
             protected override ValueTask<bool> OnBytesArrived(int count)
+#else
+            protected override Task<bool> OnBytesArrived(int count)
+#endif
             {
                 if (_isClosed)
-                    return new ValueTask<bool>(false);
+                    return FwAdapter.AsyncFalse;
 
                 var rxData = _buffer.CommitDataRx(count);
                 var parseRet = ParseAndDeserialize(rxData, out var bytesConsumed);
@@ -52,12 +56,12 @@ namespace SharpRpc
                 if (parseRet.Code != RpcRetCode.Ok)
                 {
                     SignalCommunicationError(parseRet);
-                    return new ValueTask<bool>(false);
+                    return FwAdapter.AsyncFalse;
                 }
 
                 _buffer.CommitDataConsume(bytesConsumed);
 
-                return new ValueTask<bool>(true);
+                return FwAdapter.AsyncTrue;
             }
 
             public override Task Close()

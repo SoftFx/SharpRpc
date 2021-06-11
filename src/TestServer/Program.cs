@@ -17,6 +17,10 @@ namespace TestServer
     {
         static void Main(string[] args)
         {
+            Console.Title = "#RPC Server";
+            Console.WriteLine("SharpRpc test server.");
+            Console.WriteLine("Framework: " + AppDomain.CurrentDomain.SetupInformation.TargetFrameworkName);
+
             var srv1 = StartBenchmarkServer();
             var srv2 = StartFunctionTestServer();
 
@@ -35,7 +39,7 @@ namespace TestServer
             BenchmarkContractCfg.ConfigureEndpoint(tcpEndpoint);
             tcpEndpoint.Authenticator = new BasicAuthenticator(new AuthValidator());
 
-            var serverCert = new StoredCertificate(StoreLocation.LocalMachine, StoreName.My, X509FindType.FindByThumbprint, "‎6e4c04ed965eb8d71a66b8e2b89e5767f2e076d8");
+            var serverCert = new StoredCertificate(StoreLocation.LocalMachine, StoreName.My, X509FindType.FindByThumbprint, "6e4c04ed965eb8d71a66b8e2b89e5767f2e076d8");
             var sslEndpoit = new TcpServerEndpoint(IPAddress.IPv6Any, BenchmarkContractCfg.GetPort(true), new SslServerSecurity(serverCert));
             sslEndpoit.IPv6Only = false;
             BenchmarkContractCfg.ConfigureEndpoint(sslEndpoit);
