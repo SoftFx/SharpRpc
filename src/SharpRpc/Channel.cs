@@ -30,15 +30,17 @@ namespace SharpRpc
         private SessionCoordinator _coordinator;
         private bool _closeFlag;
         private bool _isServerSide;
+        private static int idSeed;
 
         public ChannelState State { get; private set; }
         public RpcResult Fault => _channelDisplayFault;
-        public Guid Id { get; } = Guid.NewGuid();
+        public string Id { get; }
 
         internal MessageDispatcher Dispatcher => _dispatcher;
         internal Endpoint Endpoint => _endpoint;
         internal TxPipeline Tx => _tx;
         internal ContractDescriptor Contract => _descriptor;
+        internal LoggerFacade Logger { get; }
 
         internal event Action<Channel, RpcResult> Closed;
 
@@ -47,11 +49,16 @@ namespace SharpRpc
             _endpoint = endpoint ?? throw new ArgumentNullException("endpoint");
             _descriptor = descriptor ?? throw new ArgumentNullException("descriptor");
 
+            Logger = endpoint.LoggerAdapter;
+            Id = nameof(Channel) + Interlocked.Increment(ref idSeed);
+
             _tx = new TxPipeline.NoQueue(descriptor, endpoint);
             _tx.ConnectionRequested += OnConnectionRequested;
             _tx.CommunicationFaulted += OnCommunicationError;
 
-            _dispatcher = MessageDispatcher.Create(_tx, msgHandler);   
+            _dispatcher = MessageDispatcher.Create(_tx, msgHandler);
+
+            Logger.Verbose(Id, "Created. Endpoint '{0}'.", endpoint.Name);
         }
 
         internal void StartServerMode(ByteTransport transport)
@@ -148,6 +155,8 @@ namespace SharpRpc
                     return;
             }
 
+            Logger.Info(Id, "Communication error: " + fault.Code);
+
             DoDisconnect(ChannelShutdownMode.Abort, LogoutOption.Immidiate);
         }
 
@@ -161,9 +170,11 @@ namespace SharpRpc
         }
 
         private async void DoConnect()
-        {
+        {            
             if (!_isServerSide)
             {
+                Logger.Info(Id, "Connecting...");
+
                 try
                 {
                     var connectResult = await ((ClientEndpoint)_endpoint).ConnectAsync();
@@ -177,6 +188,9 @@ namespace SharpRpc
                     UpdateFault(new RpcResult(RpcRetCode.UnknownError, "An unexpected error has been occured on transport level: " + ex.Message));
                 }
             }
+            else
+                Logger.Info(Id, "Initializing connection...");
+
 
             if (_transport != null)
             {
@@ -214,33 +228,49 @@ namespace SharpRpc
                 lock (_stateSyncObj)
                     State = ChannelState.Faulted;
 
+                Logger.Warn(Id, "Connection failed! Code: {0}", _channelDisplayFault.Code);
+
                 Closed?.Invoke(this, _channelDisplayFault);
 
                 _connectEvent.SetResult(_channelDisplayFault);
                 _disconnectEvent.SetResult(RpcResult.Ok);
             }
             else
+            {
+                
+                Logger.Info(Id, "Connected.");
                 _connectEvent.SetResult(RpcResult.Ok);
+            }
         }
 
         private async Task CloseComponents()
         {
+            Logger.Verbose(Id, "Stopping dispatcher...");
+
             await _dispatcher.Stop(_channelOperationFault);
 
             try
             {
+                Logger.Verbose(Id, "Stopping pipelines...");
+
                 var rxCloseTask = _rx?.Close();
                 var txCloseTask = _tx.Close(TimeSpan.FromSeconds(5));
 
+                Logger.Verbose(Id, "Waiting stop of Tx pipeline...");
+
                 await txCloseTask;
-                
+
+                Logger.Verbose(Id, "Stopping transport...");
+
                 if (_transport != null)
                     await _transport.Shutdown();
+
+                Logger.Verbose(Id, "Waiting stop of Rx pipeline ...");
 
                 if (rxCloseTask != null)
                     await rxCloseTask;
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 //TO DO : log
             }
@@ -250,6 +280,8 @@ namespace SharpRpc
 
         private async void DoDisconnect(ChannelShutdownMode closeMode, LogoutOption logoutMode)
         {
+            Logger.Info(Id, "Disconnecting... Mode: {0}, logout: {1}", closeMode, logoutMode);
+
             _tx.StopProcessingUserMessages(_channelOperationFault);
 
             if (closeMode == ChannelShutdownMode.Normal)
@@ -264,6 +296,8 @@ namespace SharpRpc
                 else
                     State = ChannelState.Closed;
             }
+
+            Logger.Info(Id, "Disconnected. Final state: " + State);
 
             Closed?.Invoke(this, _channelDisplayFault);
 

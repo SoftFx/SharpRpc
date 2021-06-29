@@ -47,6 +47,11 @@ namespace SharpRpc
             _extLogger?.Warn(component, msg, null);
         }
 
+        public void Warn(string component, string format, params object[] formatArgs)
+        {
+            _extLogger?.Warn(component, string.Format(format, formatArgs), null);
+        }
+
         public void Error(string component, string msg)
         {
             _extLogger?.Error(component, msg, null);

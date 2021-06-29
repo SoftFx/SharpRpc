@@ -21,12 +21,10 @@ namespace SharpRpc
 
         public ServerEndpoint()
         {
-            Name = Namer.GetInstanceName(GetType());
+            
         }
 
-        public string Name { get; }
-
-        protected LoggerFacade Logger => _server.Logger;
+        internal override LoggerFacade LoggerAdapter => _server.Logger;
 
         public Authenticator Authenticator
         {
@@ -57,7 +55,7 @@ namespace SharpRpc
 
         protected void OnConnect(ByteTransport newConnection)
         {
-            Logger.Verbose(Name, "Incoming connection");
+            LoggerAdapter.Verbose(Name, "Incoming connection");
 
             ClientConnected.Invoke(this, newConnection);
         }

@@ -20,7 +20,7 @@ namespace SharpRpc
         private readonly object _stateLock = new object();
         private readonly List<ServerEndpoint> _endpoints = new List<ServerEndpoint>();
         private ServerState _state;
-        private readonly Dictionary<Guid, Channel> _sessions = new Dictionary<Guid, Channel>();
+        private readonly Dictionary<string, Channel> _sessions = new Dictionary<string, Channel>();
         private readonly ServiceBinding _binding;
 
         public RpcServer(ServiceBinding binding)

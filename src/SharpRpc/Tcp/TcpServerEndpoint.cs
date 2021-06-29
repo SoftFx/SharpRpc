@@ -77,7 +77,7 @@ namespace SharpRpc
 
         protected override void Start()
         {
-            Logger.Info(Name, "listening at {0}, security: {1}", _ipEndpoint, _security.Name);
+            LoggerAdapter.Info(Name, "listening at {0}, security: {1}", _ipEndpoint, _security.Name);
 
             _stopFlag = false;
             _security.Init();
@@ -124,7 +124,7 @@ namespace SharpRpc
                     var socketEx = ex as SocketException;
 
                     if (!_stopFlag || socketEx == null || socketEx.SocketErrorCode != SocketError.OperationAborted)
-                        Logger.Error(Name, ex.Message);
+                        LoggerAdapter.Error(Name, ex.Message);
 
                     continue;
                 }
@@ -138,7 +138,7 @@ namespace SharpRpc
                 catch (Exception ex)
                 {
                     //var socketEx = ex as SocketException;
-                    Logger.Error(Name, ex.Message);
+                    LoggerAdapter.Error(Name, ex.Message);
 
                     try
                     {

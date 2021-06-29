@@ -21,7 +21,10 @@ namespace SharpRpc
 
         public Endpoint()
         {
+            Name = Namer.GetInstanceName(GetType());
         }
+
+        public string Name { get; }
 
         public int RxBufferSegmentSize
         {
@@ -77,6 +80,8 @@ namespace SharpRpc
 
         internal bool IsKeepAliveEnabled => KeepAliveThreshold.Ticks > 0;
         internal TimeSpan KeepAliveThreshold { get; private set; }
+
+        internal abstract LoggerFacade LoggerAdapter { get; }
 
         public void EnableKeepAlive(TimeSpan threashold)
         {

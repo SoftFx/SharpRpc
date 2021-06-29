@@ -38,6 +38,8 @@ namespace SharpRpc
         {
             ILoginMessage loginMsg;
 
+            Channel.Logger.Verbose(Channel.Id, "Waiting for login message...");
+
             // wait for login (with timeout)
             try
             {
@@ -49,6 +51,8 @@ namespace SharpRpc
                 return new RpcResult(RpcRetCode.LoginTimeout, "");
             }
 
+            Channel.Logger.Verbose(Channel.Id, "Login message has been received. Checking credentials...");
+
             // enable message queue
             Channel.Dispatcher.AllowMessages();
 
@@ -57,6 +61,8 @@ namespace SharpRpc
 
             // check login/password
             var authError = await _authPlugin.OnLogin(loginMsg);
+
+            Channel.Logger.Verbose(Channel.Id, "Sending login responce...");
 
             // send login response
             var loginRespMsg = Channel.Contract.SystemMessages.CreateLoginMessage();
@@ -68,6 +74,8 @@ namespace SharpRpc
             {
                 // start processing messages
                 Channel.Dispatcher.Start();
+
+                Channel.Logger.Verbose(Channel.Id, "Succesful login.");
 
                 return RpcResult.Ok;
             }
@@ -93,6 +101,8 @@ namespace SharpRpc
                 _state = States.LoggedOut;
             }
 
+            Channel.Logger.Verbose(Channel.Id, "Sending logout message...");
+
             var logoutMsg = Channel.Contract.SystemMessages.CreateLogoutMessage();
             //logoutMsg.Mode = option;
 
@@ -114,6 +124,8 @@ namespace SharpRpc
                 }
                 else if (message is ILogoutMessage logoutMsg)
                 {
+                    Channel.Logger.Verbose(Channel.Id, "A logout message has been received.");
+
                     _state = States.LoggedOut;
                     return new RpcResult(RpcRetCode.LogoutRequest, "Connection is closed by client side.");
                 }
