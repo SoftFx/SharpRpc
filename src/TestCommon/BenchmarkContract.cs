@@ -5,6 +5,7 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+using MessagePack;
 using SharpRpc;
 using System;
 using System.Collections.Generic;
@@ -23,13 +24,23 @@ namespace TestCommon
         void ApplyUpdate(FooEntity entity);
 
         [Rpc(RpcType.Call)]
-        void MulticastUpdateToClients(int msgCount, bool usePrebuiltMessages);
+        MulticastReport MulticastUpdateToClients(int msgCount, bool usePrebuiltMessages);
 
         [Rpc(RpcType.CallbackMessage, EnablePrebuild = true)]
         void SendUpdateToClient(FooEntity entity);
 
         [Rpc(RpcType.Callback)]
         void ApplyUpdateOnClient(FooEntity entity);
+    }
+
+    [MessagePackObject]
+    public class MulticastReport
+    {
+        [Key(1)]
+        public int MessageSent { get; set; }
+
+        [Key(2)]
+        public int MessageFailed { get; set; }
     }
 
     public static class BenchmarkContractCfg

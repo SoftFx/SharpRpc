@@ -34,7 +34,17 @@ namespace TestCommon
             }
         }
 
-        public Task Multicast(int msgCount, bool usePrebuiltMessages)
+
+        public void Remove(BenchmarkContract_Gen.CallbackClient listener)
+        {
+            lock (_listeners)
+            {
+                CheckIfIsBusy();
+                _listeners.Remove(listener);
+            }
+        }
+
+        public Task<MulticastReport> Multicast(int msgCount, bool usePrebuiltMessages)
         {
             lock (_listeners)
             {
@@ -42,9 +52,10 @@ namespace TestCommon
                 _isBusy = true;
             }
 
-            return Task.Factory.StartNew(() =>
+            return Task.Factory.StartNew<MulticastReport>(() =>
             {
                 var failed = 0;
+                var sent = 0;
 
                 for (int i = 0; i < msgCount; i++)
                 {
@@ -56,6 +67,8 @@ namespace TestCommon
                             var sendResult = l.TrySendUpdateToClient(msg);
                             if (!sendResult.IsOk)
                                 failed++;
+                            else
+                                sent++;
                         }
                     }
                     else
@@ -66,22 +79,17 @@ namespace TestCommon
                             var sendResult = l.TrySendUpdateToClient(entity);
                             if (!sendResult.IsOk)
                                 failed++;
+                            else
+                                sent++;
                         }
                     }
                 }
 
                 lock (_listeners)
                     _isBusy = false;
-            });
-        }
 
-        public void Remove(BenchmarkContract_Gen.CallbackClient listener)
-        {
-            lock (_listeners)
-            {
-                CheckIfIsBusy();
-                _listeners.Add(listener);
-            }
+                return new MulticastReport { MessageFailed = failed, MessageSent = sent };
+            });
         }
 
         private void CheckIfIsBusy()

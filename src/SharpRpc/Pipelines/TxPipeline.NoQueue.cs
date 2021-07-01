@@ -33,7 +33,7 @@ namespace SharpRpc
             private DateTime _lastTxTime = DateTime.MinValue;
             private readonly TimeSpan _idleThreshold;
             private readonly Timer _keepAliveTimer;
-            private readonly IMessage _keepAliveMessage;
+            private readonly ISystemMessage _keepAliveMessage;
 
             public NoQueue(ContractDescriptor descriptor, Endpoint config)
             {
@@ -107,6 +107,7 @@ namespace SharpRpc
                 return FwAdapter.WrappResult(ProcessMessage(message));
             }
 
+
 #if NET5_0_OR_GREATER
             public override ValueTask<RpcResult> SendSystemMessage(ISystemMessage message)
 #else
@@ -134,6 +135,20 @@ namespace SharpRpc
                 }
 
                 return FwAdapter.WrappResult(ProcessMessage(message));
+            }
+
+            private void CasuallySend(ISystemMessage message)
+            {
+                lock (_lockObj)
+                {
+                    if (_isClosing || !CanProcessSystemMessage)
+                        return;
+
+                    _isProcessingItem = true;
+                    _buffer.Lock();
+                }
+
+                ProcessMessage(message);
             }
 
 #if NET5_0_OR_GREATER
@@ -365,7 +380,7 @@ namespace SharpRpc
                 lock (_lockObj)
                 {
                     if (DateTime.UtcNow - _lastTxTime > _idleThreshold)
-                        TrySendAsync(_keepAliveMessage);
+                        CasuallySend(_keepAliveMessage);
                 }
             }
 

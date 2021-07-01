@@ -15,31 +15,45 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Tasks;
 using System.Dynamic;
+using System.IO;
 
 namespace TestClient
 {
     internal class Benchmark
     {
+        private readonly string _address;
+
         public List<TestCase> Cases { get; } = new List<TestCase>();
 
-        public void LaunchTestSeries(string address, int multiplier)
+        public Benchmark(string serverAddress)
+        {
+            _address = serverAddress;
+        }
+
+        public void LaunchTestSeries(int multiplier)
+        {
+            //LaunchTestSeriesOndeSide(_address, multiplier, TestOptions.None);
+            LaunchTestSeriesOndeSide(_address, multiplier, TestOptions.Backwards);
+        }
+
+        private void LaunchTestSeriesOndeSide(string address, int multiplier, TestOptions options)
         {
             // one way
 
-            DoOneWayTestSeries(address, 500000, 1,  multiplier, TestOptions.None);
-            //DoOneWayTestSeries(address, 50000, 10, multiplier, TestOptions.None);
-            //DoOneWayTestSeries(address, 10000, 50, multiplier, TestOptions.None);
+            //DoOneWayTestSeries(address, 500000, 1,  multiplier, options);
+            DoOneWayTestSeries(address, 50000, 10, multiplier, options);
+            //DoOneWayTestSeries(address, 10000, 50, multiplier, options);
 
             // one way (SSL)
 
-            DoOneWayTestSeries(address, 500000, 1, multiplier, TestOptions.SSL);
-            //DoOneWayTestSeries(address, 50000, 10, multiplier, TestOptions.SSL);
-            //DoOneWayTestSeries(address, 10000, 50, multiplier, TestOptions.SSL);
+            //DoOneWayTestSeries(address, 500000, 1, multiplier, options | TestOptions.SSL);
+            //DoOneWayTestSeries(address, 50000, 10, multiplier, options | TestOptions.SSL);
+            //DoOneWayTestSeries(address, 10000, 50, multiplier, options | TestOptions.SSL);
 
             // request-response
 
-            DoTest(address, 1000 * multiplier, 1, TestOptions.None);
-            DoTest(address, 1000 * multiplier, 1, TestOptions.Async);
+            //DoTest(address, 1000 * multiplier, 1, TestOptions.None);
+            //DoTest(address, 1000 * multiplier, 1, TestOptions.Async);
 
             // request-response (SSL)
 
@@ -47,12 +61,46 @@ namespace TestClient
             //DoTest(address, 1000 * multiplier, 1, TestOptions.Async | TestOptions.SSL);
         }
 
-        public void PrintResultToConsole()
+        public void PrintReportToConsole()
         {
-            var tblFormat = "{0,6} {1,5} {2,6} {3,5} {4,6} {5,12}";
+            Console.WriteLine(FormatTextReport());
+        }
 
-            Console.WriteLine(tblFormat, " Side ", " SSL ", "Async", " 1Way ", "PreBlt", "MsgPerSec");
-            Console.WriteLine();
+        public void SaveReportToFile(string path = null)
+        {
+            if (path == null)
+            {
+                var repDir = Path.GetDirectoryName(Path.GetDirectoryName(Path.GetDirectoryName(Path.GetDirectoryName(Path.GetDirectoryName(AppDomain.CurrentDomain.BaseDirectory)))));
+                path = Path.Combine(repDir, "Benchmark results.txt");
+            }
+
+            File.AppendAllText(path, FormatTextReport());
+        }
+
+        private string FormatTextReport()
+        {
+            var repBuilder = new StringBuilder();
+
+            repBuilder.AppendLine("---------------------------");
+            repBuilder.AppendLine("Benchmark Report " + DateTime.Now);
+            repBuilder.AppendLine("---------------------------");
+            repBuilder.AppendLine();
+            repBuilder.AppendLine("Framework: " + AppDomain.CurrentDomain.SetupInformation.TargetFrameworkName);
+            repBuilder.AppendLine("Version: " + typeof(Channel).Assembly.GetName().Version);
+#if DEBUG
+            repBuilder.AppendLine("Build: Debug");
+#else
+            repBuilder.AppendLine("Build: Release");
+#endif
+            repBuilder.AppendLine("Debugger attached: " + Debugger.IsAttached);
+            repBuilder.AppendLine("Server: " + _address);
+            repBuilder.AppendLine();
+
+            var tblFormat = "{0,6} {1,5} {2,5} {3,6} {4,5} {5,6} {6,12}";
+
+            repBuilder.AppendFormat(tblFormat, " Side ", "  X  ", " SSL ", "Async", " 1Way ", "PreBlt", "MsgPerSec");
+            repBuilder.AppendLine();
+            repBuilder.AppendLine();
 
             foreach (var testCase in Cases)
             {
@@ -60,17 +108,22 @@ namespace TestClient
 
                 var msgPreSec = testCase.Failed ? "FAILED" : testCase.MessagePerSecond.ToString("n0");
 
-                Console.WriteLine(tblFormat, side, ToCheckSymbol(testCase.Ssl), ToCheckSymbol(testCase.Async), ToCheckSymbol(testCase.OneWay),
-                    ToCheckSymbol(testCase.Prebuilt), msgPreSec);
+                repBuilder.AppendFormat(tblFormat, side, "X"+testCase.ClientCount, ToCheckSymbol(testCase.Ssl),
+                    ToCheckSymbol(testCase.Async), ToCheckSymbol(testCase.OneWay), ToCheckSymbol(testCase.Prebuilt), msgPreSec);
+                repBuilder.AppendLine();
             }
+
+            repBuilder.AppendLine();
+
+            return repBuilder.ToString();
         }
 
         private void DoOneWayTestSeries(string address, int msgCount, int clientCount, int multiplier, TestOptions baseOptions)
         {
             DoTest(address, msgCount * multiplier, clientCount, baseOptions | TestOptions.OneWay);
             //DoTest(address, msgCount * multiplier, clientCount, baseOptions | TestOptions.OneWay | TestOptions.Async);
-            DoTest(address, 500000 * multiplier, clientCount, baseOptions | TestOptions.OneWay | TestOptions.Prebuild);
-            //DoTest(address, 500000 * multiplier, clientCount, baseOptions | TestOptions.OneWay | TestOptions.Async | TestOptions.Prebuild);
+            DoTest(address, msgCount * multiplier, clientCount, baseOptions | TestOptions.OneWay | TestOptions.Prebuild);
+            //DoTest(address, msgCount * multiplier, clientCount, baseOptions | TestOptions.OneWay | TestOptions.Async | TestOptions.Prebuild);
         }
 
         private void DoTest(string serverAddress, int msgCount, int clientCount, TestOptions options)
@@ -83,6 +136,7 @@ namespace TestClient
             var nameBuilder = new StringBuilder();
             nameBuilder.Append("Test: ");
             nameBuilder.Append("X").Append(testCase.ClientCount);
+            nameBuilder.Append(" ").Append(testCase.Backwards ? "ToClient" : "ToServer");
 
             if (testCase.OneWay)
                 nameBuilder.Append(" | OneWay");
@@ -112,18 +166,23 @@ namespace TestClient
 
             if (preconect)
             {
-                var connects = clients
+                var connectTasks = clients
                     .Select(c => c.Channel.TryConnectAsync().ToTask())
                     .ToArray();
 
-                Task.WaitAll(connects);
+                Task.WaitAll(connectTasks);
 
-                if (!connects.All(c => c.Result.IsOk))
-                    testCase.Ex = connects.First(c => !c.Result.IsOk).Result.ToException();
+                if (!connectTasks.All(c => c.Result.IsOk))
+                    testCase.Ex = connectTasks.First(c => !c.Result.IsOk).Result.ToException();
             }
 
             if (testCase.Ex == null)
-                ClientToServerTest(clients, testCase);
+            {
+                if (testCase.Backwards)
+                    ServerToClientTest(clients, testCase);
+                else
+                    ClientToServerTest(clients, testCase);
+            }
 
             var closeTasks = clients
                 .Select(c => c.Channel.CloseAsync())
@@ -189,6 +248,22 @@ namespace TestClient
                     }
 
                     Task.WaitAll(sendLoops);
+                }
+                catch (AggregateException aex)
+                {
+                    testCase.Ex = aex.InnerException;
+                }
+            });
+        }
+
+        private static void ServerToClientTest(List<BenchmarkClient> clients, TestCase testCase)
+        {
+            testCase.Elapsed = MeasureTime(() =>
+            {
+                try
+                {
+                    var rep = clients[0].Stub.MulticastUpdateToClients(testCase.MessageCount, testCase.Prebuilt);
+                    testCase.MessageFailedCount = rep.MessageFailed;
                 }
                 catch (AggregateException aex)
                 {

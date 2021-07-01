@@ -44,9 +44,9 @@ namespace TestCommon
         }
 
 #if NET5_0_OR_GREATER
-        public override ValueTask MulticastUpdateToClients(int msgCount, bool usePrebuiltMessages)
+        public override ValueTask<MulticastReport> MulticastUpdateToClients(int msgCount, bool usePrebuiltMessages)
 #else
-        public override Task MulticastUpdateToClients(int msgCount, bool usePrebuiltMessages)
+        public override Task<MulticastReport> MulticastUpdateToClients(int msgCount, bool usePrebuiltMessages)
 #endif
         {
             return FwAdapter.WrappResult(_multicaster.Multicast(msgCount, usePrebuiltMessages));

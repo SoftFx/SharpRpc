@@ -49,9 +49,10 @@ namespace TestClient
 
                 if (multiplier > 0)
                 {
-                    var benchmark = new Benchmark();
-                    benchmark.LaunchTestSeries(address, multiplier);
-                    benchmark.PrintResultToConsole();
+                    var benchmark = new Benchmark(address);
+                    benchmark.LaunchTestSeries(multiplier);
+                    benchmark.PrintReportToConsole();
+                    benchmark.SaveReportToFile();
 
                     Console.WriteLine("Done. Press enty key to exit...");
                     Console.Read();
