@@ -13,8 +13,18 @@ using System.Threading.Tasks;
 
 namespace TestCommon
 {
-    public class BechmarkServiceImpl : BenchmarkContract_Gen.ServiceBase
+    public class BenchmarkServiceImpl : BenchmarkContract_Gen.ServiceBase
     {
+        private readonly FooMulticaster _multicaster;
+
+        public BenchmarkServiceImpl(FooMulticaster multicaster)
+        {
+            _multicaster = multicaster;
+
+            Session.Opened += (s, a) => _multicaster.Add(Client);
+            Session.Closed += (s, a) => _multicaster.Remove(Client);
+        }
+
 #if NET5_0_OR_GREATER
         public override ValueTask SendUpdate(FooEntity entity)
 #else
@@ -31,6 +41,15 @@ namespace TestCommon
 #endif
         {
             return FwAdapter.AsyncVoid;
+        }
+
+#if NET5_0_OR_GREATER
+        public override ValueTask MulticastUpdateToClients(int msgCount, bool usePrebuiltMessages)
+#else
+        public override Task MulticastUpdateToClients(int msgCount, bool usePrebuiltMessages)
+#endif
+        {
+            return FwAdapter.WrappResult(_multicaster.Multicast(msgCount, usePrebuiltMessages));
         }
     }
 }

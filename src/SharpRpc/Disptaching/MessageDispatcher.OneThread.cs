@@ -35,10 +35,22 @@ namespace SharpRpc
                     _workerTask = MessageHandlerLoop();
             }
 
-            public override void AllowMessages()
+            public override RpcResult OnSessionEstablished()
             {
+                try
+                {
+                    ((RpcServiceBase)MessageHandler).Session.FireOpened(new SessionOpenedEventArgs());
+                }
+                catch (Exception)
+                {
+                    // TO DO : log or pass some more information about expcetion (stack trace)
+                    return new RpcResult(RpcRetCode.RequestCrashed, "An exception has been occured in ");
+                }
+
                 lock (_lockObj)
                     _allowFlag = true;
+
+                return RpcResult.Ok;
             }
 
             public override void OnMessages(IEnumerable<IMessage> messages)
@@ -93,6 +105,8 @@ namespace SharpRpc
 
                 foreach (var task in tasksToCanel)
                     task.Fail(_fault);
+
+                InvokOnStop();
 
                 return stopWaithandle;
             }
@@ -223,6 +237,18 @@ namespace SharpRpc
                 var respToSend = await MessageHandler.ProcessRequest(request);
                 respToSend.CallId = request.CallId;
                 await Tx.TrySendAsync(respToSend);
+            }
+
+            private void InvokOnStop()
+            {
+                try
+                {
+                    ((RpcServiceBase)MessageHandler).Session.FireClosed(new SessionClosedEventArgs());
+                }
+                catch (Exception)
+                {
+                    // TO DO : log or pass some more information about expcetion (stack trace)
+                }
             }
 
             private struct MessageTaskPair

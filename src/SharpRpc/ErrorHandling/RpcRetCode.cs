@@ -32,7 +32,9 @@ namespace SharpRpc
         DeserializationError,
         MessageHandlerFailure,
         UnexpectedMessage,
+        EventHandlerCrashed,
         RequestFaulted,
+        // Unexpected exception (not covered by fault contract)
         RequestCrashed
     }
 }

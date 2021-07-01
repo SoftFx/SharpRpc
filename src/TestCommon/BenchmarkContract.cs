@@ -21,6 +21,15 @@ namespace TestCommon
 
         [Rpc(RpcType.Call)]
         void ApplyUpdate(FooEntity entity);
+
+        [Rpc(RpcType.Call)]
+        void MulticastUpdateToClients(int msgCount, bool usePrebuiltMessages);
+
+        [Rpc(RpcType.CallbackMessage, EnablePrebuild = true)]
+        void SendUpdateToClient(FooEntity entity);
+
+        [Rpc(RpcType.Callback)]
+        void ApplyUpdateOnClient(FooEntity entity);
     }
 
     public static class BenchmarkContractCfg

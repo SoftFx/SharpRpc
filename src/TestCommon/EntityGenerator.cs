@@ -23,6 +23,29 @@ namespace TestCommon
                 yield return GenerateEntity(rnd);
         }
 
+        public static EntitySet<FooEntity> GenerateRandomSet()
+        {
+            return new EntitySet<FooEntity>(GenerateRandomEntities());
+        }
+
+        public static EntitySet<BenchmarkContract_Gen.PrebuiltMessages.SendUpdate> GenerateRandomPrebuiltSet()
+        {
+            var prebuilder = new BenchmarkContract_Gen.Prebuilder();
+            return new EntitySet<BenchmarkContract_Gen.PrebuiltMessages.SendUpdate>(
+                GenerateRandomEntities().Select(e => prebuilder.PrebuildSendUpdate(e)));
+        }
+
+        public static void GenerateSets(out EntitySet<FooEntity> set, out EntitySet<BenchmarkContract_Gen.PrebuiltMessages.SendUpdateToClient> prebuiltSet)
+        {
+            var prebuilder = new BenchmarkContract_Gen.Prebuilder();
+            var entities = GenerateRandomEntities();
+            
+            set = new EntitySet<FooEntity>(entities);
+
+            prebuiltSet = new EntitySet<BenchmarkContract_Gen.PrebuiltMessages.SendUpdateToClient>(
+                entities.Select(e => prebuilder.PrebuildSendUpdateToClient(e)));
+        }
+
         private static FooEntity GenerateEntity(Random rnd)
         {
             var entity = new FooEntity();

@@ -16,6 +16,8 @@ namespace SharpRpc
     {
         private Channel _ch;
 
+        public SessionInfo Session { get; } = new SessionInfo();
+
 #if NET5_0_OR_GREATER
         protected abstract ValueTask OnMessage(IMessage message);
         protected abstract ValueTask<IResponse> OnRequest(IRequest message);
@@ -75,6 +77,7 @@ namespace SharpRpc
         internal void InvokeInit(Channel channel)
         {
             _ch = channel;
+            Session.Id = channel.Id;
             OnInit(channel);
         }
 

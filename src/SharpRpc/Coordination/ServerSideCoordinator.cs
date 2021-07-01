@@ -54,7 +54,7 @@ namespace SharpRpc
             Channel.Logger.Verbose(Channel.Id, "Login message has been received. Checking credentials...");
 
             // enable message queue
-            Channel.Dispatcher.AllowMessages();
+            Channel.Dispatcher.OnSessionEstablished();
 
             // exit lock
             await Task.Yield();

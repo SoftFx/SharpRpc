@@ -45,7 +45,9 @@ namespace TestServer
             BenchmarkContractCfg.ConfigureEndpoint(sslEndpoit);
             sslEndpoit.Authenticator = new BasicAuthenticator(new AuthValidator());
 
-            var server = new RpcServer(BenchmarkContract_Gen.CreateBinding(() => new BechmarkServiceImpl()));
+            var multicaster = new FooMulticaster();
+
+            var server = new RpcServer(BenchmarkContract_Gen.CreateBinding(() => new BenchmarkServiceImpl(multicaster)));
             server.AddEndpoint(tcpEndpoint);
             server.AddEndpoint(sslEndpoit);
             server.SetLogger(new ConsoleLogger(true, true));

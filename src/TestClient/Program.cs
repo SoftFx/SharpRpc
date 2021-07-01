@@ -36,16 +36,26 @@ namespace TestClient
 
                 var mChoice = Console.ReadLine();
 
+                var multiplier = 0;
+
                 if (mChoice == "1")
-                    Benchmark.LaunchTestSeries(address, 1);
+                    multiplier = 1;
                 else if (mChoice == "2")
-                    Benchmark.LaunchTestSeries(address, 10);
+                    multiplier = 10;
                 else if (mChoice == "3")
-                    Benchmark.LaunchTestSeries(address, 40);
+                    multiplier = 40;
                 else
                     Console.WriteLine("Invalid input.");
-                Console.WriteLine("Done. PRess enty key to exit...");
-                Console.Read();
+
+                if (multiplier > 0)
+                {
+                    var benchmark = new Benchmark();
+                    benchmark.LaunchTestSeries(address, multiplier);
+                    benchmark.PrintResultToConsole();
+
+                    Console.WriteLine("Done. Press enty key to exit...");
+                    Console.Read();
+                }
             }
             else if (choice == "2")
             {
@@ -53,15 +63,13 @@ namespace TestClient
                 Console.Read();
             }
             else if (choice == "3")
-            {
-                var endpoint = new TcpClientEndpoint("localhost", 812, TcpSecurity.None);
-                BenchmarkContractCfg.ConfigureEndpoint(endpoint);
-                var client = BenchmarkContract_Gen.CreateClient(endpoint);
-                var connectRet = client.Channel.TryConnectAsync().ToTask().Result;
+            {   
+                var client = new BenchmarkClient("localhost", 812, TcpSecurity.None);
+                var connectRet = client.Stub.Channel.TryConnectAsync().ToTask().Result;
 
                 TimerCallback statusCheckAction = s =>
                 {
-                    Console.WriteLine("Channel.State = " + client.Channel.State);
+                    Console.WriteLine("Channel.State = " + client.Stub.Channel.State);
                 };
 
                 if (connectRet.Code == RpcRetCode.Ok)
@@ -71,7 +79,7 @@ namespace TestClient
                         Console.WriteLine("Connected. Press any key to disconnect.");
                         Console.Read();
 
-                        client.Channel.CloseAsync().Wait();
+                        client.Stub.Channel.CloseAsync().Wait();
                     }
                 }
                 else

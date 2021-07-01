@@ -64,9 +64,7 @@ namespace SharpRpc
                 if (loginResp.ResultCode == LoginResult.Ok)
                 {
                     // enable message queue
-                    Channel.Dispatcher.AllowMessages();
-
-                    return RpcResult.Ok;
+                    return Channel.Dispatcher.OnSessionEstablished();
                 }
                 else if (loginResp.ResultCode == LoginResult.InvalidCredentials)
                     return new RpcResult(RpcRetCode.InvalidCredentials, "Login failed: " + loginResp.ErrorMessage);

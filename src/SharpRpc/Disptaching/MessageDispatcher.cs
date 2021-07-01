@@ -45,7 +45,7 @@ namespace SharpRpc
         public event Action<RpcResult> ErrorOccured;
 
         public abstract void Start();
-        public abstract void AllowMessages();
+        public abstract RpcResult OnSessionEstablished();
         public abstract void OnMessages(IEnumerable<IMessage> messages);
         public abstract Task Stop(RpcResult fault);
 

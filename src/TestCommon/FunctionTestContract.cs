@@ -35,8 +35,7 @@ namespace TestCommon
         string TestRpcException(int p1, string p2);
 
         [Rpc(RpcType.Call)]
-        [RpcFault(typeof(TestFault1))]
-        [RpcFault(typeof(TestFault2))]
+        [RpcFault(typeof(TestFault1), typeof(TestFault2))]
         void TestCallFault(int faultNo);
 
         [Rpc(RpcType.Call)]

@@ -20,105 +20,110 @@ namespace TestClient
 {
     internal class Benchmark
     {
-        public static void LaunchTestSeries(string address, int multiplier)
+        public List<TestCase> Cases { get; } = new List<TestCase>();
+
+        public void LaunchTestSeries(string address, int multiplier)
         {
-            DoTest(address, 500000 * multiplier, 1, TestOptions.OneWay);
-            DoTest(address, 500000 * multiplier, 1, TestOptions.OneWay | TestOptions.Async);
-            DoTest(address, 500000 * multiplier, 1, TestOptions.OneWay | TestOptions.Prebuild);
-            DoTest(address, 500000 * multiplier, 1, TestOptions.OneWay | TestOptions.Async | TestOptions.Prebuild);
+            // one way
 
-            //DoTest(address, 500000 * multiplier, 1, TestOptions.OneWay | TestOptions.SSL);
-            //DoTest(address, 500000 * multiplier, 1, TestOptions.OneWay | TestOptions.Async | TestOptions.SSL);
+            DoOneWayTestSeries(address, 500000, 1,  multiplier, TestOptions.None);
+            //DoOneWayTestSeries(address, 50000, 10, multiplier, TestOptions.None);
+            //DoOneWayTestSeries(address, 10000, 50, multiplier, TestOptions.None);
 
-            //DoTest(5000000, 1, true, true, ConcurrencyMode.PagedQueue, true);
+            // one way (SSL)
+
+            DoOneWayTestSeries(address, 500000, 1, multiplier, TestOptions.SSL);
+            //DoOneWayTestSeries(address, 50000, 10, multiplier, TestOptions.SSL);
+            //DoOneWayTestSeries(address, 10000, 50, multiplier, TestOptions.SSL);
+
+            // request-response
 
             DoTest(address, 1000 * multiplier, 1, TestOptions.None);
             DoTest(address, 1000 * multiplier, 1, TestOptions.Async);
+
+            // request-response (SSL)
+
             //DoTest(address, 1000 * multiplier, 1, TestOptions.SSL);
             //DoTest(address, 1000 * multiplier, 1, TestOptions.Async | TestOptions.SSL);
         }
 
-        private static void DoTest(string serverAddress, int msgCount, int clientCount, TestOptions options) //, bool oneWay, bool async, bool enableSsl)
+        public void PrintResultToConsole()
+        {
+            var tblFormat = "{0,6} {1,5} {2,6} {3,5} {4,6} {5,12}";
+
+            Console.WriteLine(tblFormat, " Side ", " SSL ", "Async", " 1Way ", "PreBlt", "MsgPerSec");
+            Console.WriteLine();
+
+            foreach (var testCase in Cases)
+            {
+                var side = testCase.Backwards ? "Server" : "Client";
+
+                var msgPreSec = testCase.Failed ? "FAILED" : testCase.MessagePerSecond.ToString("n0");
+
+                Console.WriteLine(tblFormat, side, ToCheckSymbol(testCase.Ssl), ToCheckSymbol(testCase.Async), ToCheckSymbol(testCase.OneWay),
+                    ToCheckSymbol(testCase.Prebuilt), msgPreSec);
+            }
+        }
+
+        private void DoOneWayTestSeries(string address, int msgCount, int clientCount, int multiplier, TestOptions baseOptions)
+        {
+            DoTest(address, msgCount * multiplier, clientCount, baseOptions | TestOptions.OneWay);
+            //DoTest(address, msgCount * multiplier, clientCount, baseOptions | TestOptions.OneWay | TestOptions.Async);
+            DoTest(address, 500000 * multiplier, clientCount, baseOptions | TestOptions.OneWay | TestOptions.Prebuild);
+            //DoTest(address, 500000 * multiplier, clientCount, baseOptions | TestOptions.OneWay | TestOptions.Async | TestOptions.Prebuild);
+        }
+
+        private void DoTest(string serverAddress, int msgCount, int clientCount, TestOptions options)
+        {
+            DoTest(serverAddress, new TestCase(msgCount, clientCount, options), true);
+        }
+
+        private void DoTest(string serverAddress, TestCase testCase, bool preconect)
         {
             var nameBuilder = new StringBuilder();
             nameBuilder.Append("Test: ");
-            nameBuilder.Append("X").Append(clientCount);
+            nameBuilder.Append("X").Append(testCase.ClientCount);
 
-            var oneWay = options.HasFlag(TestOptions.OneWay);
-            var async = options.HasFlag(TestOptions.Async);
-            var enableSsl = options.HasFlag(TestOptions.SSL);
-            var prebuild = options.HasFlag(TestOptions.Prebuild);
-
-            if (oneWay)
+            if (testCase.OneWay)
                 nameBuilder.Append(" | OneWay");
-            if (async)
+            if (testCase.Async)
                 nameBuilder.Append(" | Async");
-            if (enableSsl)
+            if (testCase.Ssl)
                 nameBuilder.Append(" | SSL");
-            if (prebuild)
+            if (testCase.Prebuilt)
                 nameBuilder.Append(" | Prebuild");
 
             Console.WriteLine(nameBuilder.ToString());
 
             var gens = Enumerable
-                .Range(0, clientCount)
-                .Select(i => new EntitySet<FooEntity>(EntityGenerator.GenerateRandomEntities()))
+                .Range(0, testCase.ClientCount)
+                .Select(i => EntityGenerator.GenerateRandomSet())
                 .ToList();
 
-            var prebuilder = new BenchmarkContract_Gen.Prebuilder();
-
             var prebuildGens = Enumerable
-                .Range(0, clientCount)
-                .Select(i => new EntitySet<BenchmarkContract_Gen.PrebuiltMessages.SendUpdate>(
-                    EntityGenerator.GenerateRandomEntities().Select(e => prebuilder.PrebuildSendUpdate(e))))
+                .Range(0, testCase.ClientCount)
+                .Select(i => EntityGenerator.GenerateRandomPrebuiltSet())
                 .ToList();
 
             var clients = Enumerable
-                .Range(0, clientCount)
-                .Select(i => CreateClient(serverAddress, enableSsl))
+                .Range(0, testCase.ClientCount)
+                .Select(i => CreateClient(serverAddress, testCase.Ssl))
                 .ToList();
 
-            var connects = clients
-                .Select(c => c.Channel.TryConnectAsync().ToTask())
-                .ToArray();
-
-            Task.WaitAll(connects);
-
-            Exception ex = null;
-            TimeSpan execTime = default;
-
-            //if (connects.All(c => c.Result.IsOk))
-            //{
-
-            execTime = MeasureTime(() =>
+            if (preconect)
             {
-                try
-                {
-                    var sendLoops = new Task[clientCount];
+                var connects = clients
+                    .Select(c => c.Channel.TryConnectAsync().ToTask())
+                    .ToArray();
 
-                    for (int i = 0; i < clientCount; i++)
-                    {
-                        var client = clients[i];
+                Task.WaitAll(connects);
 
-                        if (oneWay)
-                            sendLoops[i] = SendMessages(client, msgCount, gens[i], prebuildGens[i], async, prebuild);
-                        else
-                            sendLoops[i] = DoCalls(client, msgCount, gens[i], async);
-                    }
+                if (!connects.All(c => c.Result.IsOk))
+                    testCase.Ex = connects.First(c => !c.Result.IsOk).Result.ToException();
+            }
 
-                    Task.WaitAll(sendLoops);
-                }
-                catch (AggregateException aex)
-                {
-                    ex = aex.InnerException;
-                }
-            });
-
-            //}
-            //else
-            //{
-            //    ex = connects.First(c => !c.Result.IsOk).Result.ToException();
-            //}
+            if (testCase.Ex == null)
+                ClientToServerTest(clients, testCase);
 
             var closeTasks = clients
                 .Select(c => c.Channel.CloseAsync())
@@ -126,21 +131,23 @@ namespace TestClient
 
             Task.WaitAll(closeTasks);
 
-            if (ex == null)
+            if (testCase.Ex == null)
             {
                 Console.WriteLine();
 
-                var totalMsgCount = msgCount * clientCount;
-
-                var perSec = (double)totalMsgCount / execTime.TotalSeconds;
+                var totalMsgCount = testCase.MessageCount * testCase.ClientCount;
+                var execTime = testCase.Elapsed;
+                testCase.MessagePerSecond = totalMsgCount / execTime.TotalSeconds;
 
                 Console.WriteLine("\telapsed: {0:f1} sec", execTime.TotalSeconds);
-                Console.WriteLine("\tbandwidth: {0:f0} ", perSec);
+                Console.WriteLine("\tbandwidth: {0:f0} ", testCase.MessagePerSecond);
             }
             else
             {
-                Console.WriteLine("Test failed: " + ex.Message);
+                Console.WriteLine("Test failed: " + testCase.Ex.Message);
             }
+
+            Cases.Add(testCase);
 
             var toWait = 5;
 
@@ -151,6 +158,43 @@ namespace TestClient
             GC.Collect(2, GCCollectionMode.Forced, true, true);
 
             Task.Delay(TimeSpan.FromSeconds(toWait)).Wait();
+        }
+
+        private static void ClientToServerTest(List<BenchmarkClient> clients, TestCase testCase)
+        {
+            var gens = Enumerable
+                .Range(0, testCase.ClientCount)
+                .Select(i => EntityGenerator.GenerateRandomSet())
+                .ToList();
+
+            var prebuildGens = Enumerable
+                .Range(0, testCase.ClientCount)
+                .Select(i => EntityGenerator.GenerateRandomPrebuiltSet())
+                .ToList();
+
+            testCase.Elapsed = MeasureTime(() =>
+            {
+                try
+                {
+                    var sendLoops = new Task[testCase.ClientCount];
+
+                    for (int i = 0; i < testCase.ClientCount; i++)
+                    {
+                        var client = clients[i];
+
+                        if (testCase.OneWay)
+                            sendLoops[i] = SendMessages(client.Stub, testCase.MessageCount, gens[i], prebuildGens[i], testCase.Async, testCase.Prebuilt);
+                        else
+                            sendLoops[i] = DoCalls(client.Stub, testCase.MessageCount, gens[i], testCase.Async);
+                    }
+
+                    Task.WaitAll(sendLoops);
+                }
+                catch (AggregateException aex)
+                {
+                    testCase.Ex = aex.InnerException;
+                }
+            });
         }
 
         private static Task SendMessages(BenchmarkContract_Gen.Client client, int msgCount, EntitySet<FooEntity> set,
@@ -228,13 +272,9 @@ namespace TestClient
             return watch.Elapsed;
         }
 
-        private static BenchmarkContract_Gen.Client CreateClient(string address, bool secure)
+        private static BenchmarkClient CreateClient(string address, bool secure)
         {
-            var security = GetSecurity(secure);
-            var endpoint = new TcpClientEndpoint(address, BenchmarkContractCfg.GetPort(secure), security);
-            endpoint.Credentials = new BasicCredentials("Admin", "zzzz");
-
-            return BenchmarkContract_Gen.CreateClient(endpoint);
+            return new BenchmarkClient(address, BenchmarkContractCfg.GetPort(secure), GetSecurity(secure));
         }
 
         private static TcpSecurity GetSecurity(bool secure)
@@ -245,14 +285,56 @@ namespace TestClient
                 return TcpSecurity.None;
         }
 
+        private static string ToCheckSymbol(bool val)
+        {
+            if (val)
+                return "  ✓  ";
+            else
+                return "";
+        }
+
         [Flags]
-        private enum TestOptions
+        public enum TestOptions
         {
             None = 0,
             OneWay = 1,
             Async = 2,
             SSL = 4,
-            Prebuild = 8
+            Prebuild = 8,
+            Backwards = 16,
+        }
+
+        public class TestCase
+        {
+            public TestCase(int msgCount, int clientCount, TestOptions options)
+            {
+                MessageCount = msgCount;
+                ClientCount = clientCount;
+
+                OneWay = options.HasFlag(TestOptions.OneWay);
+                Async = options.HasFlag(TestOptions.Async);
+                Ssl = options.HasFlag(TestOptions.SSL);
+                Prebuilt = options.HasFlag(TestOptions.Prebuild);
+                Backwards = options.HasFlag(TestOptions.Backwards);
+            }
+
+            public int MessageCount { get; }
+            public int ClientCount { get; }
+
+            public bool OneWay { get; }
+            public bool Async { get; }
+            public bool Ssl { get; }
+            public bool Prebuilt { get; }
+            public bool Backwards { get; }
+
+            // Results
+
+            public bool Failed => Ex != null || MessageFailedCount > 0;
+
+            public int MessageFailedCount { get; set; }
+            public TimeSpan Elapsed { get; set; }
+            public double MessagePerSecond { get; set; }
+            public Exception Ex { get; set; }
         }
     }
 }
