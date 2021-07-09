@@ -28,7 +28,7 @@ namespace SharpRpc.MsTest
             var expectedBytes = expectedHeader.Add(expectedBody);
 
             buffer.WriteMessage(msg);
-            var segment = buffer.DequeueNext().Result;
+            var segment = buffer.DequeueNext().GetAwaiter().GetResult();
 
             CollectionAssert.AreEqual(expectedBytes, segment.ToArray());
         }
@@ -56,8 +56,8 @@ namespace SharpRpc.MsTest
             buffer.WriteMessage(msg);
 
             var resultingSegments = new List<ArraySegment<byte>>();
-            resultingSegments.Add(buffer.DequeueNext().Result);
-            resultingSegments.Add(buffer.DequeueNext().Result);
+            resultingSegments.Add(buffer.DequeueNext().GetAwaiter().GetResult());
+            resultingSegments.Add(buffer.DequeueNext().GetAwaiter().GetResult());
 
             Assert.AreEqual(2, resultingSegments.Count);
             CollectionAssert.AreEqual(expectedSegment1, resultingSegments[0].ToArray());
@@ -87,8 +87,8 @@ namespace SharpRpc.MsTest
             buffer.WriteMessage(msg);
 
             var resultingSegments = new List<ArraySegment<byte>>();
-            resultingSegments.Add(buffer.DequeueNext().Result);
-            resultingSegments.Add(buffer.DequeueNext().Result);
+            resultingSegments.Add(buffer.DequeueNext().GetAwaiter().GetResult());
+            resultingSegments.Add(buffer.DequeueNext().GetAwaiter().GetResult());
 
             Assert.AreEqual(2, resultingSegments.Count);
             CollectionAssert.AreEqual(expectedSegment1, resultingSegments[0].ToArray());
