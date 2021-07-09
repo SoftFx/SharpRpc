@@ -7,6 +7,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -52,19 +53,20 @@ namespace TestCommon
                 _isBusy = true;
             }
 
-            return Task.Factory.StartNew<MulticastReport>(() =>
+            return Task.Factory.StartNew(() =>
             {
                 var failed = 0;
                 var sent = 0;
+
+                var watch = Stopwatch.StartNew();
 
                 for (int i = 0; i < msgCount; i++)
                 {
                     if (usePrebuiltMessages)
                     {
-                        var msg = _prebuildEntitySet.Next();
-                        foreach (var l in _listeners)
+                        for (int l = 0; l < _listeners.Count; l++)
                         {
-                            var sendResult = l.TrySendUpdateToClient(msg);
+                            var sendResult = _listeners[l].TrySendUpdateToClient(_prebuildEntitySet.Next());
                             if (!sendResult.IsOk)
                                 failed++;
                             else
@@ -75,21 +77,24 @@ namespace TestCommon
                     {
                         var entity = _entitySet.Next();
                         foreach (var l in _listeners)
+                        //Parallel.ForEach(_listeners, l =>
                         {
                             var sendResult = l.TrySendUpdateToClient(entity);
                             if (!sendResult.IsOk)
                                 failed++;
                             else
                                 sent++;
-                        }
+                        }//);
                     }
                 }
 
                 lock (_listeners)
                     _isBusy = false;
 
-                return new MulticastReport { MessageFailed = failed, MessageSent = sent };
-            });
+                watch.Stop();
+
+                return new MulticastReport { MessageFailed = failed, MessageSent = sent, Elapsed = watch.Elapsed };
+            }, TaskCreationOptions.LongRunning);
         }
 
         private void CheckIfIsBusy()

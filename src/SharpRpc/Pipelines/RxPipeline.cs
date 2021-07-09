@@ -79,6 +79,7 @@ namespace SharpRpc
                         break;
                     }
 
+                    RegisterDataRx(byteCount);
                 }
                 catch (OperationCanceledException)
                 {
@@ -135,7 +136,7 @@ namespace SharpRpc
                             if (sysMsgResult.Code != RpcRetCode.Ok)
                                 return sysMsgResult;
                         }
-                        else
+                        else // if (msg is IRequest || msg is IResponse)
                             _page.Add(msg);
                     }
                     catch (Exception ex)
@@ -150,6 +151,8 @@ namespace SharpRpc
                 else
                     return new RpcResult(RpcRetCode.ProtocolViolation, "A violation of message markup protocol has been detected! Code: " + pCode);
             }
+
+            RegisterMessagePage(_page.Count);
 
             if (_page.Count > 0)
                 _msgConsumer.OnMessages(_page);
@@ -173,5 +176,37 @@ namespace SharpRpc
 
             return RpcResult.Ok;
         }
+
+
+#if PF_COUNTERS
+        private int _totalBytes;
+        private int _byteChunkCount;
+        private int _msgCount;
+        private int _pageCount;
+#endif
+
+        [Conditional("PF_COUNTERS")]
+        public void RegisterDataRx(int bufferSize)
+        {
+#if PF_COUNTERS
+            _totalBytes += bufferSize;
+            _byteChunkCount++;
+#endif
+        }
+
+        [Conditional("PF_COUNTERS")]
+        public void RegisterMessagePage(int pageMsgCount)
+        {
+#if PF_COUNTERS
+            _msgCount += pageMsgCount;
+            _pageCount++;
+#endif
+        }
+
+#if PF_COUNTERS
+        public int GetPageCount() => _pageCount;
+        public double GetAvarageRxSize() => _byteChunkCount == 0 ? 0 : _totalBytes / _byteChunkCount;
+        public double GetAvaragePageSize() => _pageCount == 0 ? 0 : _msgCount / _pageCount;
+#endif
     }
 }

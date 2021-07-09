@@ -19,6 +19,7 @@ namespace SharpRpc
         public static ValueTask AsyncVoid => new ValueTask();
         public static ValueTask<bool> AsyncTrue => ValueTask.FromResult(true);
         public static ValueTask<bool> AsyncFalse => ValueTask.FromResult(false);
+        public static ValueTask<RpcResult> AsyncRpcOk => ValueTask.FromResult(RpcResult.Ok);
 
         public static ValueTask WrappResult(Task task)
         {
@@ -30,9 +31,19 @@ namespace SharpRpc
             return new ValueTask<T>(asyncVal);
         }
 
+        public static ValueTask WrappException(Exception ex)
+        {
+            return ValueTask.FromException(ex);
+        }
+
         public static ValueTask<T> WrappResult<T>(T val)
         {
             return ValueTask.FromResult<T>(val);
+        }
+
+        public static Task ToTask(this ValueTask task)
+        {
+            return task.AsTask();
         }
 
         public static Task<T> ToTask<T>(this ValueTask<T> valueTask)
@@ -43,6 +54,7 @@ namespace SharpRpc
         public static Task AsyncVoid => Task.CompletedTask;
         public static Task<bool> AsyncTrue = Task.FromResult(true);
         public static Task<bool> AsyncFalse = Task.FromResult(false);
+        public static Task<RpcResult> AsyncRpcOk => Task.FromResult(RpcResult.Ok);
 
         public static Task WrappResult(Task task)
         {
@@ -54,9 +66,19 @@ namespace SharpRpc
             return asyncVal;
         }
 
+        public static Task WrappException(Exception ex)
+        {
+            return Task.FromException(ex);
+        }
+
         public static Task<T> WrappResult<T>(T val)
         {
             return Task.FromResult<T>(val);
+        }
+
+        public static Task ToTask(this Task task)
+        {
+            return task;
         }
 
         public static Task<T> ToTask<T>(this Task<T> valueTask)

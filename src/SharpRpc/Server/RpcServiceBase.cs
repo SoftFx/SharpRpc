@@ -77,7 +77,7 @@ namespace SharpRpc
         internal void InvokeInit(Channel channel)
         {
             _ch = channel;
-            Session.Id = channel.Id;
+            Session.Init(channel);
             OnInit(channel);
         }
 

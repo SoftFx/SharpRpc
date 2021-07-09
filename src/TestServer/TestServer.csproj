@@ -3,6 +3,7 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFrameworks>net5.0;net472</TargetFrameworks>
+    <Configurations>Debug;Release;ReleasePfCounters</Configurations>
   </PropertyGroup>
 
   <ItemGroup>

@@ -46,7 +46,11 @@ namespace SharpRpc
 
         public abstract void Start();
         public abstract RpcResult OnSessionEstablished();
-        public abstract void OnMessages(IEnumerable<IMessage> messages);
+#if NET5_0_OR_GREATER
+        public abstract ValueTask OnMessages(IEnumerable<IMessage> messages);
+#else
+        public abstract Task OnMessages(IEnumerable<IMessage> messages);
+#endif
         public abstract Task Stop(RpcResult fault);
 
         protected abstract void DoCall(IRequest requestMsg, ITask callTask);

@@ -3,6 +3,12 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFrameworks>net5.0;net472</TargetFrameworks>
+    <Configurations>Debug;Release;ReleasePfCounters</Configurations>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='ReleasePfCounters|net5.0|AnyCPU'">
+    <DefineConstants>TRACE;PF_COUNTERS</DefineConstants>
+    <Optimize>true</Optimize>
   </PropertyGroup>
 
   <ItemGroup>

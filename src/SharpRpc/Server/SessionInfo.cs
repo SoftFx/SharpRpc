@@ -15,7 +15,15 @@ namespace SharpRpc
 {
     public class SessionInfo
     {
-        public string Id { get; internal set; }
+        private Channel _ch;
+
+        internal void Init(Channel channel)
+        {
+            _ch = channel;
+            Id = _ch.Id;
+        }
+
+        public string Id { get; private set; }
 
         public event EventHandler<SessionOpenedEventArgs> Opened;
         public event EventHandler<SessionClosedEventArgs> Closed;
@@ -29,6 +37,12 @@ namespace SharpRpc
         {
             Closed?.Invoke(this, args);
         }
+
+#if PF_COUNTERS
+        public int RxMessagePageCount => _ch.GetRxMessagePageCount();
+        public double AverageRxChunkSize => _ch.GetAverageRxChunkSize();
+        public double AverageRxMessagePageSize => _ch.GetAverageRxMessagePageSize();
+#endif
     }
 
 

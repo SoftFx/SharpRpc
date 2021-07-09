@@ -49,7 +49,7 @@ namespace TestCommon
             public override Task SendUpdateToClient(FooEntity entity)
 #endif
             {
-                _msgCounter++;
+                //_msgCounter++;
                 return FwAdapter.AsyncVoid;
             }
         }

@@ -52,10 +52,8 @@ namespace SharpRpc
             Logger = endpoint.LoggerAdapter;
             Id = nameof(Channel) + Interlocked.Increment(ref idSeed);
 
-            _tx = new TxPipeline.NoQueue(descriptor, endpoint);
-            _tx.ConnectionRequested += OnConnectionRequested;
-            _tx.CommunicationFaulted += OnCommunicationError;
-
+            //_tx = new TxPipeline_NoQueue(descriptor, endpoint, OnCommunicationError, OnConnectionRequested);
+            _tx = new TxPipeline_OneThread(descriptor, endpoint, OnCommunicationError, OnConnectionRequested);
             _dispatcher = MessageDispatcher.Create(_tx, msgHandler);
 
             Logger.Verbose(Id, "Created. Endpoint '{0}'.", endpoint.Name);
@@ -81,6 +79,7 @@ namespace SharpRpc
             _coordinator.Init(this);
 
             _rx = new RxPipeline.NoThreading(transport, _endpoint, _descriptor.SerializationAdapter, _dispatcher, _coordinator);
+            //_rx = new RxPipeline.OneThread(transport, _endpoint, _descriptor.SerializationAdapter, _dispatcher, _coordinator);
             _rx.CommunicationFaulted += OnCommunicationError;
             _rx.Start();
 
@@ -320,6 +319,12 @@ namespace SharpRpc
             if (invokeConnect)
                 DoConnect();
         }
+
+#if PF_COUNTERS
+        public double GetAverageRxChunkSize() => _rx.GetAvarageRxSize();
+        public int GetRxMessagePageCount() => _rx.GetPageCount();
+        public double GetAverageRxMessagePageSize() => _rx.GetAvaragePageSize();
+#endif
     }
 
     public enum ChannelState

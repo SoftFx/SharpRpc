@@ -24,6 +24,9 @@ namespace TestCommon
         void ApplyUpdate(FooEntity entity);
 
         [Rpc(RpcType.Call)]
+        void Flush();
+
+        [Rpc(RpcType.Call)]
         MulticastReport MulticastUpdateToClients(int msgCount, bool usePrebuiltMessages);
 
         [Rpc(RpcType.CallbackMessage, EnablePrebuild = true)]
@@ -31,6 +34,9 @@ namespace TestCommon
 
         [Rpc(RpcType.Callback)]
         void ApplyUpdateOnClient(FooEntity entity);
+
+        [Rpc(RpcType.Call)]
+        PerfReport GetPerfCounters();
     }
 
     [MessagePackObject]
@@ -41,14 +47,30 @@ namespace TestCommon
 
         [Key(2)]
         public int MessageFailed { get; set; }
+
+        [Key(3)]
+        public TimeSpan Elapsed { get; set; }
+    }
+
+    [MessagePackObject]
+    public class PerfReport
+    {
+        [Key(1)]
+        public int RxMessagePageCount { get; set; }
+
+        [Key(2)]
+        public double AverageRxChunkSize { get; set; }
+
+        [Key(3)]
+        public double AverageRxMessagePageSize { get; set; }
     }
 
     public static class BenchmarkContractCfg
     {
         public static void ConfigureEndpoint(Endpoint endpoint)
         {
-            endpoint.RxTimeout = TimeSpan.FromSeconds(5);
-            endpoint.EnableKeepAlive(TimeSpan.FromSeconds(1));
+            //endpoint.RxTimeout = TimeSpan.FromSeconds(5);
+            //endpoint.EnableKeepAlive(TimeSpan.FromSeconds(1));
         }
 
         public static int GetPort(bool secure)

@@ -44,12 +44,37 @@ namespace TestCommon
         }
 
 #if NET5_0_OR_GREATER
+        public override ValueTask Flush()
+#else
+        public override Task Flush()
+#endif
+        {
+            return FwAdapter.AsyncVoid;
+        }
+
+#if NET5_0_OR_GREATER
         public override ValueTask<MulticastReport> MulticastUpdateToClients(int msgCount, bool usePrebuiltMessages)
 #else
         public override Task<MulticastReport> MulticastUpdateToClients(int msgCount, bool usePrebuiltMessages)
 #endif
         {
             return FwAdapter.WrappResult(_multicaster.Multicast(msgCount, usePrebuiltMessages));
+        }
+
+#if NET5_0_OR_GREATER
+        public override ValueTask<PerfReport> GetPerfCounters()
+#else
+        public override Task<PerfReport> GetPerfCounters()
+#endif
+        {
+            var rep = new PerfReport();
+
+#if PF_COUNTERS
+            rep.AverageRxChunkSize = Session.AverageRxChunkSize;
+            rep.AverageRxMessagePageSize = Session.AverageRxMessagePageSize;
+            rep.RxMessagePageCount = Session.RxMessagePageCount;
+#endif
+            return FwAdapter.WrappResult(rep);
         }
     }
 }
