@@ -54,7 +54,7 @@ namespace SharpRpc
 
             //_tx = new TxPipeline_NoQueue(descriptor, endpoint, OnCommunicationError, OnConnectionRequested);
             _tx = new TxPipeline_OneThread(descriptor, endpoint, OnCommunicationError, OnConnectionRequested);
-            _dispatcher = MessageDispatcher.Create(_tx, msgHandler);
+            _dispatcher = MessageDispatcher.Create(endpoint.Dispatcher, _tx, msgHandler);
 
             Logger.Verbose(Id, "Created. Endpoint '{0}'.", endpoint.Name);
         }

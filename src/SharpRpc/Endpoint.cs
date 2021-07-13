@@ -5,24 +5,27 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+using SharpRpc.Config;
 using System;
 using System.Collections.Generic;
 using System.Text;
 
 namespace SharpRpc
 {
-    public abstract class Endpoint
+    public abstract class Endpoint : IConfigHost
     {
         protected readonly object _stateLockObj = new object();
         private int _rxSegmentSize = (int)(ushort.MaxValue * 0.5);
         private int _txSegmentSize = ushort.MaxValue * 1;
         private TimeSpan _rxTimeout = TimeSpan.FromMinutes(1);
-        //private ConcurrencyMode _rxConcurrency = ConcurrencyMode.PagedQueue;
 
         public Endpoint()
         {
             Name = Namer.GetInstanceName(GetType());
+            Dispatcher = new MessageDispatcherConfig(this);
         }
+
+        public MessageDispatcherConfig Dispatcher { get; }
 
         public string Name { get; }
 
@@ -65,19 +68,6 @@ namespace SharpRpc
             }
         }
 
-        //public ConcurrencyMode RxConcurrencyMode
-        //{
-        //    get => _rxConcurrency;
-        //    set
-        //    {
-        //        lock (_stateLockObj)
-        //        {
-        //            ThrowIfImmutable();
-        //            _rxConcurrency = value;
-        //        }
-        //    }
-        //}
-
         internal bool IsKeepAliveEnabled => KeepAliveThreshold.Ticks > 0;
         internal TimeSpan KeepAliveThreshold { get; private set; }
 
@@ -104,5 +94,7 @@ namespace SharpRpc
         protected virtual void ValidateConfiguration()
         {
         }
+
+        object IConfigHost.SyncObject => _stateLockObj;
     }
 }

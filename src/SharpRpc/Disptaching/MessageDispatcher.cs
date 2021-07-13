@@ -15,17 +15,14 @@ namespace SharpRpc
 {
     internal abstract partial class MessageDispatcher
     {
-        public static MessageDispatcher Create(TxPipeline sender, IUserMessageHandler handler)
+        public static MessageDispatcher Create(MessageDispatcherConfig config, TxPipeline sender, IUserMessageHandler handler)
         {
-            //return new OneThread().Init(sender, handler);
-            return new NoThreading().Init(sender, handler);
-
-            //switch (mode)
-            //{
-            //    //case ConcurrencyMode.NoQueue: return new NoThreading().Init(sender, handler);
-            //    case ConcurrencyMode.PagedQueue: return new OneThread().Init(sender, handler);
-            //    default: throw new NotSupportedException("Conccurency mode is not supported: " + mode);
-            //}
+            switch (config.RxConcurrencyMode)
+            {
+                case DispatcherConcurrencyMode.None: return new NoThreading().Init(sender, handler);
+                case DispatcherConcurrencyMode.Single: return new OneThread().Init(sender, handler);
+                default: throw new NotSupportedException("Conccurency mode is not supported: " + config.RxConcurrencyMode);
+            }
         }
 
         protected MessageDispatcher Init(TxPipeline tx, IUserMessageHandler handler)
