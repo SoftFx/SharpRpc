@@ -78,8 +78,8 @@ namespace SharpRpc
 
             _coordinator.Init(this);
 
-            _rx = new RxPipeline.NoThreading(transport, _endpoint, _descriptor.SerializationAdapter, _dispatcher, _coordinator);
-            //_rx = new RxPipeline.OneThread(transport, _endpoint, _descriptor.SerializationAdapter, _dispatcher, _coordinator);
+            //_rx = new RxPipeline.NoThreading(transport, _endpoint, _descriptor.SerializationAdapter, _dispatcher, _coordinator);
+            _rx = new RxPipeline.OneThread(transport, _endpoint, _descriptor.SerializationAdapter, _dispatcher, _coordinator);
             _rx.CommunicationFaulted += OnCommunicationError;
             _rx.Start();
 

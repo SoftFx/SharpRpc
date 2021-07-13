@@ -16,6 +16,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Dynamic;
 using System.IO;
+using ProtoBuf.Serializers;
 
 namespace TestClient
 {
@@ -186,6 +187,10 @@ namespace TestClient
                     ClientToServerTest(clients, testCase);
             }
 
+#if PF_COUNTERS
+            var rep = CollectPerfCounters(clients, testCase.Backwards);
+#endif
+
             var closeTasks = clients
                 .Select(c => c.Channel.CloseAsync())
                 .ToArray();
@@ -204,9 +209,9 @@ namespace TestClient
                 Console.WriteLine("\tbandwidth: {0:f0} ", testCase.MessagePerSecond);
 
 #if PF_COUNTERS
-                Console.WriteLine("\trx page count: {0:f0}", clients.Sum(c => c.Channel.GetRxMessagePageCount()));
-                Console.WriteLine("\tavg. rx page size: {0:f0}", clients.Average(c => c.Channel.GetAverageRxMessagePageSize()));
-                Console.WriteLine("\tavg. rx chunk size: {0:f0}", clients.Average(c => c.Channel.GetAverageRxChunkSize()));
+                Console.WriteLine("\ttot. rx page count: {0:f0}", rep.RxMessagePageCount);
+                Console.WriteLine("\tavg. rx page size: {0:f0}", rep.AverageRxMessagePageSize);
+                Console.WriteLine("\tavg. rx chunk size: {0:f0}", rep.AverageRxChunkSize);
 #endif
             }
             else
@@ -349,6 +354,32 @@ namespace TestClient
                 client.ApplyUpdate(msg);
             }
         }
+
+#if PF_COUNTERS
+        private static PerfReport CollectPerfCounters(List<BenchmarkClient> clients, bool queryServer)
+        {
+            var result = new PerfReport();
+
+            if (queryServer)
+            {
+                result.RxMessagePageCount = clients.Sum(c => c.Channel.GetRxMessagePageCount());
+                result.AverageRxChunkSize = clients.Average(c => c.Channel.GetAverageRxChunkSize());
+                result.AverageRxMessagePageSize = clients.Average(c => c.Channel.GetAverageRxMessagePageSize());
+            }
+            else
+            {
+                var tasks = clients.Select(c => c.Stub.GetPerfCountersAsync()).ToArray();
+                Task.WaitAll(tasks);
+                var reps = tasks.Select(t => t.Result).ToArray();
+
+                result.RxMessagePageCount = reps.Sum(r => r.RxMessagePageCount);
+                result.AverageRxChunkSize = reps.Average(r => r.AverageRxChunkSize);
+                result.AverageRxMessagePageSize = reps.Average(r => r.AverageRxMessagePageSize);
+            }
+
+            return result;
+        }
+#endif
 
         private static TimeSpan MeasureTime(Action a)
         {

@@ -23,6 +23,7 @@ namespace SharpRpc
         private readonly IRpcSerializer _serializer;
         private readonly MessageDispatcher _msgConsumer;
         private readonly List<IMessage> _page = new List<IMessage>();
+        //private readonly List<IMessage> _oneWayMsgPage = new List<IMessage>();
         private readonly SessionCoordinator _coordinator;
         //private readonly CancellationTokenSource _rxCancelSrc = new CancellationTokenSource();
         private Task _rxLoop;
@@ -114,6 +115,7 @@ namespace SharpRpc
             bytesConsumed = 0;
 
             _page.Clear();
+            //_oneWayMsgPage.Clear();
             _parser.SetNextSegment(segment);
 
             while (true)
@@ -136,7 +138,7 @@ namespace SharpRpc
                             if (sysMsgResult.Code != RpcRetCode.Ok)
                                 return sysMsgResult;
                         }
-                        else // if (msg is IRequest || msg is IResponse)
+                        else //if (msg is IRequest || msg is IResponse)
                             _page.Add(msg);
                     }
                     catch (Exception ex)
@@ -154,7 +156,7 @@ namespace SharpRpc
 
             RegisterMessagePage(_page.Count);
 
-            if (_page.Count > 0)
+            //if (_page.Count > 0)
                 _msgConsumer.OnMessages(_page);
 
             return RpcResult.Ok;

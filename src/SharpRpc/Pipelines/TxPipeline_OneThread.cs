@@ -39,6 +39,7 @@ namespace SharpRpc
         private readonly Action<RpcResult> _commErrorHandler;
         private readonly Action _connectionRequestHandler;
         private readonly TxTransportFeed _feed;
+        private readonly bool _useDelayedWorker = false;
 
         public TxPipeline_OneThread(ContractDescriptor descriptor, Endpoint config, Action<RpcResult> commErrorHandler, Action connectionRequestHandler)
         {
@@ -50,6 +51,11 @@ namespace SharpRpc
             _buffer.SpaceFreed += _buffer_SpaceFreed;
 
             _feed = new TxTransportFeed(_buffer, commErrorHandler);
+
+            var workerDelay = TimeSpan.Zero; // TimeSpan.FromMilliseconds(5);
+            _useDelayedWorker = workerDelay > TimeSpan.Zero;
+            if (_useDelayedWorker)
+                _workerExecutor = new TxExecDelay(ProcessBatch, workerDelay, _lockObj);
 
             //if (config.IsKeepAliveEnabled)
             //{
@@ -71,6 +77,7 @@ namespace SharpRpc
         private bool _isWaitingForSomeSpaceInBuffer;
         private Queue<IMessage> _batch = new Queue<IMessage>();
         private Queue<IMessage> _queue = new Queue<IMessage>();
+        private readonly TxExecDelay _workerExecutor;
 
         private void Enqueue(IMessage message)
         {
@@ -82,6 +89,8 @@ namespace SharpRpc
         {
             if (!_isProcessingBatch)
                 LaunchBatchTask();
+            else if (_useDelayedWorker && !HasRoomInQueue)
+                _workerExecutor.Force();
         }
 
         private void OnBatchCompleted()
@@ -119,7 +128,10 @@ namespace SharpRpc
             _batch = _queue;
             _queue = cpy;
 
-            Task.Factory.StartNew(ProcessBatch);
+            if (_useDelayedWorker)
+                _workerExecutor.TriggerOn();
+            else
+                Task.Factory.StartNew(ProcessBatch);
         }
 
         private void _buffer_SpaceFreed(TxBuffer sender)

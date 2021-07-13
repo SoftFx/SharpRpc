@@ -21,13 +21,17 @@ namespace SharpRpc
         void WriteTo(ushort serializedId, MessageWriter writer);
     }
 
-    public interface IRequest : IMessage
+    public interface IReqRespMessage : IMessage
+    {
+    }
+
+    public interface IRequest : IReqRespMessage
     {
         string CallId { get; set; }
         //int? FromRecipient { get; set; }
     }
 
-    public interface IResponse : IMessage
+    public interface IResponse : IReqRespMessage
     {
         string CallId { get; set; }
         //int? ToRecipient { get; }

@@ -17,7 +17,8 @@ namespace SharpRpc
     {
         public static MessageDispatcher Create(TxPipeline sender, IUserMessageHandler handler)
         {
-            return new OneThread().Init(sender, handler);
+            //return new OneThread().Init(sender, handler);
+            return new NoThreading().Init(sender, handler);
 
             //switch (mode)
             //{

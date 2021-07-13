@@ -27,7 +27,7 @@ namespace SharpRpc
             //private TaskCompletionSource<bool> _dataAvaialableEvent;
             private bool _allowFlag;
             private bool _completed;
-            private readonly int _maxBatchSize = 50;
+            private readonly int _maxBatchSize = 200;
             private Task _workerTask;
             private RpcResult _fault;
 
@@ -91,7 +91,7 @@ namespace SharpRpc
 
                     _queue.Add(new MessageTaskPair(incomingMessage, task));
                 }
-                else
+                else //if (incomingMessage is IRequest)
                     _queue.Add(new MessageTaskPair(incomingMessage));
             }
 
