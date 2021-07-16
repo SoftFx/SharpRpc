@@ -44,10 +44,15 @@ namespace SharpRpc
 
         internal event Action<Channel, RpcResult> Closed;
 
-        internal Channel(Endpoint endpoint, ContractDescriptor descriptor, IUserMessageHandler msgHandler)
+        internal Channel(bool serverSide, Endpoint endpoint, ContractDescriptor descriptor, IUserMessageHandler msgHandler)
         {
+            _isServerSide = serverSide;
+
             _endpoint = endpoint ?? throw new ArgumentNullException("endpoint");
             _descriptor = descriptor ?? throw new ArgumentNullException("descriptor");
+
+            if (!_isServerSide)
+                _endpoint.LockTo(this);
 
             Logger = endpoint.LoggerAdapter;
             Id = nameof(Channel) + Interlocked.Increment(ref idSeed);
@@ -59,7 +64,7 @@ namespace SharpRpc
             Logger.Verbose(Id, "Created. Endpoint '{0}'.", endpoint.Name);
         }
 
-        internal void StartServerMode(ByteTransport transport)
+        internal void StartIncomingSession(ByteTransport transport)
         {
             _isServerSide = true;
             _transport = transport;
@@ -78,8 +83,11 @@ namespace SharpRpc
 
             _coordinator.Init(this);
 
-            //_rx = new RxPipeline.NoThreading(transport, _endpoint, _descriptor.SerializationAdapter, _dispatcher, _coordinator);
-            _rx = new RxPipeline.OneThread(transport, _endpoint, _descriptor.SerializationAdapter, _dispatcher, _coordinator);
+            if (_endpoint.AsyncMessageParsing)
+                _rx = new RxPipeline.OneThread(transport, _endpoint, _descriptor.SerializationAdapter, _dispatcher, _coordinator);
+            else
+                _rx = new RxPipeline.NoThreading(transport, _endpoint, _descriptor.SerializationAdapter, _dispatcher, _coordinator);
+
             _rx.CommunicationFaulted += OnCommunicationError;
             _rx.Start();
 

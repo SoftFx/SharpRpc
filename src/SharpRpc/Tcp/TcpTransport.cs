@@ -18,10 +18,12 @@ namespace SharpRpc
     {
         private readonly Socket _socket;
         private readonly NetworkStream _stream;
+        private readonly TaskFactory _taskQueue;
         
-        public TcpTransport(Socket socket)
+        public TcpTransport(Socket socket, TaskFactory taskQueue)
         {
             _socket = socket;
+            _taskQueue = taskQueue;
             _socket.NoDelay = true;
             _stream = new NetworkStream(socket, false);
         }
@@ -91,7 +93,7 @@ namespace SharpRpc
 
             try
             {
-                await _socket.DisconnectAsync();
+                await _socket.DisconnectAsync(_taskQueue);
             }
             catch (Exception)
             {

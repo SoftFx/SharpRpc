@@ -150,10 +150,10 @@ namespace SharpRpc
                 if (_state == ServerState.Online || _state == ServerState.Starting)
                 {
                     var serviceImpl = _binding.CreateServiceImpl();
-                    var session = new Channel(sender, _binding.Descriptor, serviceImpl);
+                    var session = new Channel(true, sender, _binding.Descriptor, serviceImpl);
                     serviceImpl.InvokeInit(session);
                     session.Closed += Session_Closed;
-                    session.StartServerMode(transport);
+                    session.StartIncomingSession(transport);
                     _sessions.Add(session.Id, session);
                     Logger.Verbose(Name, "New session: " + session.Id);
                 }

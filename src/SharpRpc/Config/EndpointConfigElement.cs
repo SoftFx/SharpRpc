@@ -24,6 +24,7 @@ namespace SharpRpc.Config
 
         protected void ThrowIfImmutable()
         {
+            Host.ThrowIfImmutable();
         }
 
         internal void Validate()
@@ -39,5 +40,7 @@ namespace SharpRpc.Config
     internal interface IConfigHost
     {
         object SyncObject { get; }
+
+        void ThrowIfImmutable();
     }
 }

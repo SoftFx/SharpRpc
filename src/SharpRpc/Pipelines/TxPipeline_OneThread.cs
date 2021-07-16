@@ -21,7 +21,6 @@ namespace SharpRpc
         private readonly object _lockObj = new object();
         private readonly object _bufferLock = new object();
         private readonly TxBuffer _buffer;
-        //private bool _isProcessingItem;
         private bool _isClosing;
         private bool _isStarted;
         private bool _isRequestedConnection;
@@ -33,9 +32,6 @@ namespace SharpRpc
         //private readonly Queue<IPendingItem> _systemQueue = new Queue<IPendingItem>();
         private readonly TaskCompletionSource<object> _closeCompletedEvent = new TaskCompletionSource<object>();
         private DateTime _lastTxTime = DateTime.MinValue;
-        //private readonly TimeSpan _idleThreshold;
-        //private readonly Timer _keepAliveTimer;
-        //private readonly ISystemMessage _keepAliveMessage;
         private readonly Action<RpcResult> _commErrorHandler;
         private readonly Action _connectionRequestHandler;
         private readonly TxTransportFeed _feed;
@@ -46,6 +42,8 @@ namespace SharpRpc
             _commErrorHandler = commErrorHandler;
             _connectionRequestHandler = connectionRequestHandler;
 
+            TaskQueue = config.TaskQueue;
+
             _buffer = new TxBuffer(_bufferLock, config.TxBufferSegmentSize, descriptor.SerializationAdapter);
             _bufferSizeThreshold = config.TxBufferSegmentSize * 2;
             _buffer.SpaceFreed += _buffer_SpaceFreed;
@@ -54,8 +52,9 @@ namespace SharpRpc
 
             var workerDelay = TimeSpan.Zero; // TimeSpan.FromMilliseconds(5);
             _useDelayedWorker = workerDelay > TimeSpan.Zero;
+
             if (_useDelayedWorker)
-                _workerExecutor = new TxExecDelay(ProcessBatch, workerDelay, _lockObj);
+                _workerExecutor = new TxExecDelay(ProcessBatch, TaskQueue, workerDelay, _lockObj);
 
             //if (config.IsKeepAliveEnabled)
             //{
@@ -111,7 +110,7 @@ namespace SharpRpc
                 if (nextAwaiter == null)
                     break;
                 _queue.Enqueue(nextAwaiter.Message);
-                Task.Factory.StartNew(a => ((TxAsyncGate.Item)a).OnResult(RpcResult.Ok), nextAwaiter);
+                TaskQueue.StartNew(a => ((TxAsyncGate.Item)a).OnResult(RpcResult.Ok), nextAwaiter);
             }
 
             Monitor.PulseAll(_lockObj);
@@ -131,7 +130,7 @@ namespace SharpRpc
             if (_useDelayedWorker)
                 _workerExecutor.TriggerOn();
             else
-                Task.Factory.StartNew(ProcessBatch);
+                TaskQueue.StartNew(ProcessBatch);
         }
 
         private void _buffer_SpaceFreed(TxBuffer sender)
@@ -139,7 +138,7 @@ namespace SharpRpc
             if (_isWaitingForSomeSpaceInBuffer)
             {
                 _isWaitingForSomeSpaceInBuffer = false;
-                Task.Factory.StartNew(ProcessBatch);
+                TaskQueue.StartNew(ProcessBatch);
             }
         }
 
@@ -212,6 +211,8 @@ namespace SharpRpc
         }
 
         #region TxPipeline impl
+
+        public TaskFactory TaskQueue { get; }
 
         public void Start(ByteTransport transport)
         {

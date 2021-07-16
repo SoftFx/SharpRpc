@@ -44,6 +44,8 @@ namespace SharpRpc
             _commErrorHandler = commErrorHandler;
             _connectionRequestHandler = connectionRequestHandler;
 
+            TaskQueue = config.TaskQueue;
+
             _buffer = new TxBuffer(_lockObj, config.TxBufferSegmentSize, descriptor.SerializationAdapter);
             _bufferSizeThreshold = config.TxBufferSegmentSize * 2;
             _buffer.SpaceFreed += _buffer_SpaceFreed;
@@ -62,6 +64,8 @@ namespace SharpRpc
         private bool CanProcessUserMessage => _isUserMessagesEnabled && !_isProcessingItem && HasRoomForNextMessage;
         private bool CanProcessSystemMessage => _isStarted && !_isProcessingItem && HasRoomForNextMessage;
         private bool HasRoomForNextMessage => _buffer.DataSize < _bufferSizeThreshold;
+
+        public TaskFactory TaskQueue { get; }
 
         public RpcResult TrySend(IMessage message)
         {
@@ -212,7 +216,7 @@ namespace SharpRpc
         private async void RequestConnection()
         {
             // exit lock
-            await Task.Yield();
+            await TaskQueue.Dive();
 
             _connectionRequestHandler();
         }
@@ -275,7 +279,7 @@ namespace SharpRpc
                 _isProcessingItem = true;
                 _buffer.Lock();
 
-                Task.Factory.StartNew(p =>
+                TaskQueue.StartNew(p =>
                 {
                     var task = (TxAsyncGate.Item)p;
                     task.OnResult(ProcessMessage(task.Message));

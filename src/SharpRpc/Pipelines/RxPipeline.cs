@@ -5,6 +5,7 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+using SharpRpc.Lib;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -21,22 +22,24 @@ namespace SharpRpc
         private readonly RxMessageReader _reader = new RxMessageReader();
         private readonly ByteTransport _transport;
         private readonly IRpcSerializer _serializer;
-        private readonly MessageDispatcher _msgConsumer;
-        private readonly List<IMessage> _page = new List<IMessage>();
+        private readonly MessageDispatcher _msgDispatcher;
+        //private readonly List<IMessage> _page = new List<IMessage>();
         //private readonly List<IMessage> _oneWayMsgPage = new List<IMessage>();
         private readonly SessionCoordinator _coordinator;
         //private readonly CancellationTokenSource _rxCancelSrc = new CancellationTokenSource();
         private Task _rxLoop;
+        private readonly TaskFactory _taskQueue;
 
         public RxPipeline(ByteTransport transport, Endpoint config, IRpcSerializer serializer, MessageDispatcher messageConsumer, SessionCoordinator coordinator)
         {
             _transport = transport;
             _serializer = serializer;
-            _msgConsumer = messageConsumer;
+            _msgDispatcher = messageConsumer;
             _coordinator = coordinator;
+            _taskQueue = config.TaskQueue;
         }
 
-        protected MessageDispatcher MessageConsumer => _msgConsumer;
+        protected MessageDispatcher MessageConsumer => _msgDispatcher;
 
         public event Action<RpcResult> CommunicationFaulted;
 
@@ -73,6 +76,8 @@ namespace SharpRpc
                     var buffer = AllocateRxBuffer();
 
                     byteCount = await _transport.Receive(buffer, CancellationToken.None); // _rxCancelSrc.Token);
+
+                    await _taskQueue.Dive();
 
                     if (byteCount == 0)
                     {
@@ -114,7 +119,9 @@ namespace SharpRpc
         {
             bytesConsumed = 0;
 
-            _page.Clear();
+            var container = _msgDispatcher.IncomingMessages;
+
+            //_page.Clear();
             //_oneWayMsgPage.Clear();
             _parser.SetNextSegment(segment);
 
@@ -139,7 +146,7 @@ namespace SharpRpc
                                 return sysMsgResult;
                         }
                         else //if (msg is IRequest || msg is IResponse)
-                            _page.Add(msg);
+                            container.Add(msg);
                     }
                     catch (Exception ex)
                     {
@@ -154,12 +161,21 @@ namespace SharpRpc
                     return new RpcResult(RpcRetCode.ProtocolViolation, "A violation of message markup protocol has been detected! Code: " + pCode);
             }
 
-            RegisterMessagePage(_page.Count);
-
-            //if (_page.Count > 0)
-                _msgConsumer.OnMessages(_page);
+            RegisterMessagePage(container.Count);
 
             return RpcResult.Ok;
+        }
+
+#if NET5_0_OR_GREATER
+        protected ValueTask SubmitParsedBatch()
+#else
+        protected Task SubmitParsedBatch()
+#endif
+        {
+            if (_msgDispatcher.IncomingMessages.Count > 0)
+                return _msgDispatcher.OnMessages();
+            else
+                return FwAdapter.AsyncVoid;
         }
 
         private RpcResult OnSystemMessage(ISystemMessage msg)

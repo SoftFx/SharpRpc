@@ -9,6 +9,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace SharpRpc
@@ -69,9 +70,9 @@ namespace SharpRpc
             }
 
 #if NET5_0_OR_GREATER
-            public override ValueTask OnMessages(IEnumerable<IMessage> messages)
+            public override ValueTask OnMessages()
 #else
-            public override Task OnMessages(IEnumerable<IMessage> messages)
+            public override Task OnMessages()
 #endif
             {
                 lock (_lockObj)
@@ -82,7 +83,7 @@ namespace SharpRpc
                     _isProcessing = true;
                 }
 
-                foreach (var msg in messages)
+                foreach (var msg in IncomingMessages)
                 {
                     if (msg is IReqRespMessage)
                     {
@@ -210,7 +211,7 @@ namespace SharpRpc
 
             private void CompleteClose()
             {
-                Task.Factory.StartNew(InvokeOnStop);
+                TaskQueue.StartNew(InvokeOnStop);
             }
         }
     }

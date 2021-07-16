@@ -20,6 +20,7 @@ namespace SharpRpc
         public static ValueTask<bool> AsyncTrue => ValueTask.FromResult(true);
         public static ValueTask<bool> AsyncFalse => ValueTask.FromResult(false);
         public static ValueTask<RpcResult> AsyncRpcOk => ValueTask.FromResult(RpcResult.Ok);
+        public static ValueTask<List<IMessage>> AsyncNullMessageBatch => ValueTask.FromResult<List<IMessage>>(null);
 
         public static ValueTask WrappResult(Task task)
         {

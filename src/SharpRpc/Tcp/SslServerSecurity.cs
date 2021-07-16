@@ -40,9 +40,9 @@ namespace SharpRpc
         }
 
 #if NET5_0_OR_GREATER
-        internal async override ValueTask<ByteTransport> SecureTransport(Socket socket)
+        internal async override ValueTask<ByteTransport> SecureTransport(Socket socket, Endpoint endpoint)
 #else
-        internal async override Task<ByteTransport> SecureTransport(Socket socket)
+        internal async override Task<ByteTransport> SecureTransport(Socket socket, Endpoint endpoint)
 #endif
         {
             var netStream = new NetworkStream(socket);

@@ -16,12 +16,12 @@ namespace SharpRpc
     {
         public ClientBase(ClientEndpoint endpoint, ContractDescriptor descriptor)
         {
-            Channel = new Channel(endpoint, descriptor, new NullHandler());
+            Channel = new Channel(false, endpoint, descriptor, new NullHandler());
         }
 
         public ClientBase(ClientEndpoint endpoint, ContractDescriptor descriptor, RpcServiceBase callbackHandler)
         {
-            Channel = new Channel(endpoint, descriptor, callbackHandler ?? throw new ArgumentNullException("callbackHandler"));
+            Channel = new Channel(false, endpoint, descriptor, callbackHandler ?? throw new ArgumentNullException("callbackHandler"));
         }
 
         public ClientBase(Channel channel)

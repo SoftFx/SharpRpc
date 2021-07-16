@@ -71,6 +71,12 @@ namespace TestCommon
         {
             //endpoint.RxTimeout = TimeSpan.FromSeconds(5);
             //endpoint.EnableKeepAlive(TimeSpan.FromSeconds(1));
+
+            endpoint.RxBufferSegmentSize = short.MaxValue * 1;
+            endpoint.TxBufferSegmentSize = short.MaxValue * 1;
+
+            endpoint.Dispatcher.RxConcurrencyMode = DispatcherConcurrencyMode.None;
+            endpoint.AsyncMessageParsing = false;
         }
 
         public static int GetPort(bool secure)

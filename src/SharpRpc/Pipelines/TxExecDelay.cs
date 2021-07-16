@@ -22,12 +22,14 @@ namespace SharpRpc
         private bool _triggered;
         private readonly Timer _delayTimer;
         private readonly TimeSpan _delay;
+        private readonly TaskFactory _taskFactory;
 
-        public TxExecDelay(Action worker, TimeSpan delay, object lockObj)
+        public TxExecDelay(Action worker, TaskFactory taskQueue, TimeSpan delay, object lockObj)
         {
             _lockObj = lockObj;
             _workerAction = worker;
             _delay = delay;
+            _taskFactory = taskQueue;
             _delayTimer = new Timer(OnDelayTimer, null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
         }
 
@@ -63,7 +65,7 @@ namespace SharpRpc
         private void LaunchWorker()
         {
             _triggered = false;
-            Task.Factory.StartNew(_workerAction);
+            _taskFactory.StartNew(_workerAction);
         }
 
         private void DisableTimer()

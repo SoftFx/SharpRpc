@@ -22,6 +22,8 @@ namespace SharpRpc
         //event Action ConnectionRequested;
         //event Action<RpcResult> CommunicationFaulted;
 
+        TaskFactory TaskQueue { get; }
+
         RpcResult TrySend(IMessage message);
         void Send(IMessage message);
 #if NET5_0_OR_GREATER

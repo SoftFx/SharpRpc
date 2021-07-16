@@ -5,6 +5,7 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+using SharpRpc.Lib;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -88,7 +89,8 @@ namespace SharpRpc
                 _isBusy = true;
 
                 _segmentToParse = dataToProcess;
-                Task.Factory.StartNew(ParseSegment);
+                //Task.Factory.StartNew(ParseSegment);
+                ParseSegment();
             }
 
             public override void Start()
@@ -115,12 +117,19 @@ namespace SharpRpc
                 }
             }
 
-            private void ParseSegment()
+            private async void ParseSegment()
             {
+                // occupy a separate thread
+                await _taskQueue.Dive();
+
                 var parseRes = ParseAndDeserialize(_segmentToParse, out var bytesConsumed);
 
                 if (parseRes.Code == RpcRetCode.Ok)
+                {
+                    await SubmitParsedBatch();
+                    _msgDispatcher.IncomingMessages.Clear();
                     OnParseCompleted(bytesConsumed);
+                }
                 else
                     OnParseFailed(parseRes);       
             }

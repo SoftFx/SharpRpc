@@ -22,15 +22,17 @@ namespace SharpRpc.Lib
     internal class SlimAwaitable
     {
         private readonly object _lockObj;
+        private readonly TaskFactory _tFactory;
         private bool _isCompleted;
         private Action _callback;
 #if DEBUG
         private int _callbackCount;
 #endif
 
-        public SlimAwaitable(object lockObj)
+        public SlimAwaitable(object lockObj, TaskFactory tFactory = null)
         {
             _lockObj = lockObj;
+            _tFactory = tFactory ?? Task.Factory;
         }
 
         public Token GetAwaiter()
@@ -106,6 +108,7 @@ namespace SharpRpc.Lib
     internal class SlimAwaitable<T>
     {
         private readonly object _lockObj = new object();
+        private readonly TaskFactory _tFactory;
         private T _result;
         private bool _isCompleted;
         private Action _callback;
@@ -113,9 +116,10 @@ namespace SharpRpc.Lib
         private int _callbackCount;
 #endif
 
-        public SlimAwaitable(object lockObject)
+        public SlimAwaitable(object lockObject, TaskFactory tFactory = null)
         {
             _lockObj = lockObject;
+            _tFactory = tFactory ?? Task.Factory;
         }
 
         public Token GetAwaiter()
@@ -162,7 +166,7 @@ namespace SharpRpc.Lib
             if (callbackCopy != null)
             {
                 if (notifyViaThreadPool)
-                    Task.Factory.StartNew(callbackCopy);
+                    _tFactory.StartNew(callbackCopy);
                 else
                     callbackCopy();
             }

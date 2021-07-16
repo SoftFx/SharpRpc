@@ -5,6 +5,7 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+using SharpRpc.Lib;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -21,6 +22,7 @@ namespace SharpRpc
         private Authenticator _authPlugin;
         private readonly TaskCompletionSource<ILoginMessage> _loginWaitHandle = new TaskCompletionSource<ILoginMessage>();
         //private readonly CancellationTokenSource _loginWaitCancel = new CancellationTokenSource();
+        private TaskFactory _taskQueue;
 
         public override TimeSpan LoginTimeout => TimeSpan.FromSeconds(5);
 
@@ -28,6 +30,7 @@ namespace SharpRpc
         {
             var serverEndpoint = (ServerEndpoint)Channel.Endpoint;
             _authPlugin = serverEndpoint.Authenticator;
+            _taskQueue = serverEndpoint.TaskQueue;
         }
 
 #if NET5_0_OR_GREATER
@@ -57,7 +60,7 @@ namespace SharpRpc
             Channel.Dispatcher.OnSessionEstablished();
 
             // exit lock
-            await Task.Yield();
+            await _taskQueue.Dive();
 
             // check login/password
             var authError = await _authPlugin.OnLogin(loginMsg);

@@ -11,6 +11,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace SharpRpc
@@ -151,6 +152,8 @@ namespace SharpRpc
 
         public SlimAwaitable<ArraySegment<byte>> DequeueNext()
         {
+            Debug.Assert(!Monitor.IsEntered(_lockObj));
+
             lock (_lockObj)
             {
                 if (_dequeuedSegment.Array != null)

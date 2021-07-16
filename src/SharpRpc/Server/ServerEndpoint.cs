@@ -15,16 +15,16 @@ namespace SharpRpc
 {
     public abstract class ServerEndpoint : Endpoint
     {
-        private RpcServer _server;
         //private ServerCredentials _creds = ServerCredentials.None;
         private Authenticator _authenticator = Authenticator.None;
+        private LoggerFacade _logger;
 
         public ServerEndpoint()
         {
             
         }
 
-        internal override LoggerFacade LoggerAdapter => _server.Logger;
+        internal override LoggerFacade LoggerAdapter => _logger;
 
         public Authenticator Authenticator
         {
@@ -41,13 +41,8 @@ namespace SharpRpc
 
         internal void Init(RpcServer server)
         {
-            lock (_stateLockObj)
-            {
-                if (_server != null)
-                    throw new InvalidOperationException("This endpoint belongs to other server!");
-
-                _server = server;
-            }
+            LockTo(server);
+            _logger = server.Logger;
         }
 
         protected abstract void Start();
@@ -81,7 +76,7 @@ namespace SharpRpc
             }
             catch (Exception ex)
             {
-                _server.Logger.Error(Name, ex, "Stop failed! " + ex.Message);
+                _logger.Error(Name, ex, "Stop failed! " + ex.Message);
             }
 
             //Logger.Verbose(Name, "Stopped.");

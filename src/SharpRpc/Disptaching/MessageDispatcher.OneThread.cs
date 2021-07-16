@@ -8,8 +8,10 @@
 using SharpRpc.Lib;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace SharpRpc
@@ -21,13 +23,15 @@ namespace SharpRpc
             private readonly object _lockObj = new object();
             //private readonly CircularList<MessageTaskPair> _queue = new CircularList<MessageTaskPair>();
             private readonly Dictionary<string, ITask> _callTasks = new Dictionary<string, ITask>();
-            private List<MessageTaskPair> _batch = new List<MessageTaskPair>();
-            private List<MessageTaskPair> _queue = new List<MessageTaskPair>();
+            //private List<MessageTaskPair> _batch = new List<MessageTaskPair>();
+            //private List<MessageTaskPair> _queue = new List<MessageTaskPair>();
+            private List<IMessage> _batch = new List<IMessage>();
+            private List<IMessage> _queue = new List<IMessage>();
             private bool _isProcessing;
             //private TaskCompletionSource<bool> _dataAvaialableEvent;
             private bool _allowFlag;
             private bool _completed;
-            private readonly int _maxBatchSize = 200;
+            private readonly int _maxBatchSize = 1000;
             private Task _workerTask;
             private RpcResult _fault;
 
@@ -56,9 +60,9 @@ namespace SharpRpc
             }
 
 #if NET5_0_OR_GREATER
-            public override ValueTask OnMessages(IEnumerable<IMessage> messages)
+            public override ValueTask OnMessages()
 #else
-            public override Task OnMessages(IEnumerable<IMessage> messages)
+            public override Task OnMessages()
 #endif
             {
                 lock (_lockObj)
@@ -69,8 +73,26 @@ namespace SharpRpc
                     if (!_allowFlag)
                         OnError(RpcRetCode.ProtocolViolation, "A violation of handshake protocol has been detected!");
 
-                    foreach (var msg in messages)
-                        MatchAndEnqueue(msg);
+                    //Debug.Assert(_queue.Count == 0);
+
+                    //var freeMessageBatch = _queue;
+                    //_queue = IncomingMessagesContainer;
+                    //IncomingMessagesContainer = freeMessageBatch;
+
+                    //foreach (var msg in IncomingMessagesContainer)
+                    //    MatchAndEnqueue(msg);
+
+                    _queue.AddRange(IncomingMessages);
+                    //_queue.Add(IncomingMessages[0]);
+
+                    //if (_isProcessing)
+                    //    return FwAdapter.WrappResult(_workerTask);
+                    //else
+                    //{
+                    //    EnqueueNextBatch();
+                    //    return FwAdapter.AsyncVoid;
+                    //}
+
 
                     if (!_isProcessing)
                         EnqueueNextBatch();
@@ -82,18 +104,18 @@ namespace SharpRpc
                 }
             }
 
-            private void MatchAndEnqueue(IMessage incomingMessage)
-            {
-                if (incomingMessage is IResponse resp)
-                {
-                    if (_callTasks.TryGetValue(resp.CallId, out ITask task))
-                        _callTasks.Remove(resp.CallId);
+            //private void MatchAndEnqueue(IMessage incomingMessage)
+            //{
+            //    if (incomingMessage is IResponse resp)
+            //    {
+            //        if (_callTasks.TryGetValue(resp.CallId, out ITask task))
+            //            _callTasks.Remove(resp.CallId);
 
-                    _queue.Add(new MessageTaskPair(incomingMessage, task));
-                }
-                else //if (incomingMessage is IRequest)
-                    _queue.Add(new MessageTaskPair(incomingMessage));
-            }
+            //        _queue.Add(new MessageTaskPair(incomingMessage, task));
+            //    }
+            //    else //if (incomingMessage is IRequest)
+            //        _queue.Add(new MessageTaskPair(incomingMessage));
+            //}
 
             public override Task Stop(RpcResult fault)
             {
@@ -113,7 +135,7 @@ namespace SharpRpc
                     if (_isProcessing)
                         stopTask = _workerTask.ContinueWith(t => InvokeOnStop());
                     else
-                        stopTask = Task.Factory.StartNew(InvokeOnStop);
+                        stopTask = TaskQueue.StartNew(InvokeOnStop);
                 }
 
                 foreach (var task in tasksToCanel)
@@ -160,6 +182,8 @@ namespace SharpRpc
             {
                 _isProcessing = true;
 
+                Debug.Assert(_batch.Count == 0);
+
                 var cpy = _queue;
                 _queue = _batch;
                 _batch = cpy;
@@ -170,7 +194,6 @@ namespace SharpRpc
             private void SignalCompleted()
             {
                 _isProcessing = false;
-                _batch.Clear();
 
                 if (_queue.Count > 0)
                     EnqueueNextBatch();
@@ -179,7 +202,7 @@ namespace SharpRpc
             private async Task ProcessMessages()
             {
                 // move processing to another thread (and exit the lock)
-                await Task.Yield();
+                await TaskQueue.Dive();
 
                 ProcessBatch();
 
@@ -189,20 +212,33 @@ namespace SharpRpc
 
             private void ProcessBatch()
             {
-                foreach (var item in _batch)
+                foreach (var message in _batch)
                 {
-                    if (item.Message is IResponse resp)
+                    if (message is IResponse resp)
                     {
+                        ITask task;
+
+                        lock (_callTasks)
+                        {
+                            if (_callTasks.TryGetValue(resp.CallId, out task))
+                                _callTasks.Remove(resp.CallId);
+                            else
+                                //  TO DO : signal protocol violation
+                                continue;
+                        }
+
                         if (resp is IRequestFault faultMsg)
-                            item.Task.Fail(faultMsg);
+                            task.Fail(faultMsg);
                         else
-                            item.Task.Complete(resp);
+                            task.Complete(resp);
                     }
-                    else if (item.Message is IRequest req)
+                    else if (message is IRequest req)
                         ProcessRequest(req);
                     else
-                        ProcessOneWayMessage(item.Message);
+                        ProcessOneWayMessage(message);
                 }
+
+                _batch.Clear();
             }
 
             private async void ProcessRequest(IRequest request)
@@ -250,17 +286,17 @@ namespace SharpRpc
                 }
             }
 
-            private struct MessageTaskPair
-            {
-                public MessageTaskPair(IMessage message, ITask task = null)
-                {
-                    Message = message;
-                    Task = task;
-                }
+            //private struct MessageTaskPair
+            //{
+            //    public MessageTaskPair(IMessage message, ITask task = null)
+            //    {
+            //        Message = message;
+            //        Task = task;
+            //    }
 
-                public IMessage Message { get; }
-                public ITask Task { get; }
-            }
+            //    public IMessage Message { get; }
+            //    public ITask Task { get; }
+            //}
         }
     }
 }

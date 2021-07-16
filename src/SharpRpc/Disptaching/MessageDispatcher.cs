@@ -29,25 +29,29 @@ namespace SharpRpc
         {
             Tx = tx;
             MessageHandler = handler;
+            TaskQueue = tx.TaskQueue;
             return this;
         }
 
         protected IUserMessageHandler MessageHandler { get; private set; }
         protected TxPipeline Tx { get; private set; }
+        protected TaskFactory TaskQueue { get; private set; }
+
+        public List<IMessage> IncomingMessages { get; protected set; } = new List<IMessage>();
+
+        public event Action<RpcResult> ErrorOccured;
 
         protected void OnError(RpcRetCode code, string message)
         {
             ErrorOccured?.Invoke(new RpcResult(code, message));
         }
 
-        public event Action<RpcResult> ErrorOccured;
-
         public abstract void Start();
         public abstract RpcResult OnSessionEstablished();
 #if NET5_0_OR_GREATER
-        public abstract ValueTask OnMessages(IEnumerable<IMessage> messages);
+        public abstract ValueTask OnMessages();
 #else
-        public abstract Task OnMessages(IEnumerable<IMessage> messages);
+        public abstract Task OnMessages();
 #endif
         public abstract Task Stop(RpcResult fault);
 

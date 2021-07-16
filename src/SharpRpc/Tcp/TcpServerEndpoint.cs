@@ -100,12 +100,12 @@ namespace SharpRpc
 #if NET5_0_OR_GREATER
         protected virtual ValueTask<ByteTransport> GetTransport(Socket socket)
         {
-            return new ValueTask<ByteTransport>(new TcpTransport(socket));
+            return new ValueTask<ByteTransport>(new TcpTransport(socket, TaskQueue));
         }
 #else
         protected virtual Task<ByteTransport> GetTransport(Socket socket)
         {
-            return Task.FromResult<ByteTransport>(new TcpTransport(socket));
+            return Task.FromResult<ByteTransport>(new TcpTransport(socket, TaskQueue));
         }
 #endif
 
@@ -131,7 +131,7 @@ namespace SharpRpc
 
                 try
                 {
-                    var transport = await _security.SecureTransport(socket);
+                    var transport = await _security.SecureTransport(socket, this);
 
                     OnConnect(transport);
                 }
@@ -142,7 +142,7 @@ namespace SharpRpc
 
                     try
                     {
-                        await socket.DisconnectAsync();
+                        await socket.DisconnectAsync(TaskQueue);
                     }
                     catch
                     {
