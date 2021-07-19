@@ -75,7 +75,7 @@ namespace TestCommon
             endpoint.RxBufferSegmentSize = short.MaxValue * 1;
             endpoint.TxBufferSegmentSize = short.MaxValue * 1;
 
-            endpoint.Dispatcher.RxConcurrencyMode = DispatcherConcurrencyMode.None;
+            endpoint.Dispatcher.RxConcurrencyMode = DispatcherConcurrencyMode.Single;
             endpoint.AsyncMessageParsing = false;
         }
 
