@@ -9,7 +9,7 @@ Fast and efficient remote procedure call (RPC) framework for C#
 
   - [Features](#features)
   - [Installation](#installation)
-  - [Code generation](#code generation)
+  - [Code generation](#code-generation)
 
 ## Features
 
