@@ -114,7 +114,7 @@ To setup communication from client side, create an endpoint first, than pass the
 
 ```csharp
 var endpoint = new TcpClientEndpoint("localhost", 812, TcpSecurity.None);
-var client = FunctionTestContract_Gen.CreateClient(endpoint);
+var client = MyContract_Gen.CreateClient(endpoint);
 ```
 
 Endpoints carry all communication parameters and settings. Each communication transport has its own endpoint type. E.g. TCP transport uses TcpClientEndpoint and TcpServiceEdnpoint classes.
