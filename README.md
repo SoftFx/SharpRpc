@@ -10,6 +10,8 @@ Fast and efficient remote procedure call (RPC) framework for C#
   - [Features](#features)
   - [Installation](#installation)
   - [Code generation](#code-generation)
+  - [Client setup](#client-setup)
+  - [Server setup](#server-setup)
 
 ## Features
 
@@ -71,6 +73,10 @@ Each remote call must be marked with Rpc attribute with one of four call types:
 | Callback | Server | Request from server to client. |
 | CallbackMessage | Server | One-way message from server to client. |
 
+Note: The contract interface is not for direct use and should not be implemented. Its only purpose is to supply metadata for code generation.
+
+## Data Contract
+
 If you have objects as call parameters or results, they must be attributed according to specification of serializer you use. For example (MessagePack):
 
 ```csharp
@@ -91,11 +97,43 @@ public class FooEntity
 ## Code generation
 
 For each contract class the builder generates corresponding wrapper class which contains several subclasses to facilitate RPC communication.
-The builder composes class name from contract name by adding '_Gen' suffix to it.
+The builder composes this class name from contract name by adding '_Gen' suffix to it.
 
 | Class name | Description |  
 | --- | --- |
-| <contract_name>_Gen.Client |  |
-| <contract_name>_Gen.ServiceBase |  |
-| <contract_name>_Gen.CallbackClient |  |
-| <contract_name>_Gen.CallbackServiceBase |  |
+| <contract_name>_Gen.Client | Instantiate this class to call the service methods. |
+| <contract_name>_Gen.ServiceBase | Override this class to implements service methods.  |
+| <contract_name>_Gen.CallbackClient | Instance of this class is avaialble as Client property on service side to allow server to callback the client.  |
+| <contract_name>_Gen.CallbackServiceBase | Override this class to implement callback methods. |
+
+Note: CallbackClient and CallbackServiceBase classes are generated only if there is at least one callback or callback message in the contract.
+
+## Client setup
+
+To setup communication from client side, create an endpoint first, than pass the endpoint instance to CreateClient method to create a client stub:
+
+```csharp
+var endpoint = new TcpClientEndpoint("localhost", 812, TcpSecurity.None);
+var client = FunctionTestContract_Gen.CreateClient(endpoint);
+```
+
+Endpoints carry all communication parameters and settings. Each communication transport has its own endpoint type. E.g. TCP transport uses TcpClientEndpoint and TcpServiceEdnpoint classes.
+Note: SharpRpc supports only TCP transport by now.
+
+Connection may be initiated directly by calling TryConnectAsync method:
+
+```csharp
+var connectResult = await client.Channel.TryConnectAsync();
+// or
+var connectResult = client.Channel.TryConnectAsync().Result;
+```
+
+Or inderectly by just calling any generated RPC method:
+
+```csharp
+client.MyRemoteMessage(1, "23");
+```
+
+## Server setup
+
+
