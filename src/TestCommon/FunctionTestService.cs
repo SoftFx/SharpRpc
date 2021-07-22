@@ -89,14 +89,11 @@ namespace TestCommon
 #endif
         {
             if (callbackNo == 1)
-            {
-                await Client.TestCallback1Async(p1, p2);
-                return "void";
-            }
+                return (await Client.TryAsync.TestCallback1(p1, p2)).Code.ToString();
             else if (callbackNo == 2)
-                return (await Client.TestCallback2Async(p1, p2)).ToString();
+                return (await Client.TryAsync.TestCallback2(p1, p2)).Result.ToString();
             else if (callbackNo == 3)
-                return await Client.TestCallback3Async(p1, p2);
+                return (await Client.TryAsync.TestCallback3(p1, p2)).Result;
 
             throw new Exception("There is no callabck number " + callbackNo);
         }

@@ -328,12 +328,12 @@ namespace TestClient
             if (usePrebuild)
             {
                 for (int i = 0; i < msgCount; i++)
-                    await client.SendUpdateAsync(prebultSet.Next());
+                    await client.Async.SendUpdate(prebultSet.Next());
             }
             else
             {
                 for (int i = 0; i < msgCount; i++)
-                    await client.SendUpdateAsync(set.Next());
+                    await client.Async.SendUpdate(set.Next());
             }   
         }
 
@@ -342,7 +342,7 @@ namespace TestClient
             for (int i = 0; i < msgCount; i++)
             {
                 var msg = set.Next();
-                await client.ApplyUpdateAsync(msg);
+                await client.Async.ApplyUpdate(msg);
             }
         }
 

@@ -19,6 +19,7 @@ namespace SharpRpc.Builder
         public static readonly TypeString RpcFaultAttributeClass = new TypeString("SharpRpc.RpcFaultAttribute");
 
         public static readonly TypeString RpcClientBaseClass = new TypeString("SharpRpc.ClientBase");
+        public static readonly TypeString RpcClientFacadeBaseClass = new TypeString("SharpRpc.ClientFacadeBase");
         public static readonly TypeString RpcClientEndpointBaseClass = new TypeString("SharpRpc.ClientEndpoint");
         public static readonly TypeString RpcChannelClass = new TypeString("SharpRpc.Channel");
         public static readonly TypeString ContractDescriptorClass = new TypeString("SharpRpc.ContractDescriptor");

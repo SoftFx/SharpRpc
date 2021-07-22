@@ -66,7 +66,7 @@ namespace TestCommon
                     {
                         for (int l = 0; l < _listeners.Count; l++)
                         {
-                            var sendResult = _listeners[l].TrySendUpdateToClient(_prebuildEntitySet.Next());
+                            var sendResult = _listeners[l].Try.SendUpdateToClient(_prebuildEntitySet.Next());
                             if (!sendResult.IsOk)
                                 failed++;
                             else
@@ -79,7 +79,7 @@ namespace TestCommon
                         foreach (var l in _listeners)
                         //Parallel.ForEach(_listeners, l =>
                         {
-                            var sendResult = l.TrySendUpdateToClient(entity);
+                            var sendResult = l.Try.SendUpdateToClient(entity);
                             if (!sendResult.IsOk)
                                 failed++;
                             else

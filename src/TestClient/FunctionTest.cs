@@ -53,15 +53,15 @@ namespace TestClient
 
             Console.WriteLine("TestCall1.CallAsync");
 
-            client.TestCall1Async(10, "11").Wait();
+            client.Async.TestCall1(10, "11").Wait();
 
             Console.WriteLine("TestCall1.TryCall");
 
-            client.TryTestCall1(10, "11").ThrowIfNotOk();
+            client.Try.TestCall1(10, "11").ThrowIfNotOk();
 
             Console.WriteLine("TestCall1.TryCallAsync");
 
-            client.TryTestCall1Async(10, "11").Result.ThrowIfNotOk();
+            client.TryAsync.TestCall1(10, "11").Result.ThrowIfNotOk();
         }
 
         private static void TestCall2(FunctionTestContract_Gen.Client client)
@@ -74,20 +74,20 @@ namespace TestClient
 
             Console.WriteLine("TestCall2.CallAsync");
 
-            var r3 = client.TestCall2Async(10, "11").Result;
+            var r3 = client.Async.TestCall2(10, "11").Result;
             if (r3 != "123")
                 throw new Exception("TestCall2Async returned unexpected result!");
 
             Console.WriteLine("TestCall2.TryCall");
 
-            var r2 = client.TryTestCall2(10, "11");
+            var r2 = client.Try.TestCall2(10, "11");
             r2.ThrowIfNotOk();
             if (r2.Result != "123")
                 throw new Exception("TryTestCall2 returned unexpected result!");
 
             Console.WriteLine("TestCall2.TryCallAsync");
 
-            var r4 = client.TryTestCall2Async(10, "11").Result;
+            var r4 = client.TryAsync.TestCall2(10, "11").Result;
             r4.ThrowIfNotOk();
             if (r4.Result != "123")
                 throw new Exception("TestCall2Async returned unexpected result!");
@@ -105,7 +105,7 @@ namespace TestClient
 
             Console.WriteLine("TestFaults.Regular.Try");
 
-            AssertFault(RpcRetCode.RequestFaulted, "Test exception", () => client.TryTestRpcException(10, "11").GetResultInfo());
+            AssertFault(RpcRetCode.RequestFaulted, "Test exception", () => client.Try.TestRpcException(10, "11").GetResultInfo());
 
             Console.WriteLine("TestFaults.Crash");
 
@@ -117,7 +117,7 @@ namespace TestClient
 
             Console.WriteLine("TestFaults.Crash.Try");
 
-            AssertFault(RpcRetCode.RequestCrashed, "Request faulted due to", () => client.TryTestCrash(10, "11").GetResultInfo());
+            AssertFault(RpcRetCode.RequestCrashed, "Request faulted due to", () => client.Try.TestCrash(10, "11").GetResultInfo());
 
             Console.WriteLine("TestFaults.Custom1");
 
@@ -129,7 +129,7 @@ namespace TestClient
 
             Console.WriteLine("TestFaults.Custom1.Try");
 
-            AssertCustomFault(RpcRetCode.RequestCrashed, new TestFault1 { Message = "Fault Message 1" }, () => client.TryTestCallFault(1));
+            AssertCustomFault(RpcRetCode.RequestCrashed, new TestFault1 { Message = "Fault Message 1" }, () => client.Try.TestCallFault(1));
         }
 
         private static void TestComplexData(FunctionTestContract_Gen.Client client)
@@ -244,13 +244,15 @@ namespace TestClient
         {
             Console.WriteLine("TestCalbacks.Callback1");
 
-            client.InvokeCallbackAsync(1, 10, "11").Wait();
+            var r1 = client.Async.InvokeCallback(1, 10, "11").Result;
+            if (r1 != "Ok")
+                throw new Exception("InvokeCallback returned unexpected result!");
 
             Console.WriteLine("TestCalbacks.Callback2");
 
-            var r2 = client.InvokeCallbackAsync(2, 10, "11").Result;
+            var r2 = client.Async.InvokeCallback(2, 10, "11").Result;
             if (r2 != "21")
-                throw new Exception("TestCall2Async returned unexpected result!");
+                throw new Exception("InvokeCallback returned unexpected result!");
         }
 
         private class CallbackHandler : FunctionTestContract_Gen.CallbackServiceBase
