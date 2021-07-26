@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <TargetFrameworks>net5.0;net472</TargetFrameworks>
-    <Version>1.0.0-alpha</Version>
+    <Version>1.1.0</Version>
     <Company>Soft-Fx</Company>
     <Authors>Andrei Hilevich</Authors>
     <PackageId>SharpRpc.Core</PackageId>
