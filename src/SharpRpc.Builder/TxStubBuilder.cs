@@ -44,7 +44,11 @@ namespace SharpRpc.Builder
                 .AddArgumentListArguments(SH.IdentifierArgument("endpoint"), SH.IdentifierArgument("descriptor"));
 
             if (addHandlerParam)
-                constructorInitializer = constructorInitializer.AddArgumentListArguments(SH.IdentifierArgument("callbackHandler"));
+            {
+                var handlerCreationExp = SF.ObjectCreationExpression(SH.ShortTypeName(_contract.CallbackHandlerClassName))
+                    .AddArgumentListArguments(SH.IdentifierArgument("callbackHandler"));
+                constructorInitializer = constructorInitializer.AddArgumentListArguments(SF.Argument(handlerCreationExp));
+            }
 
             var endpointConsParam = SH.Parameter("endpoint", Names.RpcClientEndpointBaseClass.Full);
             var descriptorConsParam = SH.Parameter("descriptor", Names.ContractDescriptorClass.Full);

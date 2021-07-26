@@ -20,7 +20,10 @@ namespace TestCommon
         public BenchmarkServiceImpl(FooMulticaster multicaster)
         {
             _multicaster = multicaster;
+        }
 
+        protected override void OnInit()
+        {
             Session.Opened += (s, a) => _multicaster.Add(Client);
             Session.Closed += (s, a) => _multicaster.Remove(Client);
         }

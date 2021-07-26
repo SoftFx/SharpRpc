@@ -144,6 +144,11 @@ namespace SharpRpc.Builder
             return SyntaxFactory.Token(SyntaxKind.PublicKeyword);
         }
 
+        public static SyntaxToken ProtectedToken()
+        {
+            return SyntaxFactory.Token(SyntaxKind.ProtectedKeyword);
+        }
+
         public static SyntaxToken VirtualToken()
         {
             return SyntaxFactory.Token(SyntaxKind.VirtualKeyword);

@@ -13,9 +13,9 @@ namespace SharpRpc
 {
     public class ServiceBinding
     {
-        private readonly Func<RpcServiceBase> _serivceImplFactory;
+        private readonly Func<RpcCallHandler> _serivceImplFactory;
 
-        public ServiceBinding(Func<RpcServiceBase> serivceImplFactory, IRpcSerializer serializer, ISystemMessageFactory msgFactory)
+        public ServiceBinding(Func<RpcCallHandler> serivceImplFactory, IRpcSerializer serializer, ISystemMessageFactory msgFactory)
         {
             _serivceImplFactory = serivceImplFactory;
             Descriptor = new ContractDescriptor(serializer, msgFactory);
@@ -23,7 +23,7 @@ namespace SharpRpc
 
         internal ContractDescriptor Descriptor { get; }
 
-        internal RpcServiceBase CreateServiceImpl()
+        internal RpcCallHandler CreateServiceImpl()
         {
             return _serivceImplFactory();
         }

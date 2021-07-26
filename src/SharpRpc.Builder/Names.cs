@@ -22,6 +22,8 @@ namespace SharpRpc.Builder
         public static readonly TypeString RpcClientFacadeBaseClass = new TypeString("SharpRpc.ClientFacadeBase");
         public static readonly TypeString RpcClientEndpointBaseClass = new TypeString("SharpRpc.ClientEndpoint");
         public static readonly TypeString RpcChannelClass = new TypeString("SharpRpc.Channel");
+        public static readonly TypeString RpcSessionInfoClass = new TypeString("SharpRpc.SessionInfo");
+
         public static readonly TypeString ContractDescriptorClass = new TypeString("SharpRpc.ContractDescriptor");
         public static readonly TypeString ServiceBindingClass = new TypeString("SharpRpc.ServiceBinding");
 
@@ -46,7 +48,7 @@ namespace SharpRpc.Builder
         public static readonly TypeString MessageWriterClass = new TypeString("SharpRpc.MessageWriter");
 
         public static readonly TypeString RpcServerClass = new TypeString("SharpRpc.RpcServer");
-        public static readonly TypeString RpcServiceBaseClass = new TypeString("SharpRpc.RpcServiceBase");
+        public static readonly TypeString RpcCallHandlerClass = new TypeString("SharpRpc.RpcCallHandler");
 
         public static readonly TypeString RpcSerializerInterface = new TypeString("SharpRpc.IRpcSerializer");
         public static readonly TypeString RpcPreserializeTool = new TypeString("SharpRpc.PreserializeTool");

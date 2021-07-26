@@ -133,7 +133,7 @@ namespace SharpRpc.Builder
             var contractGenClass = SF.ClassDeclaration(contractGenClassName.Short)
                .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
                .AddMembers(clientFactoryMethod, serviceFactoryMethod, sAdapterFactoryMethod, descriptorFactoryMethod)
-               .AddMembers(clientBuilder.GenerateCode(), serverBuilder.GenerateCode())
+               .AddMembers(clientBuilder.GenerateCode(), serverBuilder.GenerateServiceBase(), serverBuilder.GenerateHandler())
                .AddMembers(sAdapterClasses)
                .AddMembers(messageBundleClass, systemBundleClass, messageFactoryClass);
 
@@ -142,9 +142,10 @@ namespace SharpRpc.Builder
                 var callbackClientBuilder = new TxStubBuilder(contractInfo, true);
                 var callbackServiceBuilder = new RxStubBuilder(contractInfo, true);
                 var callbackClientClass = callbackClientBuilder.GenerateCode();
-                var callbackServiceClass = callbackServiceBuilder.GenerateCode();
+                var callbackServiceClass = callbackServiceBuilder.GenerateServiceBase();
+                var handlerClass = callbackServiceBuilder.GenerateHandler();
 
-                contractGenClass = contractGenClass.AddMembers(callbackClientClass, callbackServiceClass);
+                contractGenClass = contractGenClass.AddMembers(callbackClientClass, callbackServiceClass, handlerClass);
             }
 
             if (hasPrebuilder)

@@ -55,7 +55,7 @@ namespace SharpRpc
             {
                 try
                 {
-                    ((RpcServiceBase)MessageHandler).Session.FireOpened(new SessionOpenedEventArgs());
+                    ((RpcCallHandler)MessageHandler).Session.FireOpened(new SessionOpenedEventArgs());
                 }
                 catch (Exception)
                 {
@@ -199,7 +199,7 @@ namespace SharpRpc
             {
                 try
                 {
-                    ((RpcServiceBase)MessageHandler).Session.FireClosed(new SessionClosedEventArgs());
+                    ((RpcCallHandler)MessageHandler).Session.FireClosed(new SessionClosedEventArgs());
                 }
                 catch (Exception)
                 {

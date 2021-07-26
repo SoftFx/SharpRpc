@@ -30,20 +30,55 @@ namespace SharpRpc.Builder
             _isCallbackStub = isCallback;
         }
 
-        public ClassDeclarationSyntax GenerateCode()
+        public ClassDeclarationSyntax GenerateServiceBase()
         {
             var serverStubType = _isCallbackStub ? _contract.CallbackServiceStubClassName : _contract.ServiceStubClassName;
 
             var stubClass = SF.ClassDeclaration(serverStubType.Short)
                 .AddModifiers(SF.Token(SyntaxKind.PublicKeyword), SF.Token(SyntaxKind.AbstractKeyword))
-                .AddBaseListTypes(SF.SimpleBaseType(SF.ParseTypeName(Names.RpcServiceBaseClass.Full)))
-                .AddMembers(GenerateRpcMethods(serverStubType))
-                .AddMembers(GenerateOnMessageOverride(), GenerateOnRequestOverride());
+                .AddMembers(GenerateStubMethods(serverStubType));
 
-            if (!_isCallbackStub && _contract.HasCallbacks)
-                stubClass = stubClass.AddMembers(GenerateClientStubProperty(), GenerateInitOverride());
+            if (!_isCallbackStub)
+            {
+                stubClass = stubClass.AddMembers(GenerateSessionProperty());
+
+                if (_contract.HasCallbacks)
+                    stubClass = stubClass.AddMembers(GenerateClientStubProperty());
+
+                stubClass = stubClass.AddMembers(GenerateOnInitMethod(), GenerateStubInitServiceStubMethod());
+            }
 
             return stubClass;
+        }
+
+        public ClassDeclarationSyntax GenerateHandler()
+        {
+            var handlerClassName = _isCallbackStub ? _contract.CallbackHandlerClassName : _contract.ServiceHandlerClassName;
+            var serverStubClassName = _isCallbackStub ? _contract.CallbackServiceStubClassName : _contract.ServiceStubClassName;
+
+            var serviceImplField = SH.FieldDeclaration("_stub", SF.IdentifierName(serverStubClassName.Short));
+
+            var constructorBody = SF.Block(
+                SH.AssignmentStatement(SF.IdentifierName("_stub"), SF.IdentifierName("serviceImpl")));
+
+            var serviceImplParam = SH.Parameter("serviceImpl", serverStubClassName.Short);
+
+            var constructor = SF.ConstructorDeclaration(handlerClassName.Short)
+                .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
+                .AddParameterListParameters(serviceImplParam)
+                .WithBody(constructorBody);
+
+            var handlerClass = SF.ClassDeclaration(handlerClassName.Short)
+                .AddModifiers(SF.Token(SyntaxKind.PrivateKeyword))
+                .AddBaseListTypes(SF.SimpleBaseType(SF.ParseTypeName(Names.RpcCallHandlerClass.Full)))
+                .AddMembers(serviceImplField, constructor)
+                .AddMembers(GenerateWrapMethods(handlerClassName))
+                .AddMembers(GenerateOnMessageOverride(), GenerateOnRequestOverride());
+
+            if (!_isCallbackStub)
+                handlerClass = handlerClass.AddMembers(GenerateHandlerOnInitOverride());
+
+            return handlerClass;
         }
 
         public MethodDeclarationSyntax GenerateBindMethod()
@@ -58,10 +93,20 @@ namespace SharpRpc.Builder
             var serviceFactoryFunc = SH.GenericType("System.Func", _contract.ServiceStubClassName.Short);
             var serviceFactoryParam = SH.Parameter("serviceImplFactory", serviceFactoryFunc);
 
+            var handlerCreationExp = SF.ObjectCreationExpression(SH.ShortTypeName(_contract.ServiceHandlerClassName))
+                .AddArgumentListArguments(SF.Argument(SF.InvocationExpression(SF.IdentifierName("serviceImplFactory"))));
+
+            var handlerCreationLambda = SF.ParenthesizedLambdaExpression()
+                .WithExpressionBody(handlerCreationExp);
+
+            //var handlerFactoryStatement = SH.VarDeclaration("handlerFactory",
+            //    SF.ParenthesizedLambdaExpression()
+            //    .WithExpressionBody(handlerCreationExp));
+
             var retStatement = SF.ReturnStatement(
                 SF.ObjectCreationExpression(SH.FullTypeName(Names.ServiceBindingClass))
                 .AddArgumentListArguments(
-                    SH.IdentifierArgument("serviceImplFactory"),
+                    SF.Argument(handlerCreationLambda),
                     SH.IdentifierArgument("adapter"),
                     SH.IdentifierArgument("sFactory")));
 
@@ -75,21 +120,29 @@ namespace SharpRpc.Builder
                 .WithBody(SF.Block(serializerVarStatement, msgFactoryVarStatement, retStatement));
         }
 
-        private MethodDeclarationSyntax[] GenerateRpcMethods(TypeString clientStubTypeName)
+        private MethodDeclarationSyntax[] GenerateStubMethods(TypeString clientStubTypeName)
+        {
+            var methods = new List<MethodDeclarationSyntax>();
+
+            foreach (var callDec in GetAffectedCalls())
+                methods.Add(GenerateStubMethod(callDec));
+
+            return methods.ToArray();
+        }
+
+        private MethodDeclarationSyntax[] GenerateWrapMethods(TypeString clientStubTypeName)
         {
             var methods = new List<MethodDeclarationSyntax>();
 
             foreach (var callDec in GetAffectedCalls())
             {
-                methods.Add(GenerateStubMethod(callDec));
-
                 if (callDec.IsRequestResponceCall)
                 {
                     methods.Add(GenerateRequestWrapMethod(callDec));
                     //methods.Add(GenerateOnRequestFailMethod(callDec));
                 }
             }
-            
+
             return methods.ToArray();
         }
 
@@ -260,7 +313,8 @@ namespace SharpRpc.Builder
 
             var methodName = callDec.MethodName;
 
-            return SF.InvocationExpression(SF.IdentifierName(methodName), SH.CallArguments(args));
+            //return SF.InvocationExpression(SF.IdentifierName(methodName), SH.CallArguments(args));
+            return SF.InvocationExpression(SH.MemberOf(SF.IdentifierName("_stub"), methodName), SH.CallArguments(args));
         }
 
         private IEnumerable<StatementSyntax> GenerateResponseCreationStatements(CallDeclaration callDec)
@@ -297,19 +351,23 @@ namespace SharpRpc.Builder
                 return SF.ParseTypeName(param.ParamType);
         }
 
-        private MemberDeclarationSyntax GenerateInitOverride()
+        private MemberDeclarationSyntax GenerateHandlerOnInitOverride()
         {
-            var callbackClientCreation = SF.ObjectCreationExpression(SH.ShortTypeName(_contract.CallbackClientStubClassName))
-                .AddArgumentListArguments(SH.IdentifierArgument("channel"));
+            var stubInitInvoke = SF.InvocationExpression(SH.MemeberOfIdentifier("_stub", "InitServiceStub"))
+                .AddArgumentListArguments(SH.IdentifierArgument("Session"));
 
-            var createCallbackStubStatement = SH.AssignmentStatement(
-                SF.IdentifierName("Client"),
-                callbackClientCreation);
+            if (!_isCallbackStub && _contract.HasCallbacks)
+            {
+                var callbackClientCreation = SF.ObjectCreationExpression(SH.ShortTypeName(_contract.CallbackClientStubClassName))
+                    .AddArgumentListArguments(SH.IdentifierArgument("channel"));
+
+                stubInitInvoke = stubInitInvoke.AddArgumentListArguments(SF.Argument(callbackClientCreation));
+            }
 
             return SF.MethodDeclaration(SH.VoidToken(), Names.RpcServiceBaseOnInitMethod)
                .AddModifiers(SF.Token(SyntaxKind.ProtectedKeyword), SF.Token(SyntaxKind.OverrideKeyword))
                .AddParameterListParameters(SH.Parameter("channel", Names.RpcChannelClass.Full))
-               .WithBody(SF.Block(createCallbackStubStatement));
+               .AddBodyStatements(SF.ExpressionStatement(stubInitInvoke));
         }
 
         private MemberDeclarationSyntax GenerateClientStubProperty()
@@ -319,6 +377,45 @@ namespace SharpRpc.Builder
                 .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
                 .AddAutoGetter()
                 .AddPrivateAutoSetter();
+        }
+
+        private MemberDeclarationSyntax GenerateSessionProperty()
+        {
+            return SF.PropertyDeclaration(SF.IdentifierName(Names.RpcSessionInfoClass.Full), "Session")
+                .AddModifiers(SH.PublicToken())
+                .AddAutoGetter()
+                .AddPrivateAutoSetter();
+        }
+
+        private MemberDeclarationSyntax GenerateOnInitMethod()
+        {
+            return SF.MethodDeclaration(SH.VoidToken(), "OnInit")
+                .AddModifiers(SH.ProtectedToken(), SH.VirtualToken())
+                .AddBodyStatements();
+        }
+
+        private MemberDeclarationSyntax GenerateStubInitServiceStubMethod()
+        {
+            var sessionParam = SH.Parameter("session", Names.RpcSessionInfoClass.Full);
+            var sessionInitStatement = SH.AssignmentStatement(SF.IdentifierName("Session"), SF.IdentifierName("session"));
+
+            var onInitInvoke = SF.ExpressionStatement(SH.InvocationExpression("OnInit"));
+
+            var method = SF.MethodDeclaration(SH.VoidToken(), "InitServiceStub")
+                .AddModifiers(SH.PublicToken())
+                .AddParameterListParameters(sessionParam)
+                .AddBodyStatements(sessionInitStatement, onInitInvoke);
+
+            if (_contract.HasCallbacks)
+            {
+                var callbackClientParam = SH.Parameter("client", _contract.CallbackClientStubClassName.Short);
+                var callbackClientInitStatement = SH.AssignmentStatement(SF.IdentifierName("Client"), SF.IdentifierName("client"));
+
+                method = method.AddParameterListParameters(callbackClientParam)
+                    .AddBodyStatements(callbackClientInitStatement);
+            }
+
+            return method;
         }
 
         private List<CallDeclaration> GetAffectedCalls()

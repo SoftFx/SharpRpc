@@ -12,7 +12,7 @@ using System.Threading.Tasks;
 
 namespace SharpRpc
 {
-    public abstract class RpcServiceBase : IUserMessageHandler
+    public abstract class RpcCallHandler : IUserMessageHandler
     {
         private Channel _ch;
 

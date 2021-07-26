@@ -35,8 +35,10 @@ namespace SharpRpc.Builder
             //BasicAuthDataClassName = new TypeString(SystemBundleClassName.Short, "BasicAuthData");
             ClientStubClassName = new TypeString(FacadeClassName.Full, "Client");
             ServiceStubClassName = new TypeString(FacadeClassName.Full, "ServiceBase");
+            ServiceHandlerClassName = new TypeString(FacadeClassName.Full, "ServiceHandler");
             CallbackClientStubClassName = new TypeString(FacadeClassName.Full, "CallbackClient");
             CallbackServiceStubClassName = new TypeString(FacadeClassName.Full, "CallbackServiceBase");
+            CallbackHandlerClassName = new TypeString(FacadeClassName.Full, "CallbackServiceHandler");
         }
 
         public TypeString InterfaceName { get; }
@@ -48,7 +50,9 @@ namespace SharpRpc.Builder
         public TypeString ClientStubClassName { get; }
         public TypeString CallbackClientStubClassName { get; }
         public TypeString ServiceStubClassName { get; }
+        public TypeString ServiceHandlerClassName { get; }
         public TypeString CallbackServiceStubClassName { get; }
+        public TypeString CallbackHandlerClassName { get; }
         public string Namespace => InterfaceName.Namespace;
         public TypeString BaseMessageClassName { get; }
         public TypeString LoginMessageClassName { get; }
