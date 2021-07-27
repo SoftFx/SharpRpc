@@ -9,9 +9,15 @@ Fast and efficient remote procedure call (RPC) framework for C#
 
   - [Features](#features)
   - [Installation](#installation)
+  - [Contract](#contract)
+  - [Data Contract](#data-contract)
   - [Code generation](#code-generation)
   - [Client setup](#client-setup)
   - [Server setup](#server-setup)
+  - [Callbacks](#callbacks)
+  - [Basic authentication setup](#basic-authentication-setup)
+  - [SSL Setup](#ssl-setup)
+  - [Prebuilt messages](#prebuilt-messages)
 
 ## Features
 
@@ -19,8 +25,8 @@ Fast and efficient remote procedure call (RPC) framework for C#
   * Low latency
   * Direct and backward calls (callbacks) in one contract
   * Optimization for message multicasting 
-  * Support of grpc-like streams
-  * Configurable back-pressure
+  * Support of grpc-like streams (not implemented yet)
+  * Configurable back-pressure (partially implemented)
  
 ## Installation
   
@@ -54,7 +60,7 @@ Note: Only MessagePack is supported by now. More serializers will be added in ne
 ```csharp
 [RpcContract]
 [RpcSerializer(SerializerChoice.MessagePack)]
-public class MyContract
+public interface MyContract
 {
 	[Rpc(RpcType.Call)]
 	int MyRemoteCall(FooEntity entity, int p1);
@@ -135,5 +141,53 @@ client.MyRemoteMessage(1, "23");
 ```
 
 ## Server setup
+
+First, implement service methods by overriding generated <contract_name>_Gen.ServiceBase class:
+
+```csharp
+public class MyContractServiceImpl : MyContract_Gen.ServiceBase
+{
+    public override ValueTask<int> MyRemoteCall(FooEntity entity, int p1)
+    {
+        // ...
+        return new ValueTask<int>();
+    }
+
+    public override ValueTask MyRemoteMessage(int p1, string p2)
+    {
+        // ...
+        return new ValueTask();
+    }
+}
+```
+
+Second, create a RpcServer instance and supply it with a binding and an endpoint:
+
+```csharp
+var endpoint = new TcpServerEndpoint(IPAddress.IPv6Any, 812, TcpServerSecurity.None);
+var binding = MyContract_Gen.CreateBinding(() => new MyContractServiceImpl());
+var server = new RpcServer(binding);
+server.AddEndpoint(endpoint);
+```
+
+Note. You may attach multiple endpoint instances to a single server. E.g., you may have both insecure and secure(SSL) TCP endpoints for a single service.
+
+Third, start the server:
+
+```csharp
+server.Start();
+```
+
+You may stop server at any time by calling server.StopAsync();
+
+## Callbacks
+
+## Basic authentication setup
+
+## SSL Setup
+
+## Prebuilt messages
+
+
 
 
