@@ -23,19 +23,42 @@ namespace SharpRpc
 
         public RpcResult ToRpcResult()
         {
-            return new RpcResult(ErrorCode, new RpcFault(Message));
+            return new RpcResult(ErrorCode, new RpcFaultStub(Message));
         }
     }
 
-    public class RpcFaultException<T> : RpcException
-        where T : RpcFault
+    public class RpcFaultException : RpcException
     {
-        public RpcFaultException(RpcRetCode errorCode, string message)
-            : base(message, errorCode)
+        public RpcFaultException(string message)
+            : base(message, RpcRetCode.RequestFaulted)
         {
         }
 
+        public RpcFaultException(RequestFaultCode code, string text)
+            : base(RpcFaultStub.GetFaultMessage(code, text), code.ToRetCode())
+        {
+
+        }
+
+        public static RpcFaultException<T> Create<T>(T fault)
+            where T : RpcFault
+        {
+            return new RpcFaultException<T>(fault);
+        }
+    }
+
+    public class RpcFaultException<T> : RpcFaultException
+        where T : RpcFault
+    {
+        public RpcFaultException(T fault)
+            : base(fault?.Message)
+        {
+            Fault = fault;
+        }
+
         public T Fault { get; }
+
+        public static RpcFaultException<T> Create(T fault) => new RpcFaultException<T>(fault);
     }
 
     public class RpcConfigurationException : RpcException

@@ -10,44 +10,49 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
-using System.Threading.Tasks.Dataflow;
 
 namespace SharpRpc
 {
     internal abstract partial class MessageDispatcher
     {
-        public static MessageDispatcher Create(TxPipeline sender, IUserMessageHandler handler)
+        public static MessageDispatcher Create(MessageDispatcherConfig config, TxPipeline sender, IUserMessageHandler handler)
         {
-            return new OneThread().Init(sender, handler);
-
-            //switch (mode)
-            //{
-            //    //case ConcurrencyMode.NoQueue: return new NoThreading().Init(sender, handler);
-            //    case ConcurrencyMode.PagedQueue: return new OneThread().Init(sender, handler);
-            //    default: throw new NotSupportedException("Conccurency mode is not supported: " + mode);
-            //}
+            switch (config.RxConcurrencyMode)
+            {
+                case DispatcherConcurrencyMode.None: return new NoThreading().Init(sender, handler);
+                case DispatcherConcurrencyMode.Single: return new OneThread().Init(sender, handler);
+                default: throw new NotSupportedException("Conccurency mode is not supported: " + config.RxConcurrencyMode);
+            }
         }
 
         protected MessageDispatcher Init(TxPipeline tx, IUserMessageHandler handler)
         {
             Tx = tx;
             MessageHandler = handler;
+            TaskQueue = tx.TaskQueue;
             return this;
         }
 
         protected IUserMessageHandler MessageHandler { get; private set; }
         protected TxPipeline Tx { get; private set; }
+        protected TaskFactory TaskQueue { get; private set; }
+
+        public List<IMessage> IncomingMessages { get; protected set; } = new List<IMessage>();
+
+        public event Action<RpcResult> ErrorOccured;
 
         protected void OnError(RpcRetCode code, string message)
         {
             ErrorOccured?.Invoke(new RpcResult(code, message));
         }
 
-        public event Action<RpcResult> ErrorOccured;
-
         public abstract void Start();
-        public abstract void AllowMessages();
-        public abstract void OnMessages(IEnumerable<IMessage> messages);
+        public abstract RpcResult OnSessionEstablished();
+#if NET5_0_OR_GREATER
+        public abstract ValueTask OnMessages();
+#else
+        public abstract Task OnMessages();
+#endif
         public abstract Task Stop(RpcResult fault);
 
         protected abstract void DoCall(IRequest requestMsg, ITask callTask);
@@ -88,6 +93,7 @@ namespace SharpRpc
         {
             void Complete(IResponse respMessage);
             void Fail(RpcResult result);
+            void Fail(IRequestFault faultMessage);
         }
 
         private class CallTask<TResp> : TaskCompletionSource<RpcResult>, ITask
@@ -102,6 +108,11 @@ namespace SharpRpc
             {
                 SetException(result.ToException());
             }
+
+            public void Fail(IRequestFault faultMessage)
+            {
+                SetException(faultMessage.CreateException());
+            }
         }
 
         private class TryCallTask<TResp> : TaskCompletionSource<RpcResult>, ITask
@@ -114,6 +125,12 @@ namespace SharpRpc
 
             public void Fail(RpcResult result)
             {
+                SetResult(result);
+            }
+
+            public void Fail(IRequestFault faultMessage)
+            {
+                var result = new RpcResult(faultMessage.Code.ToRetCode(), faultMessage.GetFault());
                 SetResult(result);
             }
         }
@@ -131,6 +148,11 @@ namespace SharpRpc
             {
                 SetException(result.ToException());
             }
+
+            public void Fail(IRequestFault faultMessage)
+            {
+                SetException(faultMessage.CreateException());
+            }
         }
 
         private class TryCallTask<TResp, TReturn> : TaskCompletionSource<RpcResult<TReturn>>, ITask
@@ -146,13 +168,24 @@ namespace SharpRpc
             {
                 SetResult(new RpcResult<TReturn>(result.Code, result.Fault));
             }
+
+            public void Fail(IRequestFault faultMessage)
+            {
+                var result = new RpcResult<TReturn>(faultMessage.Code.ToRetCode(), faultMessage.GetFault());
+                SetResult(result);
+            }
         }
     }
 
     internal interface IUserMessageHandler
     {
+#if NET5_0_OR_GREATER
         ValueTask ProcessMessage(IMessage message);
         ValueTask<IResponse> ProcessRequest(IRequest message);
+#else
+        Task ProcessMessage(IMessage message);
+        Task<IResponse> ProcessRequest(IRequest message);
+#endif
     }
 
     //public enum ConcurrencyMode

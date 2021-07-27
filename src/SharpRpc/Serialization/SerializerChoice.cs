@@ -13,8 +13,8 @@ namespace SharpRpc
 {
     public enum SerializerChoice
     {
-        DataContract        = 0,
+        //DataContract        = 0,
         MessagePack         = 1,
-        ProtobufNet         = 2
+        //ProtobufNet         = 2
     }
 }

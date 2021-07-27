@@ -22,13 +22,31 @@ namespace SharpRpc
             _validator = validator ?? throw new ArgumentNullException("validator");
         }
 
+#if NET5_0_OR_GREATER
         internal override ValueTask<string> OnLogin(ILoginMessage login)
+#else
+        internal override Task<string> OnLogin(ILoginMessage login)
+#endif
         {
             if (string.IsNullOrEmpty(login.UserName))
-                return ValueTask.FromResult("UserName field is empty!");
+            {
+                var msg = "UserName field is empty!";
+#if NET5_0_OR_GREATER
+                return ValueTask.FromResult(msg);
+#else
+                return Task.FromResult(msg);
+#endif
+            }
 
             if (login.Password == null)
-                return ValueTask.FromResult("Password field is empty!");
+            {
+                var msg = "Password field is empty!";
+#if NET5_0_OR_GREATER
+                return ValueTask.FromResult(msg);
+#else
+                return Task.FromResult(msg);
+#endif
+            }
 
             return _validator.Validate(login.UserName, login.Password);
         }

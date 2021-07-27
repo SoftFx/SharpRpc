@@ -48,7 +48,11 @@ namespace SharpRpc
 
                 if (_phase == States.Header || _phase == States.ChunkHeader)
                 {
+#if NET5_0_OR_GREATER
                     var rCode = _headerParser.ParseNextByte(_segment[_segmentOffset++]);
+#else
+                    var rCode = _headerParser.ParseNextByte(_segment.Array[_segment.Offset + _segmentOffset++]);
+#endif
 
                     if (rCode == ParserRetCode.Error)
                         return RetCodes.InvalidHeader;

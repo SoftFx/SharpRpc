@@ -13,9 +13,9 @@ namespace SharpRpc.Builder
 {
     public enum ContractCallType
     {
-        ClientCall,
-        ClientMessage,
-        ServerCall,
-        ServerMessage
+        MessageToServer = 1,
+        CallToServer = 2,
+        CallToClient = 3,
+        MessageToClient = 4
     }
 }

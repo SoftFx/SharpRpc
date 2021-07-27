@@ -5,6 +5,7 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+using SharpRpc.Lib;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -40,12 +41,16 @@ namespace SharpRpc
                     return _buffer.GetRxSegment();
             }
 
+#if NET5_0_OR_GREATER
             protected override ValueTask<bool> OnBytesArrived(int count)
+#else
+            protected override Task<bool> OnBytesArrived(int count)
+#endif
             {
                 lock (_lockObj)
                 {
                     if (_isClosing)
-                        return new ValueTask<bool>(false);
+                        return FwAdapter.AsyncFalse;
 
                     var arrivedData = _buffer.CommitDataRx(count);
 
@@ -55,12 +60,12 @@ namespace SharpRpc
 
                         _awaitingSegment = arrivedData;
                         _enqeueuWaitHandler = new TaskCompletionSource<bool>();
-                        return new ValueTask<bool>(_enqeueuWaitHandler.Task);
+                        return FwAdapter.WrappResult(_enqeueuWaitHandler.Task);
                     }
                     else
                     {
                         LaunchWorker(arrivedData);
-                        return new ValueTask<bool>(true);
+                        return FwAdapter.AsyncTrue;
                     }
                 }
             }
@@ -84,7 +89,8 @@ namespace SharpRpc
                 _isBusy = true;
 
                 _segmentToParse = dataToProcess;
-                Task.Factory.StartNew(ParseSegment);
+                //Task.Factory.StartNew(ParseSegment);
+                ParseSegment();
             }
 
             public override void Start()
@@ -111,12 +117,19 @@ namespace SharpRpc
                 }
             }
 
-            private void ParseSegment()
+            private async void ParseSegment()
             {
+                // occupy a separate thread
+                await _taskQueue.Dive();
+
                 var parseRes = ParseAndDeserialize(_segmentToParse, out var bytesConsumed);
 
                 if (parseRes.Code == RpcRetCode.Ok)
+                {
+                    await SubmitParsedBatch();
+                    _msgDispatcher.IncomingMessages.Clear();
                     OnParseCompleted(bytesConsumed);
+                }
                 else
                     OnParseFailed(parseRes);       
             }

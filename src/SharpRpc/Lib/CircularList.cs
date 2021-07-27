@@ -74,56 +74,56 @@ namespace SharpRpc.Lib
             return result;
         }
 
-        public int DequeueRange(Span<T> container)
-        {
-            var dSize = Math.Min(container.Length, Count);
-            Span<T> srcBuf = _buffer;
+        //public int DequeueRange(Span<T> container)
+        //{
+        //    var dSize = Math.Min(container.Length, Count);
+        //    Span<T> srcBuf = _buffer;
 
-            if (_begin <= _end)
-            {
-                srcBuf.Slice(_begin, dSize).CopyTo(container);
-                Array.Clear(_buffer, _begin, dSize);
+        //    if (_begin <= _end)
+        //    {
+        //        srcBuf.Slice(_begin, dSize).CopyTo(container);
+        //        Array.Clear(_buffer, _begin, dSize);
 
-                _begin += dSize;
-            }
-            else
-            {
-                var firstPartLen = Capacity - _begin;
-                //var d1Size = Math.Min(firstPartLen, dSize);
+        //        _begin += dSize;
+        //    }
+        //    else
+        //    {
+        //        var firstPartLen = Capacity - _begin;
+        //        //var d1Size = Math.Min(firstPartLen, dSize);
 
-                if (dSize < firstPartLen)
-                {
-                    srcBuf.Slice(_begin, dSize).CopyTo(container);
-                    Array.Clear(_buffer, _begin, dSize);
+        //        if (dSize < firstPartLen)
+        //        {
+        //            srcBuf.Slice(_begin, dSize).CopyTo(container);
+        //            Array.Clear(_buffer, _begin, dSize);
 
-                    _begin += dSize;
-                }
-                else if (dSize == firstPartLen)
-                {
-                    srcBuf.Slice(_begin, dSize).CopyTo(container);
-                    Array.Clear(_buffer, _begin, dSize);
+        //            _begin += dSize;
+        //        }
+        //        else if (dSize == firstPartLen)
+        //        {
+        //            srcBuf.Slice(_begin, dSize).CopyTo(container);
+        //            Array.Clear(_buffer, _begin, dSize);
 
-                    _begin = 0;
-                }
-                else
-                {
-                    srcBuf.Slice(_begin, firstPartLen).CopyTo(container);
-                    Array.Clear(_buffer, _begin, firstPartLen);
+        //            _begin = 0;
+        //        }
+        //        else
+        //        {
+        //            srcBuf.Slice(_begin, firstPartLen).CopyTo(container);
+        //            Array.Clear(_buffer, _begin, firstPartLen);
 
-                    _begin = dSize - firstPartLen;
+        //            _begin = dSize - firstPartLen;
 
-                    srcBuf.Slice(0, _begin).CopyTo(container.Slice(firstPartLen));
-                    Array.Clear(_buffer, 0, _begin);
-                }
-            }
+        //            srcBuf.Slice(0, _begin).CopyTo(container.Slice(firstPartLen));
+        //            Array.Clear(_buffer, 0, _begin);
+        //        }
+        //    }
 
-            Count -= dSize;
+        //    Count -= dSize;
 
-            if (Count == 0)
-                ResetPointers();
+        //    if (Count == 0)
+        //        ResetPointers();
 
-            return dSize;
-        }
+        //    return dSize;
+        //}
 
         public List<T> DequeueRange(int maxItems = int.MaxValue)
         {

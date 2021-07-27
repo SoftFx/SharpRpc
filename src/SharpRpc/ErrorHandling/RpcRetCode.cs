@@ -21,6 +21,7 @@ namespace SharpRpc
         InvalidCredentials,
         ConfigurationError,
         ChannelClosed,
+        LogoutRequest,
         ConnectionShutdown,
         ConnectionAbortedByPeer,
         ConnectionTimeout,
@@ -29,6 +30,11 @@ namespace SharpRpc
         OtherConnectionError,
         SerializationError,
         DeserializationError,
-        MessageHandlerFailure
+        MessageHandlerFailure,
+        UnexpectedMessage,
+        EventHandlerCrashed,
+        RequestFaulted,
+        // Unexpected exception (not covered by fault contract)
+        RequestCrashed
     }
 }

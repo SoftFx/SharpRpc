@@ -18,14 +18,17 @@ namespace SharpRpc
     {
         private readonly Socket _socket;
         private readonly NetworkStream _stream;
+        private readonly TaskFactory _taskQueue;
         
-        public TcpTransport(Socket socket)
+        public TcpTransport(Socket socket, TaskFactory taskQueue)
         {
             _socket = socket;
+            _taskQueue = taskQueue;
             _socket.NoDelay = true;
             _stream = new NetworkStream(socket, false);
         }
 
+#if NET5_0_OR_GREATER
         public override ValueTask<int> Receive(ArraySegment<byte> buffer, CancellationToken cToken)
         {
             return _stream.ReadAsync(buffer, cToken);
@@ -35,6 +38,17 @@ namespace SharpRpc
         {
             return _stream.WriteAsync(data, cToken);
         }
+#else
+        public override Task<int> Receive(ArraySegment<byte> buffer, CancellationToken cToken)
+        {
+            return _stream.ReadAsync(buffer.Array, buffer.Offset, buffer.Count, cToken);
+        }
+
+        public override Task Send(ArraySegment<byte> data, CancellationToken cToken)
+        {
+            return _stream.WriteAsync(data.Array, data.Offset, data.Count, cToken);
+        }
+#endif
 
         public override RpcResult TranslateException(Exception ex)
         {
@@ -79,7 +93,7 @@ namespace SharpRpc
 
             try
             {
-                await _socket.DisconnectAsync();
+                await _socket.DisconnectAsync(_taskQueue);
             }
             catch (Exception)
             {

@@ -5,6 +5,7 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+using SharpRpc.Lib;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -21,6 +22,7 @@ namespace SharpRpc
         private Authenticator _authPlugin;
         private readonly TaskCompletionSource<ILoginMessage> _loginWaitHandle = new TaskCompletionSource<ILoginMessage>();
         //private readonly CancellationTokenSource _loginWaitCancel = new CancellationTokenSource();
+        private TaskFactory _taskQueue;
 
         public override TimeSpan LoginTimeout => TimeSpan.FromSeconds(5);
 
@@ -28,11 +30,18 @@ namespace SharpRpc
         {
             var serverEndpoint = (ServerEndpoint)Channel.Endpoint;
             _authPlugin = serverEndpoint.Authenticator;
+            _taskQueue = serverEndpoint.TaskQueue;
         }
 
+#if NET5_0_OR_GREATER
         public override async ValueTask<RpcResult> OnConnect(CancellationToken cToken)
+#else
+        public override async Task<RpcResult> OnConnect(CancellationToken cToken)
+#endif
         {
             ILoginMessage loginMsg;
+
+            Channel.Logger.Verbose(Channel.Id, "Waiting for login message...");
 
             // wait for login (with timeout)
             try
@@ -45,14 +54,18 @@ namespace SharpRpc
                 return new RpcResult(RpcRetCode.LoginTimeout, "");
             }
 
+            Channel.Logger.Verbose(Channel.Id, "Login message has been received. Checking credentials...");
+
             // enable message queue
-            Channel.Dispatcher.AllowMessages();
+            Channel.Dispatcher.OnSessionEstablished();
 
             // exit lock
-            await Task.Yield();
+            await _taskQueue.Dive();
 
             // check login/password
             var authError = await _authPlugin.OnLogin(loginMsg);
+
+            Channel.Logger.Verbose(Channel.Id, "Sending login responce...");
 
             // send login response
             var loginRespMsg = Channel.Contract.SystemMessages.CreateLoginMessage();
@@ -65,15 +78,38 @@ namespace SharpRpc
                 // start processing messages
                 Channel.Dispatcher.Start();
 
+                Channel.Logger.Verbose(Channel.Id, "Succesful login.");
+
                 return RpcResult.Ok;
             }
             else
                 return new RpcResult(RpcRetCode.InvalidCredentials, authError);
         }
 
-        public override ValueTask<RpcResult> OnDisconnect()
+#if NET5_0_OR_GREATER
+        public override async ValueTask<RpcResult> OnDisconnect(LogoutOption option)
+#else
+        public override async Task<RpcResult> OnDisconnect(LogoutOption option)
+#endif
         {
-            return ValueTask.FromResult(RpcResult.Ok);
+            if (option == LogoutOption.EnsureCompletion)
+                throw new NotSupportedException("LogoutOption.EnsureCompletion is not supported on server side! (yet)");
+
+            lock (_lockObj)
+            {
+                // the session has been already closed
+                if (_state == States.LoggedOut)
+                    return RpcResult.Ok;
+
+                _state = States.LoggedOut;
+            }
+
+            Channel.Logger.Verbose(Channel.Id, "Sending logout message...");
+
+            var logoutMsg = Channel.Contract.SystemMessages.CreateLogoutMessage();
+            //logoutMsg.Mode = option;
+
+            return  await Channel.Tx.SendSystemMessage(logoutMsg);
         }
 
         public override RpcResult OnMessage(ISystemMessage message)
@@ -91,6 +127,10 @@ namespace SharpRpc
                 }
                 else if (message is ILogoutMessage logoutMsg)
                 {
+                    Channel.Logger.Verbose(Channel.Id, "A logout message has been received.");
+
+                    _state = States.LoggedOut;
+                    return new RpcResult(RpcRetCode.LogoutRequest, "Connection is closed by client side.");
                 }
             }
 

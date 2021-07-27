@@ -18,23 +18,40 @@ namespace SharpRpc
         ILoginMessage CreateLoginMessage();
         ILogoutMessage CreateLogoutMessage();
         IHeartbeatMessage CreateHeartBeatMessage();
+        IRequestFault<T> CreateFaultMessage<T>(T fault) where T : RpcFault;
+        IRequestFault CreateFaultMessage();
         //IBasicAuthData CreateBasicAuthData();
     }
 
     public interface ILoginMessage : ISystemMessage
     {
-        public string UserName { get; set; }
-        public string Password { get; set; }
-        public LoginResult? ResultCode { get; set; }
-        public string ErrorMessage { get; set; }
+        string UserName { get; set; }
+        string Password { get; set; }
+        LoginResult? ResultCode { get; set; }
+        string ErrorMessage { get; set; }
     }
 
     public interface ILogoutMessage : ISystemMessage
     {
+        //LogoutOption Mode { get; set; }
     }
 
     public interface IHeartbeatMessage : ISystemMessage
     {
+    }
+
+    public interface IRequestFault : IResponse
+    {
+        string Text { get; set; }
+        RequestFaultCode Code { get; set; }
+        RpcFaultException CreateException();
+        RpcFault GetFault();
+    }
+
+    public interface IRequestFault<T> : IRequestFault
+        where T : RpcFault
+    {
+        T FaultData { get; set; }
     }
 
     //public interface IAuthData
@@ -51,5 +68,12 @@ namespace SharpRpc
     {
         Ok,
         InvalidCredentials
+    }
+
+    public enum RequestFaultCode
+    {
+        CustomFault,
+        RegularFault,
+        UnexpectedFault
     }
 }

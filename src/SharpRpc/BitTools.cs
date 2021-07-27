@@ -22,22 +22,22 @@ namespace SharpRpc
                 return new BeTools();
         }
 
-        public abstract void Write(ushort value, Span<byte> buffer, ref int index);
-        public abstract void Write(int value, Span<byte> buffer, ref int index);
+        public abstract void Write(ushort value, byte[] buffer, ref int index);
+        public abstract void Write(int value, byte[] buffer, ref int index);
 
-        public abstract ushort ReadUshort(Span<byte> buffer, ref int offset);
-        public abstract int ReadInt(Span<byte> buffer, ref int offset);
+        public abstract ushort ReadUshort(byte[] buffer, ref int offset);
+        public abstract int ReadInt(byte[] buffer, ref int offset);
 
         private class BeTools : BitTools
         {
-            public override void Write(ushort value, Span<byte> buffer, ref int index)
+            public override void Write(ushort value, byte[] buffer, ref int index)
             {
                 var proxy = new UhsortProxy { Value = value };
                 buffer[index++] = proxy.Byte1;
                 buffer[index++] = proxy.Byte2;
             }
 
-            public override ushort ReadUshort(Span<byte> buffer, ref int offset)
+            public override ushort ReadUshort(byte[] buffer, ref int offset)
             {
                 var proxy = new UhsortProxy();
                 proxy.Byte1 = buffer[offset++];
@@ -45,7 +45,7 @@ namespace SharpRpc
                 return proxy.Value;
             }
 
-            public override void Write(int value, Span<byte> buffer, ref int index)
+            public override void Write(int value, byte[] buffer, ref int index)
             {
                 var proxy = new IntProxy { Value = value };
                 buffer[index++] = proxy.Byte1;
@@ -54,7 +54,7 @@ namespace SharpRpc
                 buffer[index++] = proxy.Byte4;
             }
 
-            public override int ReadInt(Span<byte> buffer, ref int offset)
+            public override int ReadInt(byte[] buffer, ref int offset)
             {
                 var proxy = new IntProxy();
                 proxy.Byte1 = buffer[offset++];
@@ -67,14 +67,14 @@ namespace SharpRpc
 
         private class LeTools : BitTools
         {
-            public override void Write(ushort value, Span<byte> buffer, ref int index)
+            public override void Write(ushort value, byte[] buffer, ref int index)
             {
                 var proxy = new UhsortProxy { Value = value };
                 buffer[index++] = proxy.Byte2;
                 buffer[index++] = proxy.Byte1;
             }
 
-            public override ushort ReadUshort(Span<byte> buffer, ref int offset)
+            public override ushort ReadUshort(byte[] buffer, ref int offset)
             {
                 var proxy = new UhsortProxy();
                 proxy.Byte2 = buffer[offset++];
@@ -82,7 +82,7 @@ namespace SharpRpc
                 return proxy.Value;
             }
 
-            public override void Write(int value, Span<byte> buffer, ref int index)
+            public override void Write(int value, byte[] buffer, ref int index)
             {
                 var proxy = new IntProxy { Value = value };
                 buffer[index++] = proxy.Byte4;
@@ -91,7 +91,7 @@ namespace SharpRpc
                 buffer[index++] = proxy.Byte1;
             }
 
-            public override int ReadInt(Span<byte> buffer, ref int offset)
+            public override int ReadInt(byte[] buffer, ref int offset)
             {
                 var proxy = new IntProxy();
                 proxy.Byte4 = buffer[offset++];

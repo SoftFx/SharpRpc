@@ -7,7 +7,6 @@
 
 using SharpRpc.Lib;
 using System;
-using System.Buffers;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -106,13 +105,18 @@ namespace SharpRpc
 
         private void AllocateSegment()
         {
-            _currentSegment = new RxSegment(ArrayPool<byte>.Shared.Rent(_segmentSize));
-            //_currentSegment = new RxSegment(new byte[_segmentSize]);
+#if NET5_0_OR_GREATER
+            _currentSegment = new RxSegment(System.Buffers.ArrayPool<byte>.Shared.Rent(_segmentSize));
+#else
+            _currentSegment = new RxSegment(new byte[_segmentSize]);
+#endif
         }
 
         private void DisposeSegment(RxSegment segment)
         {
-            ArrayPool<byte>.Shared.Return(segment.Bytes);
+#if NET5_0_OR_GREATER
+            System.Buffers.ArrayPool<byte>.Shared.Return(segment.Bytes);
+#endif
         }
 
         private int GetFreeSpace(RxSegment segment)

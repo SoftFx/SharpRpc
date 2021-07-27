@@ -30,5 +30,19 @@ namespace SharpRpc
                 }
             }
         }
+
+        internal override LoggerFacade LoggerAdapter { get; } = new LoggerFacade();
+
+        public IRpcLogger Logger
+        {
+            set
+            {
+                lock (_stateLockObj)
+                {
+                    ThrowIfImmutable();
+                    LoggerAdapter.SetExtLogger(value);
+                }
+            }
+        }
     }
 }

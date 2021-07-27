@@ -7,14 +7,20 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace SharpRpc.Lib
+namespace SharpRpc
 {
-    public interface IActionBlock<T>
+    [AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
+    public class RpcFaultAttribute : Attribute
     {
-        bool TryEnqueue(T item);
-        ValueTask<bool> TryEnqueueAsync(T item);
+        public RpcFaultAttribute(params Type[] type)
+        {
+            FaultTypes = type;
+        }
+
+        public Type[] FaultTypes { get; }
     }
 }

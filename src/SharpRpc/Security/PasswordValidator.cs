@@ -21,6 +21,10 @@ namespace SharpRpc
         /// <param name="userName">User name to validate.</param>
         /// <param name="password">Password to validate.</param>
         /// <returns>Returns null if password is valid, otherwise error message.</returns>
+#if NET5_0_OR_GREATER
         ValueTask<string> Validate(string userName, string password);
+#else
+        Task<string> Validate(string userName, string password);
+#endif
     }
 }

@@ -8,8 +8,10 @@
 using SharpRpc.Lib;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace SharpRpc
@@ -19,82 +21,127 @@ namespace SharpRpc
         private class OneThread : MessageDispatcher
         {
             private readonly object _lockObj = new object();
-            private readonly CircularList<MessageTaskPair> _queue = new CircularList<MessageTaskPair>();
+            //private readonly CircularList<MessageTaskPair> _queue = new CircularList<MessageTaskPair>();
             private readonly Dictionary<string, ITask> _callTasks = new Dictionary<string, ITask>();
-            private readonly List<MessageTaskPair> _batch = new List<MessageTaskPair>();
-            private TaskCompletionSource<bool> _dataAvaialableEvent;
+            //private List<MessageTaskPair> _batch = new List<MessageTaskPair>();
+            //private List<MessageTaskPair> _queue = new List<MessageTaskPair>();
+            private List<IMessage> _batch = new List<IMessage>();
+            private List<IMessage> _queue = new List<IMessage>();
+            private bool _isProcessing;
+            //private TaskCompletionSource<bool> _dataAvaialableEvent;
             private bool _allowFlag;
             private bool _completed;
-            private readonly int _pageSize = 50;
+            private readonly int _maxBatchSize = 1000;
             private Task _workerTask;
             private RpcResult _fault;
 
             public override void Start()
             {
-                lock (_lockObj)
-                    _workerTask = InvokeMessageHandlerLoop();
             }
 
-            public override void AllowMessages()
+            protected bool HasMoreSpace => _queue.Count < _maxBatchSize;
+
+            public override RpcResult OnSessionEstablished()
             {
+                try
+                {
+                    ((RpcCallHandler)MessageHandler).Session.FireOpened(new SessionOpenedEventArgs());
+                }
+                catch (Exception)
+                {
+                    // TO DO : log or pass some more information about expcetion (stack trace)
+                    return new RpcResult(RpcRetCode.RequestCrashed, "An exception has been occured in ");
+                }
+
                 lock (_lockObj)
                     _allowFlag = true;
+
+                return RpcResult.Ok;
             }
 
-            public override void OnMessages(IEnumerable<IMessage> messages)
+#if NET5_0_OR_GREATER
+            public override ValueTask OnMessages()
+#else
+            public override Task OnMessages()
+#endif
             {
                 lock (_lockObj)
                 {
                     if (_completed)
-                        return;
+                        return FwAdapter.AsyncVoid;
 
                     if (!_allowFlag)
                         OnError(RpcRetCode.ProtocolViolation, "A violation of handshake protocol has been detected!");
 
-                    foreach (var msg in messages)
-                        MatchAndEnqueue(msg);
+                    //Debug.Assert(_queue.Count == 0);
 
-                    SignalDataReady();
+                    //var freeMessageBatch = _queue;
+                    //_queue = IncomingMessagesContainer;
+                    //IncomingMessagesContainer = freeMessageBatch;
+
+                    //foreach (var msg in IncomingMessagesContainer)
+                    //    MatchAndEnqueue(msg);
+
+                    _queue.AddRange(IncomingMessages);
+                    //_queue.Add(IncomingMessages[0]);
+
+                    //if (_isProcessing)
+                    //    return FwAdapter.WrappResult(_workerTask);
+                    //else
+                    //{
+                    //    EnqueueNextBatch();
+                    //    return FwAdapter.AsyncVoid;
+                    //}
+
+
+                    if (!_isProcessing)
+                        EnqueueNextBatch();
+
+                    if (!HasMoreSpace)
+                        return FwAdapter.WrappResult(_workerTask);
+
+                    return FwAdapter.AsyncVoid;
                 }
             }
 
-            private void MatchAndEnqueue(IMessage incomingMessage)
-            {
-                if (incomingMessage is IResponse resp)
-                {
-                    if (_callTasks.TryGetValue(resp.CallId, out ITask task))
-                        _callTasks.Remove(resp.CallId);
+            //private void MatchAndEnqueue(IMessage incomingMessage)
+            //{
+            //    if (incomingMessage is IResponse resp)
+            //    {
+            //        if (_callTasks.TryGetValue(resp.CallId, out ITask task))
+            //            _callTasks.Remove(resp.CallId);
 
-                    _queue.Add(new MessageTaskPair(incomingMessage, task));
-                }
-                else
-                    _queue.Add(new MessageTaskPair(incomingMessage));
-            }
+            //        _queue.Add(new MessageTaskPair(incomingMessage, task));
+            //    }
+            //    else //if (incomingMessage is IRequest)
+            //        _queue.Add(new MessageTaskPair(incomingMessage));
+            //}
 
             public override Task Stop(RpcResult fault)
             {
-                Task stopWaithandle;
+                Task stopTask;
                 List<ITask> tasksToCanel;
 
                 lock (_lockObj)
                 {
                     _completed = true;
-                    _queue.Clear();
                     _fault = fault;
 
-                    if (_queue.Count == 0)
-                        SignalCompleted();
+                    _queue.Clear();
 
                     tasksToCanel = _callTasks.Values.ToList();
                     _callTasks.Clear();
 
-                    stopWaithandle = _workerTask ?? Task.CompletedTask;
+                    if (_isProcessing)
+                        stopTask = _workerTask.ContinueWith(t => InvokeOnStop());
+                    else
+                        stopTask = TaskQueue.StartNew(InvokeOnStop);
                 }
 
                 foreach (var task in tasksToCanel)
                     task.Fail(_fault);
 
-                return stopWaithandle;
+                return stopTask;
             }
 
             protected override async void DoCall(IRequest requestMsg, ITask callTask)
@@ -115,9 +162,9 @@ namespace SharpRpc
 
                 if (result.Code == RpcRetCode.Ok)
                 {
-                    var sendResult = await Tx.TrySendAsync(requestMsg);
+                    result = await Tx.TrySendAsync(requestMsg);
 
-                    if (sendResult.Code != RpcRetCode.Ok)
+                    if (result.Code != RpcRetCode.Ok)
                     {
                         lock (_lockObj)
                         {
@@ -129,91 +176,127 @@ namespace SharpRpc
 
                 if (result.Code != RpcRetCode.Ok)
                     callTask.Fail(result);
-
             }
 
-            private void SignalDataReady()
+            private void EnqueueNextBatch()
             {
-                var eventCpy = _dataAvaialableEvent;
-                if (eventCpy != null)
-                {
-                    _dataAvaialableEvent = null;
-                    _queue.DequeueRange(_batch, _pageSize);
-                    Task.Factory.StartNew(p => ((TaskCompletionSource<bool>)p).SetResult(true), eventCpy);
-                }
+                _isProcessing = true;
+
+                Debug.Assert(_batch.Count == 0);
+
+                var cpy = _queue;
+                _queue = _batch;
+                _batch = cpy;
+
+                _workerTask = ProcessMessages();
             }
 
             private void SignalCompleted()
             {
-                var eventCpy = _dataAvaialableEvent;
-                _dataAvaialableEvent = null;
-                eventCpy?.SetResult(false);
+                _isProcessing = false;
+
+                if (_queue.Count > 0)
+                    EnqueueNextBatch();
             }
 
-            private ValueTask<bool> TryDequeueNextPage()
+            private async Task ProcessMessages()
             {
+                // move processing to another thread (and exit the lock)
+                await TaskQueue.Dive();
+
+                ProcessBatch();
+
                 lock (_lockObj)
-                {
-                    _batch.Clear();
-
-                    if (_queue.Count > 0)
-                    {
-                        _queue.DequeueRange(_batch, _pageSize);
-                        return new ValueTask<bool>(true);
-                    }
-                    else if (_completed)
-                        return new ValueTask<bool>(false);
-
-                    _dataAvaialableEvent = new TaskCompletionSource<bool>();
-                    return new ValueTask<bool>(_dataAvaialableEvent.Task);
-                }
+                    SignalCompleted();
             }
 
-            private async Task InvokeMessageHandlerLoop()
+            private void ProcessBatch()
             {
-                while (true)
+                foreach (var message in _batch)
                 {
-                    if (!await TryDequeueNextPage())
-                        break;
-
-                    foreach (var item in _batch)
+                    if (message is IResponse resp)
                     {
-                        if (item.Message is IResponse resp)
+                        ITask task;
+
+                        lock (_callTasks)
                         {
-                            item.Task.Complete(resp);
+                            if (_callTasks.TryGetValue(resp.CallId, out task))
+                                _callTasks.Remove(resp.CallId);
+                            else
+                                //  TO DO : signal protocol violation
+                                continue;
                         }
-                        else if (item.Message is IRequest req)
-                        {
-                            var respToSend = await MessageHandler.ProcessRequest(req);
-                            respToSend.CallId = req.CallId;
-                            await Tx.TrySendAsync(respToSend);
-                        }
+
+                        if (resp is IRequestFault faultMsg)
+                            task.Fail(faultMsg);
                         else
+                            task.Complete(resp);
+                    }
+                    else if (message is IRequest req)
+                        ProcessRequest(req);
+                    else
+                        ProcessOneWayMessage(message);
+                }
+
+                _batch.Clear();
+            }
+
+            private async void ProcessRequest(IRequest request)
+            {
+                var respToSend = await MessageHandler.ProcessRequest(request);
+                respToSend.CallId = request.CallId;
+                await Tx.TrySendAsync(respToSend);
+            }
+
+            private void ProcessOneWayMessage(IMessage message)
+            {
+                try
+                {
+                    var result = MessageHandler.ProcessMessage(message);
+                    if (result.IsCompleted)
+                    {
+                        if (result.IsFaulted)
+                            OnError(RpcRetCode.MessageHandlerFailure, "Message handler threw an exception: " + result.ToTask().Exception.Message);
+                    }
+                    else
+                    {
+                        result.ToTask().ContinueWith(t =>
                         {
-                            try
-                            {
-                                await MessageHandler.ProcessMessage(item.Message);
-                            }
-                            catch (Exception ex)
-                            {
-                                OnError(RpcRetCode.MessageHandlerFailure, "Message handler threw an exception: " + ex.Message);
-                            }
-                        }
+                            if (t.IsFaulted)
+                                OnError(RpcRetCode.MessageHandlerFailure, "Message handler threw an exception: " + t.Exception.Message);
+                        });
                     }
                 }
-            }
-
-            private struct MessageTaskPair
-            {
-                public MessageTaskPair(IMessage message, ITask task = null)
+                catch (Exception ex)
                 {
-                    Message = message;
-                    Task = task;
+                    // TO DO : stop processing here ???
+                    OnError(RpcRetCode.MessageHandlerFailure, "Message handler threw an exception: " + ex.Message);
                 }
-
-                public IMessage Message { get; }
-                public ITask Task { get; }
             }
+
+            private void InvokeOnStop()
+            {
+                try
+                {
+                    ((RpcCallHandler)MessageHandler).Session.FireClosed(new SessionClosedEventArgs());
+                }
+                catch (Exception)
+                {
+                    // TO DO : log or pass some more information about expcetion (stack trace)
+                }
+            }
+
+            //private struct MessageTaskPair
+            //{
+            //    public MessageTaskPair(IMessage message, ITask task = null)
+            //    {
+            //        Message = message;
+            //        Task = task;
+            //    }
+
+            //    public IMessage Message { get; }
+            //    public ITask Task { get; }
+            //}
         }
     }
 }

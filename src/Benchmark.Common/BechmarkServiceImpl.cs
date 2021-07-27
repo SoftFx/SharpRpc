@@ -24,5 +24,15 @@ namespace Benchmark.Common
         {
             return new ValueTask();
         }
+
+        public override ValueTask DummyMethod1(int p1, string p2)
+        {
+            return new ValueTask();
+        }
+
+        public override ValueTask<string> DummyMethod2(int p1, string p2)
+        {
+            return ValueTask.FromResult("");
+        }
     }
 }

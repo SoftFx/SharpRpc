@@ -41,7 +41,7 @@ namespace SharpRpc
 
                 await socket.ConnectAsync(remoteEP);
 
-                return new RpcResult<ByteTransport>(await _security.SecureTransport(socket, _address));
+                return new RpcResult<ByteTransport>(await _security.SecureTransport(socket, this, _address));
             }
             catch (Exception ex)
             {

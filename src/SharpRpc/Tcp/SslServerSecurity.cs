@@ -32,22 +32,32 @@ namespace SharpRpc
             _certSrc = serverCertificate ?? throw new ArgumentNullException(nameof(serverCertificate));
         }
 
+        internal override string Name => "SSL";
+
         internal override void Init()
         {
             _cert = LoadCertificate();
         }
 
-        internal async override ValueTask<ByteTransport> SecureTransport(Socket socket)
+#if NET5_0_OR_GREATER
+        internal async override ValueTask<ByteTransport> SecureTransport(Socket socket, Endpoint endpoint)
+#else
+        internal async override Task<ByteTransport> SecureTransport(Socket socket, Endpoint endpoint)
+#endif
         {
             var netStream = new NetworkStream(socket);
             var sslStream = new SslStream(netStream);
 
+#if NET5_0_OR_GREATER
             var sslOptions = new SslServerAuthenticationOptions();
             sslOptions.ServerCertificate = _cert;
             sslOptions.ClientCertificateRequired = false;
             sslOptions.EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13;
 
             await sslStream.AuthenticateAsServerAsync(sslOptions);
+#else
+            await sslStream.AuthenticateAsServerAsync(_cert, false, SslProtocols.Tls11 | SslProtocols.Tls12, false);
+#endif
 
             return new SslTransport(sslStream);
         }

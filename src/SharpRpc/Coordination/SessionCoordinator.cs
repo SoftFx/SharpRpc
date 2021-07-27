@@ -27,8 +27,13 @@ namespace SharpRpc
         public abstract TimeSpan LoginTimeout { get; }
 
         public abstract RpcResult OnMessage(ISystemMessage message);
+#if NET5_0_OR_GREATER
         public abstract ValueTask<RpcResult> OnConnect(CancellationToken cToken);
-        public abstract ValueTask<RpcResult> OnDisconnect();
+        public abstract ValueTask<RpcResult> OnDisconnect(LogoutOption option);
+#else
+        public abstract Task<RpcResult> OnConnect(CancellationToken cToken);
+        public abstract Task<RpcResult> OnDisconnect(LogoutOption option);
+#endif
 
         protected virtual void OnInit() { }
 

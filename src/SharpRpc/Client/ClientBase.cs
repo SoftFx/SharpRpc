@@ -16,7 +16,17 @@ namespace SharpRpc
     {
         public ClientBase(ClientEndpoint endpoint, ContractDescriptor descriptor)
         {
-            Channel = new Channel(endpoint, descriptor, new MsgHandler());
+            Channel = new Channel(false, endpoint, descriptor, new NullHandler());
+        }
+
+        public ClientBase(ClientEndpoint endpoint, ContractDescriptor descriptor, RpcCallHandler callbackHandler)
+        {
+            Channel = new Channel(false, endpoint, descriptor, callbackHandler ?? throw new ArgumentNullException("callbackHandler"));
+        }
+
+        public ClientBase(Channel channel)
+        {
+            Channel = channel ?? throw new ArgumentNullException("channel");
         }
 
         public Channel Channel { get; }
@@ -31,12 +41,20 @@ namespace SharpRpc
             return Channel.Tx.TrySend(message);
         }
 
+#if NET5_0_OR_GREATER
         protected ValueTask<RpcResult> TrySendMessageAsync(IMessage message)
+#else
+        protected Task<RpcResult> TrySendMessageAsync(IMessage message)
+#endif
         {
             return Channel.Tx.TrySendAsync(message);
         }
 
+#if NET5_0_OR_GREATER
         protected ValueTask SendMessageAsync(IMessage message)
+#else
+        protected Task SendMessageAsync(IMessage message)
+#endif
         {
             return Channel.Tx.SendAsync(message);
         }
@@ -65,16 +83,28 @@ namespace SharpRpc
             return Channel.Dispatcher.TryCall<TResp, T>(requestMsg);
         }
 
-        private class MsgHandler : IUserMessageHandler
+        private class NullHandler : IUserMessageHandler
         {
-            public ValueTask ProcessMessage(IMessage message)
+            public void Init(Channel ch)
             {
-                return new ValueTask();
             }
 
-            public ValueTask<IResponse> ProcessRequest(IRequest message)
+#if NET5_0_OR_GREATER
+            public ValueTask ProcessMessage(IMessage message)
+#else
+            public Task ProcessMessage(IMessage message)
+#endif
             {
-                throw new NotImplementedException();
+                throw new RpcException("No message handler for " + message.GetType().Name, RpcRetCode.UnexpectedMessage);
+            }
+
+#if NET5_0_OR_GREATER
+            public ValueTask<IResponse> ProcessRequest(IRequest message)
+#else
+            public Task<IResponse> ProcessRequest(IRequest message)
+#endif
+            {
+                throw new RpcException("No message handler for " + message.GetType().Name, RpcRetCode.UnexpectedMessage);
             }
         }
     }

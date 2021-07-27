@@ -16,11 +16,17 @@ namespace Benchmark.Common
     [RpcSerializer(SerializerChoice.MessagePack)]
     public interface BenchmarkContract
     {
-        [Rpc(RpcType.ClientMessage)]
+        [Rpc(RpcType.Message)]
         void SendUpdate(FooEntity entity);
 
-        [Rpc(RpcType.ClientCall)]
+        [Rpc(RpcType.Call)]
         void SendUpdate2(FooEntity entity);
+
+        [Rpc(RpcType.Call)]
+        void DummyMethod1(int p1, string p2);
+
+        [Rpc(RpcType.Call)]
+        string DummyMethod2(int p1, string p2);
     }
 
     public static class BenchmarkContractCfg

@@ -5,11 +5,11 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+using SharpRpc.Lib;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Reflection.Metadata.Ecma335;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -22,26 +22,33 @@ namespace SharpRpc
         private readonly RxMessageReader _reader = new RxMessageReader();
         private readonly ByteTransport _transport;
         private readonly IRpcSerializer _serializer;
-        private readonly MessageDispatcher _msgConsumer;
-        private readonly List<IMessage> _page = new List<IMessage>();
+        private readonly MessageDispatcher _msgDispatcher;
+        //private readonly List<IMessage> _page = new List<IMessage>();
+        //private readonly List<IMessage> _oneWayMsgPage = new List<IMessage>();
         private readonly SessionCoordinator _coordinator;
         //private readonly CancellationTokenSource _rxCancelSrc = new CancellationTokenSource();
         private Task _rxLoop;
+        private readonly TaskFactory _taskQueue;
 
         public RxPipeline(ByteTransport transport, Endpoint config, IRpcSerializer serializer, MessageDispatcher messageConsumer, SessionCoordinator coordinator)
         {
             _transport = transport;
             _serializer = serializer;
-            _msgConsumer = messageConsumer;
+            _msgDispatcher = messageConsumer;
             _coordinator = coordinator;
+            _taskQueue = config.TaskQueue;
         }
 
-        protected MessageDispatcher MessageConsumer => _msgConsumer;
+        protected MessageDispatcher MessageConsumer => _msgDispatcher;
 
         public event Action<RpcResult> CommunicationFaulted;
 
         protected abstract ArraySegment<byte> AllocateRxBuffer();
+#if NET5_0_OR_GREATER
         protected abstract ValueTask<bool> OnBytesArrived(int count);
+#else
+        protected abstract Task<bool> OnBytesArrived(int count);
+#endif
         protected abstract void OnCommunicationError(RpcResult fault);
 
         public abstract void Start();
@@ -70,12 +77,15 @@ namespace SharpRpc
 
                     byteCount = await _transport.Receive(buffer, CancellationToken.None); // _rxCancelSrc.Token);
 
+                    await _taskQueue.Dive();
+
                     if (byteCount == 0)
                     {
                         OnCommunicationError(new RpcResult(RpcRetCode.ConnectionAbortedByPeer, "Connection is closed by foreign host."));
                         break;
                     }
 
+                    RegisterDataRx(byteCount);
                 }
                 catch (OperationCanceledException)
                 {
@@ -109,7 +119,10 @@ namespace SharpRpc
         {
             bytesConsumed = 0;
 
-            _page.Clear();
+            var container = _msgDispatcher.IncomingMessages;
+
+            //_page.Clear();
+            //_oneWayMsgPage.Clear();
             _parser.SetNextSegment(segment);
 
             while (true)
@@ -132,8 +145,8 @@ namespace SharpRpc
                             if (sysMsgResult.Code != RpcRetCode.Ok)
                                 return sysMsgResult;
                         }
-                        else
-                            _page.Add(msg);
+                        else //if (msg is IRequest || msg is IResponse)
+                            container.Add(msg);
                     }
                     catch (Exception ex)
                     {
@@ -148,10 +161,21 @@ namespace SharpRpc
                     return new RpcResult(RpcRetCode.ProtocolViolation, "A violation of message markup protocol has been detected! Code: " + pCode);
             }
 
-            if (_page.Count > 0)
-                _msgConsumer.OnMessages(_page);
+            RegisterMessagePage(container.Count);
 
             return RpcResult.Ok;
+        }
+
+#if NET5_0_OR_GREATER
+        protected ValueTask SubmitParsedBatch()
+#else
+        protected Task SubmitParsedBatch()
+#endif
+        {
+            if (_msgDispatcher.IncomingMessages.Count > 0)
+                return _msgDispatcher.OnMessages();
+            else
+                return FwAdapter.AsyncVoid;
         }
 
         private RpcResult OnSystemMessage(ISystemMessage msg)
@@ -170,5 +194,37 @@ namespace SharpRpc
 
             return RpcResult.Ok;
         }
+
+
+#if PF_COUNTERS
+        private int _totalBytes;
+        private int _byteChunkCount;
+        private int _msgCount;
+        private int _pageCount;
+#endif
+
+        [Conditional("PF_COUNTERS")]
+        public void RegisterDataRx(int bufferSize)
+        {
+#if PF_COUNTERS
+            _totalBytes += bufferSize;
+            _byteChunkCount++;
+#endif
+        }
+
+        [Conditional("PF_COUNTERS")]
+        public void RegisterMessagePage(int pageMsgCount)
+        {
+#if PF_COUNTERS
+            _msgCount += pageMsgCount;
+            _pageCount++;
+#endif
+        }
+
+#if PF_COUNTERS
+        public int GetPageCount() => _pageCount;
+        public double GetAvarageRxSize() => _byteChunkCount == 0 ? 0 : _totalBytes / _byteChunkCount;
+        public double GetAvaragePageSize() => _pageCount == 0 ? 0 : _msgCount / _pageCount;
+#endif
     }
 }

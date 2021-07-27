@@ -25,7 +25,7 @@ namespace SharpRpc.Builder
         System
     }
 
-    public class MessageBuilder
+    internal class MessageBuilder
     {
         internal MessageBuilder(ContractDeclaration contract, CallDeclaration callDec, MessageType type)
         {
@@ -38,11 +38,22 @@ namespace SharpRpc.Builder
         public ContractDeclaration ContractInfo { get; }
         public MessageType MessageType { get; }
 
-        internal static IEnumerable<ClassBuildNode> GenerateSystemMessages(ContractDeclaration contract)
+        public static IEnumerable<ClassBuildNode> GenerateSystemMessages(ContractDeclaration contract)
         {
             yield return GenerateLoginMessage(contract);
             yield return GenerateLogoutMessage(contract);
             yield return GenerateHeartbeatMessage(contract);
+
+            foreach (var faultMsg in GenerateFaultMessages(contract))
+                yield return faultMsg;
+        }
+
+        public static IEnumerable<ClassBuildNode> GenerateFaultMessages(ContractDeclaration contract)
+        {
+            yield return GenerateFaultMessage(contract);
+
+            foreach (var customFault in contract.FaultTypes)
+                yield return GenerateCustomFaultMessage(contract, customFault);
         }
 
         //internal static IEnumerable<ClassBuildNode> GenerateAuthContracts(ContractDeclaration contract)
@@ -50,11 +61,11 @@ namespace SharpRpc.Builder
         //    yield return GenerateBasicAuthData(contract);
         //}
 
-        internal static IEnumerable<ClassBuildNode> GenerateUserMessages(ContractDeclaration contract, GeneratorExecutionContext context)
+        public static IEnumerable<ClassBuildNode> GenerateUserMessages(ContractDeclaration contract, GeneratorExecutionContext context)
         {
             foreach (var call in contract.Calls)
             {
-                if (call.CallType == ContractCallType.ClientCall || call.CallType == ContractCallType.ServerCall)
+                if (call.CallType == ContractCallType.CallToServer || call.CallType == ContractCallType.CallToClient)
                 {
                     yield return new MessageBuilder(contract, call, MessageType.Request).GenerateMessage(context, true, Names.RequestClassPostfix);
                     yield return new MessageBuilder(contract, call, MessageType.Response).GenerateMessage(context, false, Names.ResponseClassPostfix);
@@ -64,19 +75,21 @@ namespace SharpRpc.Builder
             }
         }
 
-        internal static ClassDeclarationSyntax GenerateFactory(ContractDeclaration contractInfo)
+        public static ClassDeclarationSyntax GenerateFactory(ContractDeclaration contractInfo)
         {
             var factoryInterface = SyntaxFactory.SimpleBaseType(SyntaxHelper.FullTypeName(Names.MessageFactoryInterface));
 
             var loginMsgMethod = GenerateFactoryMethod("CreateLoginMessage", Names.LoginMessageInterface, contractInfo.LoginMessageClassName);
             var logoutMsgMethod = GenerateFactoryMethod("CreateLogoutMessage", Names.LogoutMessageInterface, contractInfo.LogoutMessageClassName);
             var heartbeatMsgMethod = GenerateFactoryMethod("CreateHeartBeatMessage", Names.HeartbeatMessageInterface, contractInfo.HeartbeatMessageClassName);
+            var faultFactoryMethod = GenerateFaultFactory(contractInfo);
+            var customFaultsMethod = GenerateCustomFaultFactory(contractInfo);
             //var basicAuthMethod = GenerateFactoryMethod("CreateBasicAuthData", Names.BasicAuthDataInterface, contractInfo.BasicAuthDataClassName);
 
             return SyntaxFactory.ClassDeclaration(contractInfo.MessageFactoryClassName.Short)
                 .AddModifiers(SyntaxFactory.Token(SyntaxKind.PrivateKeyword))
                 .AddBaseListTypes(factoryInterface)
-                .AddMembers(loginMsgMethod, logoutMsgMethod, heartbeatMsgMethod);
+                .AddMembers(loginMsgMethod, logoutMsgMethod, heartbeatMsgMethod, faultFactoryMethod, customFaultsMethod);
         }
 
         private static MethodDeclarationSyntax GenerateFactoryMethod(string methodName, TypeString retType, TypeString messageType)
@@ -88,6 +101,68 @@ namespace SharpRpc.Builder
             return SyntaxFactory.MethodDeclaration(SyntaxHelper.FullTypeName(retType), methodName)
                 .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
                 .AddBodyStatements(retStatement);
+        }
+
+        private static MethodDeclarationSyntax GenerateFaultFactory(ContractDeclaration contract)
+        {
+            var messageCreation = SyntaxFactory.ObjectCreationExpression(SyntaxHelper.FullTypeName(contract.FaultMessageClassName))
+                        .WithoutArguments();
+
+            var retStatement = SyntaxFactory.ReturnStatement(messageCreation);
+            var retType = SyntaxHelper.FullTypeName(Names.FaultMessageInterface);
+
+            return SyntaxFactory.MethodDeclaration(retType, "CreateFaultMessage")
+                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+                .AddBodyStatements(retStatement);
+        }
+
+        private static MethodDeclarationSyntax GenerateCustomFaultFactory(ContractDeclaration contract)
+        {
+            var cases = new List<SwitchSectionSyntax>();
+            var retType = SyntaxHelper.GenericType(Names.FaultMessageInterface.Full, "T");
+
+            foreach (var faultDataType in contract.FaultTypes)
+            {
+                var faultMessageType = contract.GetCustomFaultMessageClassName(faultDataType);
+                var messageCreation = SyntaxFactory.ObjectCreationExpression(SyntaxHelper.FullTypeName(faultMessageType))
+                        .WithoutArguments();
+
+                var retStatement = SyntaxFactory.ReturnStatement(
+                    SyntaxFactory.CastExpression(retType, messageCreation));
+
+                var label = contract.Compatibility.SupportsPatternMatching
+                    ? SyntaxFactory.CaseSwitchLabel(SyntaxFactory.IdentifierName(faultDataType))
+                    : SyntaxFactory.CaseSwitchLabel(SyntaxHelper.LiteralExpression(faultDataType));
+
+                cases.Add(SyntaxFactory.SwitchSection()
+                    .AddLabels(label)
+                    .AddStatements(retStatement));
+            }
+
+            var exceptionCreationExp = SyntaxFactory.ObjectCreationExpression(
+                SyntaxFactory.IdentifierName(Names.SystemException))
+                .WithoutArguments();
+
+            cases.Add(SyntaxFactory.SwitchSection()
+                .AddLabels(SyntaxFactory.DefaultSwitchLabel())
+                .AddStatements(SyntaxFactory.ThrowStatement(exceptionCreationExp)));
+
+            var switchArg = contract.Compatibility.SupportsPatternMatching
+                ? (ExpressionSyntax)SyntaxFactory.IdentifierName("fault")
+                : SyntaxHelper.MemberOf(SyntaxFactory.TypeOfExpression(SyntaxFactory.IdentifierName("T")), "FullName");
+
+            var switchStatement = SyntaxFactory.SwitchStatement(switchArg)
+                .AddSections(cases.ToArray());
+
+            var typeConstraint = SyntaxFactory.TypeParameterConstraintClause("T")
+                .AddConstraints(SyntaxFactory.TypeConstraint(SyntaxHelper.FullTypeName(Names.BasicRpcFault)));
+
+            return SyntaxFactory.MethodDeclaration(retType, "CreateFaultMessage")
+                .AddParameterListParameters(SyntaxHelper.Parameter("fault", "T"))
+                .AddTypeParameterListParameters(SyntaxFactory.TypeParameter("T"))
+                .AddConstraintClauses(typeConstraint)
+                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+                .AddBodyStatements(switchStatement);
         }
 
         public static ClassBuildNode GenerateMessageBase(ContractDeclaration contract)
@@ -241,7 +316,7 @@ namespace SharpRpc.Builder
             else if (MessageType == MessageType.Response)
             {
                 if (RpcInfo.ReturnsData)
-                    baseTypes.Add(SyntaxFactory.SimpleBaseType(SyntaxHelper.GenericType(Names.RequestInterface.Full, RpcInfo.ReturnParam.ParamType)));
+                    baseTypes.Add(SyntaxFactory.SimpleBaseType(SyntaxHelper.GenericType(Names.ResponseInterface.Full, RpcInfo.ReturnParam.ParamType)));
                 else
                     baseTypes.Add(SyntaxFactory.SimpleBaseType(SyntaxHelper.GlobalTypeName(Names.ResponseInterface)));
             }
@@ -284,6 +359,95 @@ namespace SharpRpc.Builder
         private PropertyDeclarationSyntax GenerateMessageProperty(ParamDeclaration callProp, int index)
         {
             return SyntaxFactory.PropertyDeclaration(SyntaxFactory.ParseTypeName(callProp.ParamType), callProp.MessagePropertyName)
+                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+                .AddAutoGetter()
+                .AddAutoSetter();
+        }
+
+        private static ClassBuildNode GenerateFaultMessage(ContractDeclaration contractInfo)
+        {
+            var messageClassName = contractInfo.FaultMessageClassName;
+
+            var msgBase = SyntaxFactory.SimpleBaseType(SyntaxHelper.FullTypeName(contractInfo.BaseMessageClassName));
+            var iFaultBase = SyntaxFactory.SimpleBaseType(SyntaxHelper.FullTypeName(Names.FaultMessageInterface));
+
+            GenerateCommonFaultProperties(out var idProperty, out var textProperty, out var codeProperty);
+
+            var exceptionCreation = SyntaxFactory.ObjectCreationExpression(SyntaxHelper.FullTypeName(Names.RpcFaultException))
+                .AddArgumentListArguments(SyntaxHelper.IdentifierArgument("Code"), SyntaxHelper.IdentifierArgument("Text"));
+
+            var exceptionMethod = SyntaxFactory.MethodDeclaration(SyntaxHelper.FullTypeName(Names.RpcFaultException), "CreateException")
+                .AddModifiers(SyntaxHelper.PublicToken())
+                .AddBodyStatements(SyntaxFactory.ReturnStatement(exceptionCreation));
+
+            var faultCreation = SyntaxFactory.ObjectCreationExpression(SyntaxFactory.IdentifierName( "SharpRpc.RpcFaultStub"))
+                .AddArgumentListArguments(SyntaxHelper.IdentifierArgument("Code"), SyntaxHelper.IdentifierArgument("Text"));
+
+            var getFaultMethod = SyntaxFactory.MethodDeclaration(SyntaxHelper.FullTypeName(Names.BasicRpcFault), "GetFault")
+                .AddModifiers(SyntaxHelper.PublicToken())
+                .AddBodyStatements(SyntaxFactory.ReturnStatement(faultCreation));
+
+            var messageClassDeclaration = SyntaxFactory.ClassDeclaration(messageClassName.Short)
+                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+                .AddMembers(exceptionMethod, getFaultMethod)
+                .AddBaseListTypes(msgBase, iFaultBase);
+
+            return new ClassBuildNode(messageClassName, messageClassDeclaration, idProperty, textProperty, codeProperty);
+        }
+
+        private static ClassBuildNode GenerateCustomFaultMessage(ContractDeclaration contractInfo, string faultDataType)
+        {
+            var messageClassName = contractInfo.GetCustomFaultMessageClassName(faultDataType);
+
+            var msgBase = SyntaxFactory.SimpleBaseType(SyntaxHelper.FullTypeName(contractInfo.BaseMessageClassName));
+            var iFaultBase = SyntaxFactory.SimpleBaseType(SyntaxHelper.GenericType(Names.FaultMessageInterface.Full, faultDataType));
+
+            GenerateCommonFaultProperties(out var idProperty, out var textProperty, out var codeProperty);
+
+            var dataProperty = SyntaxFactory
+                .PropertyDeclaration(SyntaxFactory.ParseTypeName(faultDataType), "FaultData")
+                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+                .AddAutoGetter()
+                .AddAutoSetter();
+
+            var exceptionType = SyntaxHelper.GenericType(Names.RpcFaultException.Full, SyntaxFactory.ParseTypeName(faultDataType));
+
+            var exceptionCreation = SyntaxFactory.ObjectCreationExpression(exceptionType)
+                .AddArgumentListArguments(SyntaxHelper.IdentifierArgument("FaultData"));
+
+            var exceptionMethod = SyntaxFactory.MethodDeclaration(SyntaxHelper.FullTypeName(Names.RpcFaultException), "CreateException")
+                .AddModifiers(SyntaxHelper.PublicToken())
+                .AddBodyStatements(SyntaxFactory.ReturnStatement(exceptionCreation));
+
+            var getFaultMethod = SyntaxFactory.MethodDeclaration(SyntaxHelper.FullTypeName(Names.BasicRpcFault), "GetFault")
+                .AddModifiers(SyntaxHelper.PublicToken())
+                .AddBodyStatements(SyntaxFactory.ReturnStatement(SyntaxFactory.IdentifierName("FaultData")));
+
+            var messageClassDeclaration = SyntaxFactory.ClassDeclaration(messageClassName.Short)
+                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+                .AddMembers(exceptionMethod, getFaultMethod)
+                .AddBaseListTypes(msgBase, iFaultBase);
+
+            return new ClassBuildNode(messageClassName, messageClassDeclaration, idProperty, textProperty, codeProperty, dataProperty);
+        }
+
+        private static void GenerateCommonFaultProperties(out PropertyDeclarationSyntax idProperty,
+            out PropertyDeclarationSyntax textProperty, out PropertyDeclarationSyntax codeProperty)
+        {
+            idProperty = SyntaxFactory
+                .PropertyDeclaration(SyntaxFactory.ParseTypeName("string"), "CallId")
+                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+                .AddAutoGetter()
+                .AddAutoSetter();
+
+            textProperty = SyntaxFactory
+                .PropertyDeclaration(SyntaxFactory.ParseTypeName("string"), "Text")
+                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+                .AddAutoGetter()
+                .AddAutoSetter();
+
+            codeProperty = SyntaxFactory
+                .PropertyDeclaration(SyntaxFactory.ParseTypeName("SharpRpc.RequestFaultCode"), "Code")
                 .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
                 .AddAutoGetter()
                 .AddAutoSetter();

@@ -10,15 +10,16 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net.Sockets;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace SharpRpc
 {
     internal static class SocketExt
     {
-        public static Task DisconnectAsync(this Socket socket)
+        public static Task DisconnectAsync(this Socket socket, TaskFactory factory)
         {
-            return Task.Factory.FromAsync((c, s) => socket.BeginDisconnect(false, c, s),
+            return factory.FromAsync((c, s) => socket.BeginDisconnect(false, c, s),
                     r => socket.EndDisconnect(r), null);
         }
     }

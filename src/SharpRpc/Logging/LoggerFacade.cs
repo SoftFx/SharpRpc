@@ -26,7 +26,7 @@ namespace SharpRpc
                 _extLogger.Verbose(component, msg);
         }
 
-        public void Verbose(string component, string format, params string[] formatArgs)
+        public void Verbose(string component, string format, params object[] formatArgs)
         {
             if (_extLogger?.VerboseEnabled == true)
                 _extLogger.Verbose(component, string.Format(format, formatArgs));
@@ -37,7 +37,7 @@ namespace SharpRpc
             _extLogger?.Info(component, format);
         }
 
-        public void Info(string component, string format, params string[] formatArgs)
+        public void Info(string component, string format, params object[] formatArgs)
         {
             _extLogger?.Info(component, string.Format(format, formatArgs));
         }
@@ -45,6 +45,11 @@ namespace SharpRpc
         public void Warn(string component, string msg)
         {
             _extLogger?.Warn(component, msg, null);
+        }
+
+        public void Warn(string component, string format, params object[] formatArgs)
+        {
+            _extLogger?.Warn(component, string.Format(format, formatArgs), null);
         }
 
         public void Error(string component, string msg)

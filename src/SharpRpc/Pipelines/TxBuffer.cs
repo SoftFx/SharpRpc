@@ -5,16 +5,22 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+using SharpRpc.Lib;
 using System;
-using System.Buffers;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace SharpRpc
 {
-    internal partial class TxBuffer : IBufferWriter<byte>, MessageWriter
+#if NET5_0_OR_GREATER
+    internal partial class TxBuffer : MessageWriter, System.Buffers.IBufferWriter<byte>
+#else
+    internal partial class TxBuffer : MessageWriter
+#endif
     {
         private readonly object _lockObj;
         private readonly StreamProxy _streamProxy;
@@ -22,7 +28,8 @@ namespace SharpRpc
         private readonly MemoryManager _memManager;
         private readonly int _minAllocSize = 64;
         private readonly MessageMarker _marker;
-        private DequeueRequest _dequeueWaitHandle;
+        private readonly SlimAwaitable<ArraySegment<byte>> _dequeueWaitHandle;
+        private bool _isDequeueAwaited;
         //private readonly Action _dataArrivedEvent;
         private readonly IRpcSerializer _serializer;
         private ArraySegment<byte> _dequeuedSegment;
@@ -32,6 +39,8 @@ namespace SharpRpc
         {
             _lockObj = lockObj;
 
+            _dequeueWaitHandle = new SlimAwaitable<ArraySegment<byte>>(lockObj);
+
             //if (segmentSize > ushort.MaxValue)
             //    throw new ArgumentException("Segment size must be less than " + ushort.MaxValue + ".");
 
@@ -39,7 +48,7 @@ namespace SharpRpc
 
             //_dataArrivedEvent = dataArrivedCallback;
 
-            _memManager = new MemoryManager(segmentSize, 5);
+            _memManager = MemoryManager.Create(segmentSize, 5);
             //_minAllocSize = minSizeHint;
             _streamProxy = new StreamProxy(this);
 
@@ -83,18 +92,23 @@ namespace SharpRpc
             //    IsCurrentSegmentLocked = true;
 
             _marker.OnMessageStart();
-            _serializer.Serialize(message, this);
+
+            if (message is IPrebuiltMessage mmsg)
+                mmsg.WriteTo(0, this);
+            else
+                _serializer.Serialize(message, this);
+
             _marker.OnMessageEnd();
 
-            DequeueRequest toSignal = null;
+            //DequeueRequest toSignal = null;
 
             lock (_lockObj)
             {
                 IsCurrentSegmentLocked = false;
-                toSignal = SignalDataAvailable();
+                SignalDataAvailable();
             }
 
-            toSignal?.Signal();
+            //toSignal?.Signal();
         }
 
         // shoult be called under lock
@@ -102,9 +116,13 @@ namespace SharpRpc
         {
             _isClosed = true;
 
-            var cpy = _dequeueWaitHandle;
-            _dequeueWaitHandle = null;
-            cpy?.TrySetResult(new ArraySegment<byte>());
+            //var cpy = _dequeueWaitHandle;
+            //_dequeueWaitHandle = null;
+            if (_isDequeueAwaited)
+            {
+                _dequeueWaitHandle.SetCompleted(new ArraySegment<byte>());
+                _isDequeueAwaited = false;
+            }
         }
 
         //public void ReleaseLock()
@@ -132,31 +150,38 @@ namespace SharpRpc
         //    _marker.OnMessageEnd();
         //}
 
-        public ValueTask<ArraySegment<byte>> DequeueNext()
+        public SlimAwaitable<ArraySegment<byte>> DequeueNext()
         {
+            Debug.Assert(!Monitor.IsEntered(_lockObj));
+
             lock (_lockObj)
             {
-                if (_dequeuedSegment != null)
+                if (_dequeuedSegment.Array != null)
                 {
                     _memManager.FreeSegment(_dequeuedSegment);
-                    _dequeuedSegment = null;
+                    _dequeuedSegment = new ArraySegment<byte>();
                 }
 
                 var hasCurrentData = IsCurrentDataAvailable;
+
+                _dequeueWaitHandle.Reset();
+
+                Debug.Assert(!_isDequeueAwaited);
 
                 if (HasCompletedSegments || hasCurrentData)
                 {
                     var result = Dequeue();
                     SpaceFreed?.Invoke(this);
-                    return new ValueTask<ArraySegment<byte>>(result);
+                    _dequeueWaitHandle.SetCompleted(result);
                 }
                 else if (_isClosed)
-                    return new ValueTask<ArraySegment<byte>>(new ArraySegment<byte>());
-                else
                 {
-                    _dequeueWaitHandle = new DequeueRequest();
-                    return new ValueTask<ArraySegment<byte>>(_dequeueWaitHandle.Task);
+                    _dequeueWaitHandle.SetCompleted(new ArraySegment<byte>());
                 }
+                else
+                    _isDequeueAwaited = true;
+
+                return _dequeueWaitHandle;
             }
         }
 
@@ -166,16 +191,31 @@ namespace SharpRpc
         //        _memManager.FreeSegment(segment);
         //}
 
-        private DequeueRequest SignalDataAvailable()
+        private void SignalDataAvailable()
         {
-            var cpy = _dequeueWaitHandle;
-            _dequeueWaitHandle = null;
-
-            if (cpy != null)
-                cpy.Result = Dequeue();
-
-            return cpy;
+            if (_isDequeueAwaited)
+            {
+                _isDequeueAwaited = false;
+                _dequeueWaitHandle.SetCompleted(Dequeue(), true);
+                //var data = Dequeue();
+                //Task.Factory.StartNew(s =>
+                //{
+                //    lock (_lockObj)
+                //        _dequeueWaitHandle.SetCompleted((ArraySegment<byte>)s);
+                //}, data);
+            }
         }
+
+        //private DequeueRequest SignalDataAvailable()
+        //{
+        //    var cpy = _dequeueWaitHandle;
+        //    _dequeueWaitHandle = null;
+
+        //    if (cpy != null)
+        //        cpy.Result = Dequeue();
+
+        //    return cpy;
+        //}
 
         private ArraySegment<byte> Dequeue()
         {
@@ -185,18 +225,18 @@ namespace SharpRpc
             _dequeuedSegment = _completeSegments.Dequeue();
             DataSize -= _dequeuedSegment.Count;
 
+            //System.Diagnostics.Debug.WriteLine("DataSize=" + DataSize + " -" + _dequeuedSegment.Count);
+
             OnDequeue?.Invoke();
 
             return _dequeuedSegment;
         }
 
         #region IBufferWriter implementation
-
+#if NET5_0_OR_GREATER
         public void Advance(int count)
         {
             MoveOffset(count);
-            //_currentOffset += count;
-            //Size += count;
         }
 
         public Memory<byte> GetMemory(int sizeHint = 0)
@@ -207,9 +247,10 @@ namespace SharpRpc
 
         public Span<byte> GetSpan(int sizeHint = 0)
         {
+            EnsureSpace(sizeHint);
             return new Span<byte>(CurrentSegment, CurrentOffset, SegmentSize - CurrentOffset);
         }
-
+#endif
         #endregion
 
         private void EnsureSpace(int sizeHint)
@@ -218,33 +259,36 @@ namespace SharpRpc
                 sizeHint = _minAllocSize;
 
             var spaceInCurrentSegment = SegmentSize - CurrentOffset;
-            //var spaceInCurrentChunk = _marker.GetCurrentChunkCapacity();
 
             if (spaceInCurrentSegment < sizeHint)
-                CompleteCurrentSegment();
+            {
+                lock (_lockObj)
+                {
+                    CompleteCurrentSegment();
+                    SignalDataAvailable();
+                }
+            }
 
+                
             _marker.OnAlloc();
-
-            //else if (spaceInCurrentChunk < sizeHint)
-            //ReopenChunk();
         }
 
+        // should be called
         private void CompleteCurrentSegment()
         {
             _marker.OnSegmentClose();
+            _completeSegments.Enqueue(new ArraySegment<byte>(CurrentSegment, 0, CurrentOffset));
+            AllocNewSegment();
 
-            DequeueRequest toSignal = null;
+            //DequeueRequest toSignal = null;
 
-            lock (_lockObj)
-            {
-                _completeSegments.Enqueue(new ArraySegment<byte>(CurrentSegment, 0, CurrentOffset));
+            //lock (_lockObj)
+            //{
+                
+            //    SignalDataAvailable();
+            //}
 
-                AllocNewSegment();
-
-                toSignal = SignalDataAvailable();
-            }
-
-            toSignal?.Signal();
+            //toSignal?.Signal();
         }
 
         private void AllocNewSegment()
@@ -255,76 +299,44 @@ namespace SharpRpc
 
         private void Write(byte[] buffer, int offset, int count)
         {
-            throw new NotImplementedException();
+            while (count > 0)
+            {
+                EnsureSpace(_minAllocSize);
 
-            //while (count > 0)
-            //{
-            //    var space = _segmentSize - _currentOffset;
-            //    var copyOpSize = Math.Min(count, space);
+                var spaceLeft = SegmentSize - CurrentOffset;
+                var copySize = Math.Min(spaceLeft, count);
+                Buffer.BlockCopy(buffer, offset, CurrentSegment, CurrentOffset, copySize);
 
-            //    //Array.Copy(buffer, offset, _currentSegment.Memory.Span, _currentOffset, toCopy);
-
-            //    var srcSpan = buffer.AsSpan(offset, copyOpSize);
-            //    var dstSpan = srcSpan.Slice(_currentOffset, copyOpSize);
-
-            //    srcSpan.CopyTo(dstSpan);
-
-            //    count -= copyOpSize;
-            //    _currentOffset += copyOpSize;
-
-            //    if (_currentOffset >= _segmentSize)
-            //    {
-            //        Comple
-
-            //        _completeSegments.Add(new ArraySegment<byte>(_currentSegment, 0, _currentOffset));
-            //        _currentSegment = new byte[_segmentSize];
-            //        _currentOffset = 0;
-            //    }
-            //}
+                MoveOffset(copySize);
+                offset += copySize;
+                count -= copySize;
+            }
         }
 
         private void MoveOffset(int size)
         {
             CurrentOffset += size;
             DataSize += size;
-
-            //if (CurrentOffset > SegmentSize)
-            //{
-            //}
+            //System.Diagnostics.Debug.WriteLine("DataSize=" + DataSize + " +" + size);
         }
 
         #region MessageWriter implementation
 
-        IBufferWriter<byte> MessageWriter.ByteBuffer => this;
+#if NET5_0_OR_GREATER
+        System.Buffers.IBufferWriter<byte> MessageWriter.ByteBuffer => this;
+#endif
         System.IO.Stream MessageWriter.ByteStream => _streamProxy;
-
+        
         #endregion
 
-        public class DequeueRequest : TaskCompletionSource<ArraySegment<byte>>
-        {
-            public ArraySegment<byte> Result { get; set; }
+        //public class DequeueRequest : SlimAwaitable<ArraySegment<byte>>
+        //{
+        //    public ArraySegment<byte> Result { get; set; }
 
-            public void Signal()
-            {
-                SetResult(Result);
-            }
-        }
+        //    public void Signal()
+        //    {
+        //        SetCompleted(Result);
+        //    }
+        //}
     }
-
-    //internal struct ByteSegment
-    //{
-    //    public ByteSegment(byte[] bytes, int len)
-    //    {
-    //        Bytes = bytes;
-    //        Length = len;
-    //    }
-
-    //    public byte[] Bytes { get; }
-    //    public int Length { get; }
-
-    //    public ArraySegment<byte> ToArraySegment()
-    //    {
-    //        return new ArraySegment<byte>(Bytes, 0, Length);
-    //    }
-    //}
 }

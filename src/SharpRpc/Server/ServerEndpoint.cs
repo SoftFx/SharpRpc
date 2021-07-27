@@ -15,29 +15,16 @@ namespace SharpRpc
 {
     public abstract class ServerEndpoint : Endpoint
     {
-        private RpcServer _server;
         //private ServerCredentials _creds = ServerCredentials.None;
         private Authenticator _authenticator = Authenticator.None;
+        private LoggerFacade _logger;
 
         public ServerEndpoint()
         {
-            Name = Namer.GetInstanceName(GetType());
+            
         }
 
-        public string Name { get; }
-
-        //public ServerCredentials Credentials
-        //{
-        //    get => _creds;
-        //    set
-        //    {
-        //        lock (_stateLockObj)
-        //        {
-        //            ThrowIfImmutable();
-        //            _creds = value ?? throw new ArgumentNullException(nameof(value));
-        //        }
-        //    }
-        //}
+        internal override LoggerFacade LoggerAdapter => _logger;
 
         public Authenticator Authenticator
         {
@@ -54,21 +41,16 @@ namespace SharpRpc
 
         internal void Init(RpcServer server)
         {
-            lock (_stateLockObj)
-            {
-                if (_server != null)
-                    throw new InvalidOperationException("This endpoint belongs to other server!");
-
-                _server = server;
-            }
+            LockTo(server);
+            _logger = server.Logger;
         }
 
-        protected abstract void Start(LoggerFacade logger);
-        protected abstract Task StopAsync(LoggerFacade logger);
+        protected abstract void Start();
+        protected abstract Task StopAsync();
 
         protected void OnConnect(ByteTransport newConnection)
         {
-            _server.Logger.Verbose(Name, "Incoming connection");
+            LoggerAdapter.Verbose(Name, "Incoming connection");
 
             ClientConnected.Invoke(this, newConnection);
         }
@@ -77,27 +59,27 @@ namespace SharpRpc
 
         internal void InvokeStart()
         {
-            _server.Logger.Info(Name, "Starting...");
+            //Logger.Verbose(Name, "Starting...");
 
-            Start(_server.Logger);
+            Start();
 
-            _server.Logger.Info(Name, "Started.");
+            //Logger.Verbose(Name, "Started.");
         }
 
         internal async Task InvokeStop()
         {
-            _server.Logger.Info(Name, "Stopping...");
+            //Logger.Verbose(Name, "Stopping...");
 
             try
             {
-                await StopAsync(_server.Logger);
+                await StopAsync();
             }
             catch (Exception ex)
             {
-                _server.Logger.Error(Name, ex, "Stop failed! " + ex.Message);
+                _logger.Error(Name, ex, "Stop failed! " + ex.Message);
             }
 
-            _server.Logger.Info(Name, "Stopping...");
+            //Logger.Verbose(Name, "Stopped.");
         }
     }
 }

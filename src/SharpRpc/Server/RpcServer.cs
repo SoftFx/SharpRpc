@@ -20,7 +20,7 @@ namespace SharpRpc
         private readonly object _stateLock = new object();
         private readonly List<ServerEndpoint> _endpoints = new List<ServerEndpoint>();
         private ServerState _state;
-        private readonly Dictionary<Guid, Channel> _sessions = new Dictionary<Guid, Channel>();
+        private readonly Dictionary<string, Channel> _sessions = new Dictionary<string, Channel>();
         private readonly ServiceBinding _binding;
 
         public RpcServer(ServiceBinding binding)
@@ -150,9 +150,10 @@ namespace SharpRpc
                 if (_state == ServerState.Online || _state == ServerState.Starting)
                 {
                     var serviceImpl = _binding.CreateServiceImpl();
-                    var session = new Channel(sender, _binding.Descriptor, serviceImpl);
+                    var session = new Channel(true, sender, _binding.Descriptor, serviceImpl);
+                    serviceImpl.InvokeInit(session);
                     session.Closed += Session_Closed;
-                    session.StartServerMode(transport);
+                    session.StartIncomingSession(transport);
                     _sessions.Add(session.Id, session);
                     Logger.Verbose(Name, "New session: " + session.Id);
                 }
@@ -174,16 +175,21 @@ namespace SharpRpc
                 _sessions.Remove(channel.Id);
             }
 
-            if (fault.Code == RpcRetCode.Ok)
+            if (!IsFaultClose(fault.Code))
                 Logger.Verbose(Name, "Session " + channel.Id + " was closed.");
             else
                 Logger.Verbose(Name, "Session " + channel.Id + " was faulted. Code: " + fault.Code + " Message: " + fault.Fault.Message);
-        }   
+        }
 
         private void ThrowIfConfigProhibited()
         {
             if (_state != ServerState.Idle)
                 throw new InvalidOperationException("Changing configuration in runtime is prohibited!");
+        }
+
+        private bool IsFaultClose(RpcRetCode code)
+        {
+            return code != RpcRetCode.Ok && code != RpcRetCode.ChannelClosed && code != RpcRetCode.LogoutRequest;
         }
     }
 }

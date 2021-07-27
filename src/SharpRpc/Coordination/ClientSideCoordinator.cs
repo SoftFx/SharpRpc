@@ -19,13 +19,8 @@ namespace SharpRpc
         private object _lockObj = new object();
         private States _state = States.PendingLogin;
         private TaskCompletionSource<ILoginMessage> _loginWaitHandle;
-        private bool _isLogoutEnabled;
+        private TaskCompletionSource<ILogoutMessage> _logoutWaitHandle;
         private Credentials _creds;
-
-        public ClientSideCoordinator(bool isLogoutRequired)
-        {
-            _isLogoutEnabled = isLogoutRequired;
-        }
 
         public override TimeSpan LoginTimeout => TimeSpan.FromSeconds(5);
 
@@ -36,7 +31,12 @@ namespace SharpRpc
             Channel.Dispatcher.Start();
         }
 
+
+#if NET5_0_OR_GREATER
         public override async ValueTask<RpcResult> OnConnect(CancellationToken cToken)
+#else
+        public override async Task<RpcResult> OnConnect(CancellationToken cToken)
+#endif
         {
             lock (_lockObj)
             {
@@ -62,7 +62,10 @@ namespace SharpRpc
                     return new RpcResult(RpcRetCode.LoginTimeout, "Login oepration timed out!");
 
                 if (loginResp.ResultCode == LoginResult.Ok)
-                    return RpcResult.Ok;
+                {
+                    // enable message queue
+                    return Channel.Dispatcher.OnSessionEstablished();
+                }
                 else if (loginResp.ResultCode == LoginResult.InvalidCredentials)
                     return new RpcResult(RpcRetCode.InvalidCredentials, "Login failed: " + loginResp.ErrorMessage);
                 else
@@ -70,14 +73,49 @@ namespace SharpRpc
             }
         }
 
-        public override async ValueTask<RpcResult> OnDisconnect()
+#if NET5_0_OR_GREATER
+        public override async ValueTask<RpcResult> OnDisconnect(LogoutOption option)
+#else
+        public override async Task<RpcResult> OnDisconnect(LogoutOption option)
+#endif
         {
-            if (_isLogoutEnabled)
+            lock (_lockObj)
             {
-                var logoutMsg = Channel.Contract.SystemMessages.CreateLogoutMessage();
+                // the session has been already closed
+                if (_state == States.LoggedOut)
+                    return RpcResult.Ok;
 
-                return await Channel.Tx.SendSystemMessage(logoutMsg);
+                if (option == LogoutOption.Immidiate)
+                    _state = States.LoggedOut;
+                else
+                {
+                    _state = States.LogoutInProgress;
+                    _logoutWaitHandle = new TaskCompletionSource<ILogoutMessage>();
+                }
             }
+
+            var logoutMsg = Channel.Contract.SystemMessages.CreateLogoutMessage();
+            //logoutMsg.Mode = option;
+
+            var sendResult = await Channel.Tx.SendSystemMessage(logoutMsg);
+
+            lock (_lockObj)
+            {
+                if (!sendResult.IsOk)
+                    return sendResult;
+
+                if (option == LogoutOption.Immidiate)
+                {
+                    _state = States.LoggedOut;
+                    return RpcResult.Ok;
+                }
+            }
+
+            // TO DO: add wait timeout
+            await _logoutWaitHandle.Task;
+
+            lock (_lockObj)
+                _state = States.LoggedOut;
 
             return RpcResult.Ok;
         }
@@ -94,6 +132,17 @@ namespace SharpRpc
                     _state = States.LoggedIn;
                     _loginWaitHandle.TrySetResult(loginMsg);
                 }
+                else if (message is ILogoutMessage logoutMsg)
+                {
+                    if (_state == States.LoginInProgress)
+                        _logoutWaitHandle.TrySetResult(logoutMsg);
+                    else
+                    {
+                        _state = States.LoggedOut;
+                        return new RpcResult(RpcRetCode.LogoutRequest, "Connection is closed by server side.");
+                    }
+                }
+                
             }
 
             return RpcResult.Ok;
