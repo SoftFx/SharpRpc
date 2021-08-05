@@ -22,7 +22,6 @@ namespace SharpRpc
         {
             private readonly object _lockObj = new object();
             //private readonly CircularList<MessageTaskPair> _queue = new CircularList<MessageTaskPair>();
-            private readonly Dictionary<string, ITask> _callTasks = new Dictionary<string, ITask>();
             //private List<MessageTaskPair> _batch = new List<MessageTaskPair>();
             //private List<MessageTaskPair> _queue = new List<MessageTaskPair>();
             private List<IMessage> _batch = new List<IMessage>();
@@ -33,7 +32,7 @@ namespace SharpRpc
             private bool _completed;
             private readonly int _maxBatchSize = 1000;
             private Task _workerTask;
-            private RpcResult _fault;
+            //private RpcResult _fault;
 
             public override void Start()
             {
@@ -43,15 +42,20 @@ namespace SharpRpc
 
             public override RpcResult OnSessionEstablished()
             {
-                try
-                {
-                    ((RpcCallHandler)MessageHandler).Session.FireOpened(new SessionOpenedEventArgs());
-                }
-                catch (Exception)
-                {
-                    // TO DO : log or pass some more information about expcetion (stack trace)
-                    return new RpcResult(RpcRetCode.RequestCrashed, "An exception has been occured in ");
-                }
+                var fireResult = Core.FireOpened();
+
+                if (!fireResult.IsOk)
+                    return fireResult;
+
+                //try
+                //{
+                //    ((RpcCallHandler)MessageHandler).Session.FireOpened(new SessionOpenedEventArgs());
+                //}
+                //catch (Exception)
+                //{
+                //    // TO DO : log or pass some more information about expcetion (stack trace)
+                //    return new RpcResult(RpcRetCode.RequestCrashed, "An exception has been occured in ");
+                //}
 
                 lock (_lockObj)
                     _allowFlag = true;
@@ -120,17 +124,15 @@ namespace SharpRpc
             public override Task Stop(RpcResult fault)
             {
                 Task stopTask;
-                List<ITask> tasksToCanel;
 
                 lock (_lockObj)
                 {
                     _completed = true;
-                    _fault = fault;
+                    //_fault = fault;
 
                     _queue.Clear();
 
-                    tasksToCanel = _callTasks.Values.ToList();
-                    _callTasks.Clear();
+                    Core.OnStop(fault);
 
                     if (_isProcessing)
                         stopTask = _workerTask.ContinueWith(t => InvokeOnStop());
@@ -138,27 +140,18 @@ namespace SharpRpc
                         stopTask = TaskQueue.StartNew(InvokeOnStop);
                 }
 
-                foreach (var task in tasksToCanel)
-                    task.Fail(_fault);
+                Core.CompleteStop();
 
                 return stopTask;
             }
 
-            protected override async void DoCall(IRequest requestMsg, ITask callTask)
+            protected override async void DoCall(IRequest requestMsg, MessageDispatcherCore.ITask callTask)
             {
                 var callId = Guid.NewGuid().ToString();
 
                 requestMsg.CallId = callId;
 
-                var result = RpcResult.Ok;
-
-                lock (_lockObj)
-                {
-                    if (_completed)
-                        result = _fault;
-                    else
-                        _callTasks.Add(callId, callTask);
-                }
+                var result = Core.TryRegisterTask(callId, callTask);
 
                 if (result.Code == RpcRetCode.Ok)
                 {
@@ -166,11 +159,8 @@ namespace SharpRpc
 
                     if (result.Code != RpcRetCode.Ok)
                     {
-                        lock (_lockObj)
-                        {
-                            if (!_callTasks.Remove(callId))
-                                return; // do not need to call Task.Fail() in this case, because it was called in Close() method
-                        }
+                        if (!Core.UnregisterTask(callId))
+                            return; // do not need to call Task.Fail() in this case, because it was called in Close() method
                     }
                 }
 
@@ -204,86 +194,27 @@ namespace SharpRpc
                 // move processing to another thread (and exit the lock)
                 await TaskQueue.Dive();
 
-                ProcessBatch();
+                foreach (var message in _batch)
+                    Core.ProcessMessage(message);
+
+                _batch.Clear();
 
                 lock (_lockObj)
                     SignalCompleted();
             }
 
-            private void ProcessBatch()
-            {
-                foreach (var message in _batch)
-                {
-                    if (message is IResponse resp)
-                    {
-                        ITask task;
-
-                        lock (_callTasks)
-                        {
-                            if (_callTasks.TryGetValue(resp.CallId, out task))
-                                _callTasks.Remove(resp.CallId);
-                            else
-                                //  TO DO : signal protocol violation
-                                continue;
-                        }
-
-                        if (resp is IRequestFault faultMsg)
-                            task.Fail(faultMsg);
-                        else
-                            task.Complete(resp);
-                    }
-                    else if (message is IRequest req)
-                        ProcessRequest(req);
-                    else
-                        ProcessOneWayMessage(message);
-                }
-
-                _batch.Clear();
-            }
-
-            private async void ProcessRequest(IRequest request)
-            {
-                var respToSend = await MessageHandler.ProcessRequest(request);
-                respToSend.CallId = request.CallId;
-                await Tx.TrySendAsync(respToSend);
-            }
-
-            private void ProcessOneWayMessage(IMessage message)
-            {
-                try
-                {
-                    var result = MessageHandler.ProcessMessage(message);
-                    if (result.IsCompleted)
-                    {
-                        if (result.IsFaulted)
-                            OnError(RpcRetCode.MessageHandlerFailure, "Message handler threw an exception: " + result.ToTask().Exception.Message);
-                    }
-                    else
-                    {
-                        result.ToTask().ContinueWith(t =>
-                        {
-                            if (t.IsFaulted)
-                                OnError(RpcRetCode.MessageHandlerFailure, "Message handler threw an exception: " + t.Exception.Message);
-                        });
-                    }
-                }
-                catch (Exception ex)
-                {
-                    // TO DO : stop processing here ???
-                    OnError(RpcRetCode.MessageHandlerFailure, "Message handler threw an exception: " + ex.Message);
-                }
-            }
-
             private void InvokeOnStop()
             {
-                try
-                {
-                    ((RpcCallHandler)MessageHandler).Session.FireClosed(new SessionClosedEventArgs());
-                }
-                catch (Exception)
-                {
-                    // TO DO : log or pass some more information about expcetion (stack trace)
-                }
+                Core.FireClosed();
+
+                //try
+                //{
+                //    ((RpcCallHandler)MessageHandler).Session.FireClosed(new SessionClosedEventArgs());
+                //}
+                //catch (Exception)
+                //{
+                //    // TO DO : log or pass some more information about expcetion (stack trace)
+                //}
             }
 
             //private struct MessageTaskPair

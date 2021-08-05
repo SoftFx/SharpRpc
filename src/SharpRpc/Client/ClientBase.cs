@@ -31,6 +31,8 @@ namespace SharpRpc
 
         public Channel Channel { get; }
 
+        #region Messages
+
         protected void SendMessage(IMessage message)
         {
             Channel.Tx.Send(message);
@@ -59,6 +61,10 @@ namespace SharpRpc
             return Channel.Tx.SendAsync(message);
         }
 
+        #endregion
+
+        #region Calls
+
         protected Task CallAsync<TResp>(IRequest requestMessage)
             where TResp : IResponse
         {
@@ -82,6 +88,42 @@ namespace SharpRpc
         {
             return Channel.Dispatcher.TryCall<TResp, T>(requestMsg);
         }
+
+        #endregion
+
+        #region Streams
+
+        protected OutputStreamCall<TOut> OpenOutputStream<TOut>(IOpenStreamRequest request)
+        {
+            return new StreamCall<object, TOut, object>();
+        }
+
+        protected OutputStreamCall<TOut, TResult> OpenOutputStream<TOut, TResult>(IOpenStreamRequest request)
+        {
+            return new StreamCall<object, TOut, TResult>();
+        }
+
+        protected InputStreamCall<TIn> OpenInputStream<TIn>(IOpenStreamRequest request)
+        {
+            return new StreamCall<TIn, object, object>();
+        }
+
+        protected InputStreamCall<TIn, TResult> OpenInputStream<TIn, TResult>(IOpenStreamRequest request)
+        {
+            return new StreamCall<TIn, object, TResult>();
+        }
+
+        protected DuplexStreamCall<TIn, TOut, object> OpenDuplexStream<TIn, TOut>(IOpenStreamRequest request)
+        {
+            return new StreamCall<TIn, TOut, object>();
+        }
+
+        protected DuplexStreamCall<TIn, TOut, TResult> OpenDuplexStream<TIn, TOut, TResult>(IOpenStreamRequest request)
+        {
+            return new StreamCall<TIn, TOut, TResult>();
+        }
+
+        #endregion
 
         private class NullHandler : IUserMessageHandler
         {

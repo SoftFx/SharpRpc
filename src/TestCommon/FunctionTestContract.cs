@@ -55,6 +55,19 @@ namespace TestCommon
 
         [Rpc(RpcType.Call)]
         List<Tuple<int>> ComplexTypesCall(List<DateTime> list, List<List<DateTime>> listOfLists, Dictionary<int, int> dictionary);
+
+        [Rpc(RpcType.Call)]
+        [StreamOutput(typeof(int))]
+        int TestOutStream(int p1, string p2);
+
+        [Rpc(RpcType.Call)]
+        [StreamInput(typeof(int))]
+        int TestInStream(int p1, string p2);
+
+        [Rpc(RpcType.Call)]
+        [StreamInput(typeof(int))]
+        [StreamOutput(typeof(int))]
+        int TestDuplexStream(int p1, string p2);
     }
 
     [MessagePackObject]

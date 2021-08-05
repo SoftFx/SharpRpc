@@ -17,6 +17,8 @@ namespace SharpRpc.Builder
         public static readonly TypeString RpcAttributeClass = new TypeString("SharpRpc.RpcAttribute");
         public static readonly TypeString RpcSerializerAttributeClass = new TypeString("SharpRpc.RpcSerializerAttribute");
         public static readonly TypeString RpcFaultAttributeClass = new TypeString("SharpRpc.RpcFaultAttribute");
+        public static readonly TypeString RpcStreamInputAttributeClass = new TypeString("SharpRpc.StreamInputAttribute");
+        public static readonly TypeString RpcStreamOutputAttributeClass = new TypeString("SharpRpc.StreamOutputAttribute");
 
         public static readonly TypeString RpcClientBaseClass = new TypeString("SharpRpc.ClientBase");
         public static readonly TypeString RpcClientFacadeBaseClass = new TypeString("SharpRpc.ClientFacadeBase");
@@ -31,6 +33,11 @@ namespace SharpRpc.Builder
         public static readonly TypeString RequestInterface = new TypeString("SharpRpc.IRequest");
         public static readonly TypeString ResponseInterface = new TypeString("SharpRpc.IResponse");
         public static readonly TypeString FaultMessageInterface = new TypeString("SharpRpc.IRequestFault");
+        public static readonly TypeString StreamRequestInterface = new TypeString("SharpRpc.IOpenStreamRequest");
+
+        public static readonly TypeString RpcInputStreamCallClass = new TypeString("SharpRpc.InputStreamCall");
+        public static readonly TypeString RpcDuplexStreamCallClass = new TypeString("SharpRpc.DuplexStreamCall");
+        public static readonly TypeString RpcOutputStreamCallClass = new TypeString("SharpRpc.OutputStreamCall");
 
         public static readonly TypeString BasicRpcFault = new TypeString("SharpRpc.RpcFault");
 

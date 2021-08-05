@@ -28,14 +28,16 @@ namespace SharpRpc
         protected MessageDispatcher Init(TxPipeline tx, IUserMessageHandler handler)
         {
             Tx = tx;
-            MessageHandler = handler;
+            //MessageHandler = handler;
             TaskQueue = tx.TaskQueue;
+            Core = new MessageDispatcherCore(tx, handler, OnError);
             return this;
         }
 
-        protected IUserMessageHandler MessageHandler { get; private set; }
+        //protected IUserMessageHandler MessageHandler { get; private set; }
         protected TxPipeline Tx { get; private set; }
         protected TaskFactory TaskQueue { get; private set; }
+        protected MessageDispatcherCore Core { get; private set; }
 
         public List<IMessage> IncomingMessages { get; protected set; } = new List<IMessage>();
 
@@ -55,12 +57,12 @@ namespace SharpRpc
 #endif
         public abstract Task Stop(RpcResult fault);
 
-        protected abstract void DoCall(IRequest requestMsg, ITask callTask);
+        protected abstract void DoCall(IRequest requestMsg, MessageDispatcherCore.ITask callTask);
 
         public Task Call<TResp>(IRequest requestMsg)
             where TResp : IResponse
         {
-            var task = new CallTask<TResp>();
+            var task = new MessageDispatcherCore.CallTask<TResp>();
             DoCall(requestMsg, task);
             return task.Task;
         }
@@ -68,7 +70,7 @@ namespace SharpRpc
         public Task<TReturn> Call<TResp, TReturn>(IRequest requestMsg)
             where TResp : IResponse
         {
-            var task = new CallTask<TResp, TReturn>();
+            var task = new MessageDispatcherCore.CallTask<TResp, TReturn>();
             DoCall(requestMsg, task);
             return task.Task;
         }
@@ -76,7 +78,7 @@ namespace SharpRpc
         public Task<RpcResult> TryCall<TResp>(IRequest requestMsg)
             where TResp : IResponse
         {
-            var task = new TryCallTask<TResp>();
+            var task = new MessageDispatcherCore.TryCallTask<TResp>();
             DoCall(requestMsg, task);
             return task.Task;
         }
@@ -84,96 +86,9 @@ namespace SharpRpc
         public Task<RpcResult<TReturn>> TryCall<TResp, TReturn>(IRequest requestMsg)
             where TResp : IResponse
         {
-            var task = new TryCallTask<TResp, TReturn>();
+            var task = new MessageDispatcherCore.TryCallTask<TResp, TReturn>();
             DoCall(requestMsg, task);
             return task.Task;
-        }
-
-        protected interface ITask
-        {
-            void Complete(IResponse respMessage);
-            void Fail(RpcResult result);
-            void Fail(IRequestFault faultMessage);
-        }
-
-        private class CallTask<TResp> : TaskCompletionSource<RpcResult>, ITask
-            where TResp : IResponse
-        {
-            public void Complete(IResponse respMessage)
-            {
-                SetResult(RpcResult.Ok);
-            }
-
-            public void Fail(RpcResult result)
-            {
-                SetException(result.ToException());
-            }
-
-            public void Fail(IRequestFault faultMessage)
-            {
-                SetException(faultMessage.CreateException());
-            }
-        }
-
-        private class TryCallTask<TResp> : TaskCompletionSource<RpcResult>, ITask
-            where TResp : IResponse
-        {
-            public void Complete(IResponse respMessage)
-            {
-                SetResult(RpcResult.Ok);
-            }
-
-            public void Fail(RpcResult result)
-            {
-                SetResult(result);
-            }
-
-            public void Fail(IRequestFault faultMessage)
-            {
-                var result = new RpcResult(faultMessage.Code.ToRetCode(), faultMessage.GetFault());
-                SetResult(result);
-            }
-        }
-
-        private class CallTask<TResp, TReturn> : TaskCompletionSource<TReturn>, ITask
-            where TResp : IResponse
-        {
-            public void Complete(IResponse respMessage)
-            {
-                var result = ((IResponse<TReturn>)respMessage).Result;
-                SetResult(result);
-            }
-
-            public void Fail(RpcResult result)
-            {
-                SetException(result.ToException());
-            }
-
-            public void Fail(IRequestFault faultMessage)
-            {
-                SetException(faultMessage.CreateException());
-            }
-        }
-
-        private class TryCallTask<TResp, TReturn> : TaskCompletionSource<RpcResult<TReturn>>, ITask
-            where TResp : IResponse
-        {
-            public void Complete(IResponse respMessage)
-            {
-                var result = ((IResponse<TReturn>)respMessage).Result;
-                SetResult(new RpcResult<TReturn>(result));
-            }
-
-            public void Fail(RpcResult result)
-            {
-                SetResult(new RpcResult<TReturn>(result.Code, result.Fault));
-            }
-
-            public void Fail(IRequestFault faultMessage)
-            {
-                var result = new RpcResult<TReturn>(faultMessage.Code.ToRetCode(), faultMessage.GetFault());
-                SetResult(result);
-            }
         }
     }
 

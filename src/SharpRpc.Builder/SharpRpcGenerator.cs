@@ -9,11 +9,13 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
+using SharpRpc.Builder.Metadata;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using SF = Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
@@ -26,6 +28,8 @@ namespace SharpRpc.Builder
         private INamedTypeSymbol _rpcAttrSymbol;
         private INamedTypeSymbol _serializerAttrSymbol;
         private INamedTypeSymbol _faultContractAttribute;
+        private INamedTypeSymbol _inputStreamAttribute;
+        private INamedTypeSymbol _outputStreamAttribute;
 
         public void Initialize(GeneratorInitializationContext context)
         {
@@ -42,11 +46,14 @@ namespace SharpRpc.Builder
                     Debugger.Launch();
                 }
 #endif
+                var diagnostics = new MetadataDiagnostics();
 
                 var contracts = GetRpcContracts(context).ToList();
 
                 foreach (var contractInfo in contracts)
-                    GenerateStubs(contractInfo, context);
+                    GenerateStubs(contractInfo, context, diagnostics);
+
+                diagnostics.DumpRecordsTo(context);
             }
             catch (Exception ex)
             {
@@ -55,7 +62,7 @@ namespace SharpRpc.Builder
             }
         }
 
-        private void GenerateStubs(ContractDeclaration contractInfo, GeneratorExecutionContext context)
+        private void GenerateStubs(ContractDeclaration contractInfo, GeneratorExecutionContext context, MetadataDiagnostics diagnostics)
         {
             var contractGenClassName = contractInfo.FacadeClassName;
             var hasPrebuilder = contractInfo.Calls.Any(c => c.EnablePrebuild && c.IsOneWay);
@@ -76,7 +83,7 @@ namespace SharpRpc.Builder
             //    .ToList();
 
             var messageNodes = MessageBuilder
-                .GenerateUserMessages(contractInfo, context)
+                .GenerateUserMessages(contractInfo, context, diagnostics)
                 .ToList();
 
             foreach (var msgNode in systemMessageNodes)
@@ -133,7 +140,7 @@ namespace SharpRpc.Builder
             var contractGenClass = SF.ClassDeclaration(contractGenClassName.Short)
                .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
                .AddMembers(clientFactoryMethod, serviceFactoryMethod, sAdapterFactoryMethod, descriptorFactoryMethod)
-               .AddMembers(clientBuilder.GenerateCode(), serverBuilder.GenerateServiceBase(), serverBuilder.GenerateHandler())
+               .AddMembers(clientBuilder.GenerateCode(diagnostics), serverBuilder.GenerateServiceBase(), serverBuilder.GenerateHandler())
                .AddMembers(sAdapterClasses)
                .AddMembers(messageBundleClass, systemBundleClass, messageFactoryClass);
 
@@ -141,7 +148,7 @@ namespace SharpRpc.Builder
             {
                 var callbackClientBuilder = new TxStubBuilder(contractInfo, true);
                 var callbackServiceBuilder = new RxStubBuilder(contractInfo, true);
-                var callbackClientClass = callbackClientBuilder.GenerateCode();
+                var callbackClientClass = callbackClientBuilder.GenerateCode(diagnostics);
                 var callbackServiceClass = callbackServiceBuilder.GenerateServiceBase();
                 var handlerClass = callbackServiceBuilder.GenerateHandler();
 
@@ -161,7 +168,7 @@ namespace SharpRpc.Builder
             }
 
             var stubNamespace = SF.NamespaceDeclaration(SF.IdentifierName(contractInfo.Namespace))
-                .AddMembers(contractGenClass);
+                                .AddMembers(contractGenClass);
 
             var compUnit = SF.CompilationUnit()
                 .AddMembers(stubNamespace);
@@ -195,7 +202,11 @@ namespace SharpRpc.Builder
                 var contractAttr = FindAttribute(interfaceDec, _contractAttrSymbol, sm);
 
                 if (contractAttr != null)
-                    yield return CollectContractData(interfaceDec, context, sm);
+                {
+                    var contract = CollectContractData(interfaceDec, context, sm);
+                    if (contract != null)
+                        yield return contract;
+                }
             }
         }
 
@@ -246,6 +257,8 @@ namespace SharpRpc.Builder
 
         private ContractDeclaration CollectContractData(InterfaceDeclarationSyntax contractTypeDec, GeneratorExecutionContext context, SemanticModel sm)
         {
+            bool hasErrors = false;
+
             var contractSmbInfo = sm.GetDeclaredSymbol(contractTypeDec);
             var compatibilityAdapter = new ContractCompatibility(context);
             if (contractSmbInfo == null)
@@ -258,16 +271,24 @@ namespace SharpRpc.Builder
 
             foreach (var member in contractTypeDec.Members)
             {
-                var methodDec = member as MethodDeclarationSyntax;
-                if (methodDec != null)
+                try
                 {
-                    var callData = CollectCallData(methodDec, sm, contractInfo);
-                    if (callData != null)
-                        contractInfo.Calls.Add(callData);
+                    var methodDec = member as MethodDeclarationSyntax;
+                    if (methodDec != null)
+                    {
+                        var callData = CollectCallData(methodDec, sm, contractInfo);
+                        if (callData != null)
+                            contractInfo.Calls.Add(callData);
+                    }
+                }
+                catch (MetadataException mex)
+                {
+                    context.ReportDiagnostic(mex.ErrorInfo);
+                    hasErrors = true;
                 }
             }
 
-            return contractInfo;
+            return hasErrors ? null : contractInfo;
         }
 
         private List<SerializerBuilderBase> CollectSerializersData(ISymbol contractInterfaceModel)
@@ -307,7 +328,7 @@ namespace SharpRpc.Builder
                     throw new Exception("Invalid property type!");
 
                 var callType = GetCallType(typeArg.Value);
-                var callInfo = new CallDeclaration(methodModel.Name, callType);
+                var callInfo = new CallDeclaration(methodModel.Name, methodModel.Locations[0], callType);
 
                 int index = 1;
                 foreach (var paramModel in methodModel.Parameters)
@@ -319,6 +340,7 @@ namespace SharpRpc.Builder
                 callInfo.EnablePrebuild = callAttr.GetNamedArgumentOrDefault<bool>(Names.PrebuildCallOption);
 
                 CollectFaultContracts(methodModel, callInfo, contract);
+                CollectStreamInfo(methodModel, callInfo, contract);
 
                 return callInfo;
             }
@@ -360,6 +382,24 @@ namespace SharpRpc.Builder
             }
         }
 
+        private void CollectStreamInfo(IMethodSymbol methodModel, CallDeclaration callInfo, ContractDeclaration contract)
+        {
+            var inStreamAttr = FindAttribute(methodModel, _inputStreamAttribute);
+            var outStreamAttr = FindAttribute(methodModel, _outputStreamAttribute);
+
+            if (inStreamAttr != null)
+            {
+                var streamType = inStreamAttr.GetConstructorArgumentOrDefault<ITypeSymbol>(0);
+                callInfo.InStreamItemType = streamType.ToDisplayString(FulluQualifiedSymbolFormat);
+            }
+
+            if (outStreamAttr != null)
+            {
+                var streamType = outStreamAttr.GetConstructorArgumentOrDefault<ITypeSymbol>(0);
+                callInfo.OutStreamItemType = streamType.ToDisplayString(FulluQualifiedSymbolFormat);
+            }
+        }
+
         //private bool TryGetAttributeValue(AttributeData data, string name, out TypedConstant value)
         //{
         //    foreach (var arg in data.NamedArguments)
@@ -394,6 +434,8 @@ namespace SharpRpc.Builder
             _rpcAttrSymbol = GetSymbolOrThrow(Names.RpcAttributeClass.Full, context);
             _serializerAttrSymbol = GetSymbolOrThrow(Names.RpcSerializerAttributeClass.Full, context);
             _faultContractAttribute = GetSymbolOrThrow(Names.RpcFaultAttributeClass.Full, context);
+            _inputStreamAttribute = GetSymbolOrThrow(Names.RpcStreamInputAttributeClass.Full, context);
+            _outputStreamAttribute = GetSymbolOrThrow(Names.RpcStreamOutputAttributeClass.Full, context);
         }
 
         private INamedTypeSymbol GetSymbolOrThrow(string metadataName, GeneratorExecutionContext context)

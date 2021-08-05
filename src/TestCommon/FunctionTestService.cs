@@ -115,5 +115,33 @@ namespace TestCommon
 
             return FwAdapter.WrappResult(result);
         }
+
+#if NET5_0_OR_GREATER
+        public override ValueTask<int> TestInStream(int p1, string p2)
+#else
+        public override Task<int> TestInStream(int p1, string p2)
+#endif
+        {
+            return FwAdapter.WrappResult(p1);
+        }
+
+#if NET5_0_OR_GREATER
+        public override ValueTask<int> TestOutStream(int p1, string p2)
+#else
+        public override Task<int> TestOutStream(int p1, string p2)
+#endif
+        {
+
+            return FwAdapter.WrappResult(p1);
+        }
+
+#if NET5_0_OR_GREATER
+        public override ValueTask<int> TestDuplexStream(int p1, string p2)
+#else
+        public override Task<int> TestDuplexStream(int p1, string p2)
+#endif
+        {
+            return FwAdapter.WrappResult(p1);
+        }
     }
 }

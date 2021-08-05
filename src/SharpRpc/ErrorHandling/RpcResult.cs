@@ -9,7 +9,7 @@ namespace SharpRpc
 {
     public struct RpcResult
     {
-        public static RpcResult<T1> CreateFromResult<T1>(T1 result)
+        public static RpcResult<T1> FromResult<T1>(T1 result)
         {
             return new RpcResult<T1>(result);
         }

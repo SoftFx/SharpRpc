@@ -19,6 +19,12 @@ namespace SharpRpc
         IStreamRxAck CreateAcknowledgement(string streamId);
     }
 
+    public interface IStreamPageInfo
+    {
+        int Size { get; }
+        int ItemsCount { get; }
+    }
+
     public interface IStreamPage<T> : IList<T>
     {
         string StreamId { get; }

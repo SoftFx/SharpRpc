@@ -5,25 +5,20 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+using Microsoft.CodeAnalysis;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 
-namespace SharpRpc
+namespace SharpRpc.Builder
 {
-    internal abstract class BackpressureStrategy
+    public class MetadataException : Exception
     {
-        public abstract void OnItemsArrived(int count, int size);
-        public abstract void OnItemsConsumed(int count, int size);
-
-        internal class SizeLimit : BackpressureStrategy
+        public MetadataException(Diagnostic data)
         {
+            ErrorInfo = data;
         }
 
-        internal class ItemLimit : BackpressureStrategy
-        {
-        }
+        public Diagnostic ErrorInfo { get; }
     }
 }

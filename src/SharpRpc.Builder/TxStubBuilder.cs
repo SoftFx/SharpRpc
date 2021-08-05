@@ -9,6 +9,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
+using SharpRpc.Builder.Metadata;
 using System.Collections.Generic;
 using System.Text;
 using SF = Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
@@ -27,15 +28,15 @@ namespace SharpRpc.Builder
             _isCallback = isCallbackClient;
         }
 
-        public ClassDeclarationSyntax GenerateCode()
+        public ClassDeclarationSyntax GenerateCode(MetadataDiagnostics diagnostics)
         {
             if (_isCallback)
-                return GenerateServerSideStub();
+                return GenerateServerSideStub(diagnostics);
             else
-                return GenerateClientSideStub();
+                return GenerateClientSideStub(diagnostics);
         }
 
-        private ClassDeclarationSyntax GenerateClientSideStub()
+        private ClassDeclarationSyntax GenerateClientSideStub(MetadataDiagnostics diagnostics)
         {
             var clientStubType = _contract.ClientStubClassName;
             var addHandlerParam = !_isCallback && _contract.HasCallbacks;
@@ -64,9 +65,9 @@ namespace SharpRpc.Builder
                 .WithInitializer(constructorInitializer)
                 .WithBody(constructorBody);
 
-            var asyncFacade = GenerateDedicatedFacade(true, false);
-            var tryFacade = GenerateDedicatedFacade(false, true);
-            var asyncTryFacade = GenerateDedicatedFacade(true, true);
+            var asyncFacade = GenerateDedicatedFacade(true, false, diagnostics);
+            var tryFacade = GenerateDedicatedFacade(false, true, diagnostics);
+            var asyncTryFacade = GenerateDedicatedFacade(true, true, diagnostics);
 
             var asyncFacadeProperty = GenerateFacadeProperty(true, false);
             var tryFacadeProperty = GenerateFacadeProperty(false, true);
@@ -83,7 +84,7 @@ namespace SharpRpc.Builder
                 .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
                 .AddBaseListTypes(SF.SimpleBaseType(SF.ParseTypeName(Names.RpcClientBaseClass.Full)))
                 .AddMembers(constructor, asyncFacadeProperty, tryFacadeProperty, asyncTryFacadeProperty)
-                .AddMembers(GenerateCallMethods(clientStubType, false, false))
+                .AddMembers(GenerateCallMethods(clientStubType, false, false, false, diagnostics))
                 .AddMembers(asyncFacade, tryFacade, asyncTryFacade);
         }
 
@@ -108,7 +109,7 @@ namespace SharpRpc.Builder
                 facadeCreationExp);
         }
 
-        private ClassDeclarationSyntax GenerateDedicatedFacade(bool isAsync, bool isTry)
+        private ClassDeclarationSyntax GenerateDedicatedFacade(bool isAsync, bool isTry, MetadataDiagnostics diagnostics)
         {
             var className = GetFacadeClassName(isAsync, isTry);
 
@@ -127,10 +128,10 @@ namespace SharpRpc.Builder
                 .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
                 .AddMembers(constructor)
                 .AddBaseListTypes(SF.SimpleBaseType(SF.ParseTypeName(Names.RpcClientFacadeBaseClass.Full)))
-                .AddMembers(GenerateCallMethods(_contract.ClientStubClassName, isAsync, isTry));
+                .AddMembers(GenerateCallMethods(_contract.ClientStubClassName, isAsync, isTry, true, diagnostics));
         }
 
-        private ClassDeclarationSyntax GenerateServerSideStub()
+        private ClassDeclarationSyntax GenerateServerSideStub(MetadataDiagnostics diagnostics)
         {
             var clientStubType = _contract.CallbackClientStubClassName;
 
@@ -150,9 +151,9 @@ namespace SharpRpc.Builder
                 .WithInitializer(constructorInitializer)
                 .WithBody(constructorBody);
 
-            var asyncFacade = GenerateDedicatedFacade(true, false);
-            var tryFacade = GenerateDedicatedFacade(false, true);
-            var asyncTryFacade = GenerateDedicatedFacade(true, true);
+            var asyncFacade = GenerateDedicatedFacade(true, false, diagnostics);
+            var tryFacade = GenerateDedicatedFacade(false, true, diagnostics);
+            var asyncTryFacade = GenerateDedicatedFacade(true, true, diagnostics);
 
             var asyncFacadeProperty = GenerateFacadeProperty(true, false);
             var tryFacadeProperty = GenerateFacadeProperty(false, true);
@@ -163,7 +164,7 @@ namespace SharpRpc.Builder
                 .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
                 .AddBaseListTypes(SF.SimpleBaseType(SF.ParseTypeName(Names.RpcClientBaseClass.Full)))
                 .AddMembers(constructor, asyncFacadeProperty, tryFacadeProperty, asyncTryFacadeProperty)
-                .AddMembers(GenerateCallMethods(clientStubType, false, false))
+                .AddMembers(GenerateCallMethods(clientStubType, false, false, false, diagnostics))
                 .AddMembers(asyncFacade, tryFacade, asyncTryFacade);
         }
 
@@ -208,24 +209,39 @@ namespace SharpRpc.Builder
                 .WithBody(SF.Block(serializerVarStatement, descriptorVarStatement, returnStatement));
         }
 
-        private MethodDeclarationSyntax[] GenerateCallMethods(TypeString clientStubTypeName, bool isAsync, bool isTry)
+        private MethodDeclarationSyntax[] GenerateCallMethods(TypeString clientStubTypeName, bool isAsync, bool isTry, bool skipStreamCalls, MetadataDiagnostics diagnostics)
         {
             var methods = new List<MethodDeclarationSyntax>();
 
             foreach (var callDec in _contract.Calls)
             {
-                bool addMessage = _isCallback ? (callDec.CallType == ContractCallType.MessageToClient) : (callDec.CallType == ContractCallType.MessageToServer);
-                bool addCall = _isCallback ? (callDec.CallType == ContractCallType.CallToClient) : (callDec.CallType == ContractCallType.CallToServer);
-
-                if (addMessage)
+                if (callDec.HasStreams)
                 {
-                    methods.Add(GenerateOneWayCall(callDec, clientStubTypeName, isAsync, isTry));
+                    if (!skipStreamCalls && (_isCallback && callDec.IsCallback || !_isCallback && !callDec.IsCallback))
+                    {
+                        if (callDec.IsOneWay)
+                        {
+                            // TO DO: emit warning
+                        }
 
-                    if (callDec.EnablePrebuild)
-                        methods.Add(GeneratePrebuiltMessageSender(callDec, clientStubTypeName, isAsync, isTry));
+                        methods.Add(GenerateStreamCall(callDec, clientStubTypeName));
+                    }
                 }
-                else if (addCall)
-                    methods.Add(GenerateCall(callDec, clientStubTypeName, isAsync, isTry));
+                else
+                {
+                    bool addMessage = _isCallback ? (callDec.CallType == ContractCallType.MessageToClient) : (callDec.CallType == ContractCallType.MessageToServer);
+                    bool addCall = _isCallback ? (callDec.CallType == ContractCallType.CallToClient) : (callDec.CallType == ContractCallType.CallToServer);
+
+                    if (addMessage)
+                    {
+                        methods.Add(GenerateOneWayCall(callDec, clientStubTypeName, isAsync, isTry));
+
+                        if (callDec.EnablePrebuild)
+                            methods.Add(GeneratePrebuiltMessageSender(callDec, clientStubTypeName, isAsync, isTry));
+                    }
+                    else if (addCall)
+                        methods.Add(GenerateCall(callDec, clientStubTypeName, isAsync, isTry));
+                }                
             }
 
             return methods.ToArray();
@@ -287,6 +303,76 @@ namespace SharpRpc.Builder
                 bodyStatements.Add(GenerateRemoteCallStatement(responseMsgClassName, callDec.ReturnParam.ParamType, isAsync, isTry, out methodRetType));
 
             var method = SF.MethodDeclaration(methodRetType, callDec.MethodName)
+                .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
+                .AddParameterListParameters(methodParams.ToArray())
+                .WithBody(SF.Block(bodyStatements));
+
+            return method;
+        }
+
+        private MethodDeclarationSyntax GenerateStreamCall(CallDeclaration callDec, TypeString clientStubTypeName)
+        {
+            NameSyntax callProxyClass;
+            NameSyntax methodToInvoke;
+
+            if (callDec.HasInStream)
+            {
+                if (callDec.HasOutStream)
+                {
+                    if (callDec.ReturnsData)
+                    {
+                        callProxyClass = SH.GenericName(Names.RpcDuplexStreamCallClass.Full, callDec.InStreamItemType, callDec.OutStreamItemType, callDec.ReturnParam.ParamType);
+                        methodToInvoke = SH.GenericName("OpenDuplexStream", callDec.InStreamItemType, callDec.OutStreamItemType, callDec.ReturnParam.ParamType);
+                    }
+                    else
+                    {
+                        callProxyClass = SH.GenericName(Names.RpcDuplexStreamCallClass.Full, callDec.InStreamItemType, callDec.OutStreamItemType);
+                        methodToInvoke = SH.GenericName("OpenDuplexStream", callDec.InStreamItemType, callDec.OutStreamItemType);
+                    }
+                }
+                else
+                {
+                    if (callDec.ReturnsData)
+                    {
+                        callProxyClass = SH.GenericName(Names.RpcInputStreamCallClass.Full, callDec.InStreamItemType, callDec.ReturnParam.ParamType);
+                        methodToInvoke = SH.GenericName("OpenInputStream", callDec.InStreamItemType, callDec.ReturnParam.ParamType);
+                    }
+                    else
+                    {
+                        callProxyClass = SH.GenericName(Names.RpcInputStreamCallClass.Full, callDec.InStreamItemType);
+                        methodToInvoke = SH.GenericName("OpenInputStream", callDec.InStreamItemType);
+                    }
+                }
+            }
+            else
+            {
+                if (callDec.ReturnsData)
+                {
+                    callProxyClass = SH.GenericName(Names.RpcOutputStreamCallClass.Full, callDec.OutStreamItemType, callDec.ReturnParam.ParamType);
+                    methodToInvoke = SH.GenericName("OpenOutputStream", callDec.OutStreamItemType, callDec.ReturnParam.ParamType);
+                }
+                else
+                {
+                    callProxyClass = SH.GenericName(Names.RpcOutputStreamCallClass.Full, callDec.OutStreamItemType);
+                    methodToInvoke = SH.GenericName("OpenOutputStream", callDec.OutStreamItemType);
+                }
+            }
+
+
+            var bodyStatements = new List<StatementSyntax>();
+            var methodParams = GenerateMethodParams(callDec);
+
+            var msgClassName = _contract.GetRequestClassName(callDec.MethodName);
+
+            var openStreamInvoke = SF.InvocationExpression(methodToInvoke)
+                .AddArgumentListArguments(SH.IdentifierArgument("message"));
+
+            bodyStatements.AddRange(GenerateCreateAndFillMessageStatements(callDec, msgClassName));
+            bodyStatements.Add(SF.ReturnStatement(openStreamInvoke));
+
+            var methodName = callDec.MethodName; // AtttributeMethodName(callDec, isAsync, isTry);
+
+            var method = SF.MethodDeclaration(callProxyClass, methodName)
                 .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
                 .AddParameterListParameters(methodParams.ToArray())
                 .WithBody(SF.Block(bodyStatements));

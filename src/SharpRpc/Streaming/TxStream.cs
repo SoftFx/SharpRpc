@@ -13,7 +13,7 @@ using System.Threading.Tasks;
 
 namespace SharpRpc
 {
-    class TxStream
+    public class TxStream<T>
     {
     }
 }

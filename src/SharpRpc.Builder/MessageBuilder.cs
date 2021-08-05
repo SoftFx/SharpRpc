@@ -9,6 +9,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
+using SharpRpc.Builder.Metadata;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -61,7 +62,7 @@ namespace SharpRpc.Builder
         //    yield return GenerateBasicAuthData(contract);
         //}
 
-        public static IEnumerable<ClassBuildNode> GenerateUserMessages(ContractDeclaration contract, GeneratorExecutionContext context)
+        public static IEnumerable<ClassBuildNode> GenerateUserMessages(ContractDeclaration contract, GeneratorExecutionContext context, MetadataDiagnostics diagnostics)
         {
             foreach (var call in contract.Calls)
             {
@@ -71,7 +72,12 @@ namespace SharpRpc.Builder
                     yield return new MessageBuilder(contract, call, MessageType.Response).GenerateMessage(context, false, Names.ResponseClassPostfix);
                 }
                 else
+                {
+                    if (call.ReturnsData)
+                        diagnostics.AddOneWayReturnsDataWarning(call.CodeLocation, call.MethodName);
+
                     yield return new MessageBuilder(contract, call, MessageType.OneWay).GenerateMessage(context, true, Names.MessageClassPostfix);
+                }
             }
         }
 
@@ -312,7 +318,12 @@ namespace SharpRpc.Builder
             baseTypes.Add(SyntaxFactory.SimpleBaseType(SyntaxHelper.ShortTypeName(ContractInfo.BaseMessageClassName)));
 
             if (MessageType == MessageType.Request)
-                baseTypes.Add(SyntaxFactory.SimpleBaseType(SyntaxHelper.GlobalTypeName(Names.RequestInterface)));
+            {
+                if(RpcInfo.HasStreams)
+                    baseTypes.Add(SyntaxFactory.SimpleBaseType(SyntaxHelper.GlobalTypeName(Names.StreamRequestInterface)));
+                else
+                    baseTypes.Add(SyntaxFactory.SimpleBaseType(SyntaxHelper.GlobalTypeName(Names.RequestInterface)));
+            }
             else if (MessageType == MessageType.Response)
             {
                 if (RpcInfo.ReturnsData)
