@@ -99,13 +99,13 @@ namespace SharpRpc
                 return FwAdapter.AsyncVoid;
             }
 
-            protected override async void DoCall(IRequest requestMsg, MessageDispatcherCore.ITask callTask)
+            protected override async void DoCall(IRequest requestMsg, MessageDispatcherCore.IInteropOperation callTask)
             {
                 var callId = Guid.NewGuid().ToString();
 
                 requestMsg.CallId = callId;
 
-                var result = Core.TryRegisterTask(callId, callTask);
+                var result = Core.TryRegisterOperation(callId, callTask);
 
                 if (result.Code == RpcRetCode.Ok)
                 {
@@ -113,13 +113,18 @@ namespace SharpRpc
 
                     if (result.Code != RpcRetCode.Ok)
                     {
-                        if (!Core.UnregisterTask(callId))
+                        if (!Core.UnregisterOperation(callId))
                             return; // do not need to call Task.Fail() in this case, because it was called in Close() method
                     }
                 }
 
                 if (result.Code != RpcRetCode.Ok)
                     callTask.Fail(result);
+            }
+
+            public override RpcResult RegisterCallObject(string callId, MessageDispatcherCore.IInteropOperation callTask)
+            {
+                return Core.TryRegisterOperation(callId, callTask);
             }
 
             private void InvokeOnStop()

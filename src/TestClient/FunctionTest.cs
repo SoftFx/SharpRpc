@@ -26,11 +26,12 @@ namespace TestClient
 
             try
             {
-                TestCall1(client);
-                TestCall2(client);
-                TestFaults(client);
-                TestCalbacks(client);
-                TestComplexData(client);
+                //TestCall1(client);
+                //TestCall2(client);
+                //TestFaults(client);
+                //TestCalbacks(client);
+                //TestComplexData(client);
+                TestStreams(client);
 
                 Console.WriteLine("Done testing.");
             }
@@ -82,14 +83,14 @@ namespace TestClient
 
             var r2 = client.Try.TestCall2(10, "11");
             r2.ThrowIfNotOk();
-            if (r2.Result != "123")
+            if (r2.Value != "123")
                 throw new Exception("TryTestCall2 returned unexpected result!");
 
             Console.WriteLine("TestCall2.TryCallAsync");
 
             var r4 = client.TryAsync.TestCall2(10, "11").Result;
             r4.ThrowIfNotOk();
-            if (r4.Result != "123")
+            if (r4.Value != "123")
                 throw new Exception("TestCall2Async returned unexpected result!");
         }
 
@@ -253,6 +254,35 @@ namespace TestClient
             var r2 = client.Async.InvokeCallback(2, 10, "11").Result;
             if (r2 != "21")
                 throw new Exception("InvokeCallback returned unexpected result!");
+        }
+
+        public static void TestStreams(FunctionTestContract_Gen.Client client)
+        {
+            TestOutputStream(client);
+        }
+
+        private static void TestOutputStream(FunctionTestContract_Gen.Client client)
+        {
+            Console.WriteLine("TestStreams.Output");
+
+            var call = client.TestOutStream(10, "11");
+
+            var r1 = call.OutputStream.WriteAsync(1).Result;
+            if (!r1.IsOk)
+                throw new Exception("WriteAsync returned " + r1.Code);
+
+            var r2 = call.OutputStream.WriteAsync(2).Result;
+            if (!r2.IsOk)
+                throw new Exception("WriteAsync returned " + r2.Code);
+
+            var r3 = call.OutputStream.WriteAsync(3).Result;
+            if (!r3.IsOk)
+                throw new Exception("WriteAsync returned " + r3.Code);
+
+            var result = call.AsyncResult.Result.Value;
+
+            if (result != 28)
+                throw new Exception("Stream call returned an unexpected result!");
         }
 
         private class CallbackHandler : FunctionTestContract_Gen.CallbackServiceBase

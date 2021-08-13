@@ -18,9 +18,9 @@ using System.Threading.Tasks;
 namespace SharpRpc
 {
 #if NET5_0_OR_GREATER
-    public class RxStream<T> : IAsyncEnumerable<T>
+    public class PagingRxStream<T> : IAsyncEnumerable<T>
 #else
-    public class RxStream<T>
+    public class PagingRxStream<T>
 #endif
     {
         private object _lockObj = new object();
@@ -31,7 +31,7 @@ namespace SharpRpc
 
         //private bool _isWating;
 
-        internal RxStream(IStreamFixtureFactory<T> factory)
+        internal PagingRxStream(IStreamMessageFactory<T> factory)
         {
         }
 
@@ -45,11 +45,11 @@ namespace SharpRpc
                 {
                     Debug.Assert(_currentPageIndex == 0);
 
-                    _currentPage = page;
+                    _currentPage = page.Items;
                     wakeupListener = true;
                 }
                 else
-                    _pages.Enqueue(page);
+                    _pages.Enqueue(page.Items);
 
                 OnDataArrived();
             }
@@ -148,11 +148,11 @@ namespace SharpRpc
 #if NET5_0_OR_GREATER
         private class AsyncEnumerator : IAsyncEnumerator<T>, IStreamEnumerator
         {
-            private readonly RxStream<T> _stream;
+            private readonly PagingRxStream<T> _stream;
             private TaskCompletionSource<bool> _itemWaitSrc;
             //private TaskCompletionSource<bool> _closeWaitSrc;
 
-            public AsyncEnumerator(RxStream<T> stream)
+            public AsyncEnumerator(PagingRxStream<T> stream)
             {
                 _stream = stream;
             }

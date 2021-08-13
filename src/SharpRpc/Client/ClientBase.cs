@@ -93,34 +93,36 @@ namespace SharpRpc
 
         #region Streams
 
-        protected OutputStreamCall<TOut> OpenOutputStream<TOut>(IOpenStreamRequest request)
+        protected OutputStreamCall<TOut> OpenOutputStream<TOut>(IOpenStreamRequest request, IStreamMessageFactory<TOut> factory)
         {
-            return new StreamCall<object, TOut, object>();
+            return new StreamCall<object, TOut, object>(request, Channel, null, factory, false);
         }
 
-        protected OutputStreamCall<TOut, TResult> OpenOutputStream<TOut, TResult>(IOpenStreamRequest request)
+        protected OutputStreamCall<TOut, TResult> OpenOutputStream<TOut, TResult>(IOpenStreamRequest request, IStreamMessageFactory<TOut> factory)
         {
-            return new StreamCall<object, TOut, TResult>();
+            return new StreamCall<object, TOut, TResult>(request, Channel, null, factory, true);
         }
 
-        protected InputStreamCall<TIn> OpenInputStream<TIn>(IOpenStreamRequest request)
+        protected InputStreamCall<TIn> OpenInputStream<TIn>(IOpenStreamRequest request, IStreamMessageFactory<TIn> factory)
         {
-            return new StreamCall<TIn, object, object>();
+            return new StreamCall<TIn, object, object>(request, Channel, factory, null, false);
         }
 
-        protected InputStreamCall<TIn, TResult> OpenInputStream<TIn, TResult>(IOpenStreamRequest request)
+        protected InputStreamCall<TIn, TResult> OpenInputStream<TIn, TResult>(IOpenStreamRequest request, IStreamMessageFactory<TIn> factory)
         {
-            return new StreamCall<TIn, object, TResult>();
+            return new StreamCall<TIn, object, TResult>(request, Channel, factory, null, true);
         }
 
-        protected DuplexStreamCall<TIn, TOut, object> OpenDuplexStream<TIn, TOut>(IOpenStreamRequest request)
+        protected DuplexStreamCall<TIn, TOut, object> OpenDuplexStream<TIn, TOut>(IOpenStreamRequest request,
+            IStreamMessageFactory<TIn> inFactory, IStreamMessageFactory<TOut> outFactory)
         {
-            return new StreamCall<TIn, TOut, object>();
+            return new StreamCall<TIn, TOut, object>(request, Channel, inFactory, outFactory, false);
         }
 
-        protected DuplexStreamCall<TIn, TOut, TResult> OpenDuplexStream<TIn, TOut, TResult>(IOpenStreamRequest request)
+        protected DuplexStreamCall<TIn, TOut, TResult> OpenDuplexStream<TIn, TOut, TResult>(IOpenStreamRequest request,
+            IStreamMessageFactory<TIn> inFactory, IStreamMessageFactory<TOut> outFactory)
         {
-            return new StreamCall<TIn, TOut, TResult>();
+            return new StreamCall<TIn, TOut, TResult>(request, Channel, inFactory, outFactory, true);
         }
 
         #endregion

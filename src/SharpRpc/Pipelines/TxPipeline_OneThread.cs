@@ -391,7 +391,26 @@ namespace SharpRpc
             }
         }
 
-#endregion
+        public void TrySendAsync(IMessage message, Action<RpcResult> onSendCompletedCallback)
+        {
+            lock (_lockObj)
+            {
+                if (_fault.Code != RpcRetCode.Ok)
+                    onSendCompletedCallback(_fault);
+
+                CheckConnectionFlags();
+
+                if (CanEnqueueUserMessage)
+                {
+                    Enqueue(message);
+                    onSendCompletedCallback(RpcResult.Ok);
+                }
+                else
+                    _asyncGate.Enqueue(message, onSendCompletedCallback);
+            }
+        }
+
+        #endregion
 
         private void CheckConnectionFlags()
         {

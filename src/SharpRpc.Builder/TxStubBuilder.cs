@@ -358,7 +358,6 @@ namespace SharpRpc.Builder
                 }
             }
 
-
             var bodyStatements = new List<StatementSyntax>();
             var methodParams = GenerateMethodParams(callDec);
 
@@ -366,6 +365,22 @@ namespace SharpRpc.Builder
 
             var openStreamInvoke = SF.InvocationExpression(methodToInvoke)
                 .AddArgumentListArguments(SH.IdentifierArgument("message"));
+
+            if (callDec.HasInStream)
+            {
+                var factoryClassName = _contract.GetStreamFactoryClassName(callDec.InStreamItemType);
+                var factoryCreationExp = SF.ObjectCreationExpression(SH.FullTypeName(factoryClassName))
+                    .WithoutArguments();
+                openStreamInvoke = openStreamInvoke.AddArgumentListArguments(SF.Argument(factoryCreationExp));
+            }
+
+            if (callDec.HasOutStream)
+            {
+                var factoryClassName = _contract.GetStreamFactoryClassName(callDec.OutStreamItemType);
+                var factoryCreationExp = SF.ObjectCreationExpression(SH.FullTypeName(factoryClassName))
+                    .WithoutArguments();
+                openStreamInvoke = openStreamInvoke.AddArgumentListArguments(SF.Argument(factoryCreationExp));
+            }
 
             bodyStatements.AddRange(GenerateCreateAndFillMessageStatements(callDec, msgClassName));
             bodyStatements.Add(SF.ReturnStatement(openStreamInvoke));

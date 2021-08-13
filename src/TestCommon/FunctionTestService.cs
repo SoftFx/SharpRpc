@@ -91,9 +91,9 @@ namespace TestCommon
             if (callbackNo == 1)
                 return (await Client.TryAsync.TestCallback1(p1, p2)).Code.ToString();
             else if (callbackNo == 2)
-                return (await Client.TryAsync.TestCallback2(p1, p2)).Result.ToString();
+                return (await Client.TryAsync.TestCallback2(p1, p2)).Value.ToString();
             else if (callbackNo == 3)
-                return (await Client.TryAsync.TestCallback3(p1, p2)).Result;
+                return (await Client.TryAsync.TestCallback3(p1, p2)).Value;
 
             throw new Exception("There is no callabck number " + callbackNo);
         }

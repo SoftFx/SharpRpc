@@ -11,9 +11,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace SharpRpc
+namespace SharpRpc.Streaming
 {
-    public class TxStream<T>
+    class BufferingTxStream
     {
     }
 }

@@ -139,6 +139,8 @@ namespace SharpRpc
                     {
                         var msg = _serializer.Deserialize(_reader);
 
+                        System.Diagnostics.Debug.WriteLine("RX " + msg.GetType().Name);
+
                         if (msg is ISystemMessage sysMsg)
                         {
                             var sysMsgResult = OnSystemMessage(sysMsg);

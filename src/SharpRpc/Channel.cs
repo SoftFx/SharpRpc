@@ -186,7 +186,7 @@ namespace SharpRpc
                 {
                     var connectResult = await ((ClientEndpoint)_endpoint).ConnectAsync();
                     if (connectResult.Code == RpcRetCode.Ok)
-                        _transport = connectResult.Result;
+                        _transport = connectResult.Value;
                     else
                         UpdateFault(connectResult.GetResultInfo());
                 }

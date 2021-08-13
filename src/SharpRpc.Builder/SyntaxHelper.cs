@@ -32,12 +32,12 @@ namespace SharpRpc.Builder
             return SyntaxFactory.AttributeArgument(value);
         }
 
-        public static ClassDeclarationSyntax AddSeparatedAttributes(this ClassDeclarationSyntax classDec, params AttributeSyntax[] attributeDeclarations)
+        public static TypeDeclarationSyntax AddSeparatedAttributes(this TypeDeclarationSyntax classDec, params AttributeSyntax[] attributeDeclarations)
         {
             return AddSeparatedAttributes(classDec, (IEnumerable<AttributeSyntax>)attributeDeclarations);
         }
 
-        public static ClassDeclarationSyntax AddSeparatedAttributes(this ClassDeclarationSyntax classDec, IEnumerable<AttributeSyntax> attributeDeclarations)
+        public static TypeDeclarationSyntax AddSeparatedAttributes(this TypeDeclarationSyntax classDec, IEnumerable<AttributeSyntax> attributeDeclarations)
         {
             return classDec.AddAttributeLists(
                 attributeDeclarations.Select(d => SyntaxFactory.AttributeList(ToSeparatedList(d))).ToArray());

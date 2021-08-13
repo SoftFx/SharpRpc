@@ -17,6 +17,7 @@ namespace SharpRpc.Builder
     {
         private List<SerializerDeclaration> _serializers = new List<SerializerDeclaration>();
         private List<string> _faultTypesById = new List<string>();
+        private List<string> _streamTypesById = new List<string>();
 
         public ContractDeclaration(string typeFullName, ContractCompatibility compatibility)
         {
@@ -26,6 +27,7 @@ namespace SharpRpc.Builder
             MessageBundleClassName = new TypeString(FacadeClassName.Full, "Messages");
             SystemBundleClassName = new TypeString(FacadeClassName.Full, "SystemMessages");
             PrebuiltBundleClassName = new TypeString(FacadeClassName.Full, "PrebuiltMessages");
+            StreamBundleClassName = new TypeString(FacadeClassName.Full, "StreamMessages");
             MessageFactoryClassName = new TypeString(FacadeClassName.Full, "SystemMessagesFactory");
             BaseMessageClassName = new TypeString(MessageBundleClassName.Full, "MessageBase");
             LoginMessageClassName = new TypeString(SystemBundleClassName.Short, "Login");
@@ -47,6 +49,7 @@ namespace SharpRpc.Builder
         public TypeString MessageBundleClassName { get; }
         public TypeString SystemBundleClassName { get; }
         public TypeString PrebuiltBundleClassName { get; }
+        public TypeString StreamBundleClassName { get; }
         public TypeString MessageFactoryClassName { get; }
         public TypeString ClientStubClassName { get; }
         public TypeString CallbackClientStubClassName { get; }
@@ -60,13 +63,13 @@ namespace SharpRpc.Builder
         public TypeString LogoutMessageClassName { get; }
         public TypeString FaultMessageClassName { get; }
         public TypeString HeartbeatMessageClassName { get; }
-        //public TypeString AuthDataClassName { get; }
-        //public TypeString BasicAuthDataClassName { get; }
         public List<CallDeclaration> Calls { get; } = new List<CallDeclaration>();
         public List<string> FaultTypes => _faultTypesById;
+        public List<string> StreamTypes => _streamTypesById;
         public ContractCompatibility Compatibility { get; }
 
         public bool HasCallbacks => Calls.Any(c => c.IsCallback);
+        public bool HasStreams => _streamTypesById.Count > 0;
 
         internal IReadOnlyList<SerializerDeclaration> Serializers => _serializers;
 
@@ -127,6 +130,36 @@ namespace SharpRpc.Builder
 
             if (index < 0)
                 throw new Exception("Fault type is not registered: " + faultType);
+
+            return index;
+        }
+
+        public TypeString GetStreamPageClassName(string type)
+        {
+            var id = GetStreamTypeId(type);
+
+            return new TypeString(StreamBundleClassName.Short, "Page" + id);
+        }
+
+        public TypeString GetStreamFactoryClassName(string type)
+        {
+            var id = GetStreamTypeId(type);
+
+            return new TypeString(StreamBundleClassName.Short, "Factory" + id);
+        }
+
+        public void RegisterStreamType(string type)
+        {
+            if (!_streamTypesById.Contains(type))
+                _streamTypesById.Add(type);
+        }
+
+        private int GetStreamTypeId(string type)
+        {
+            var index = _streamTypesById.IndexOf(type);
+
+            if (index < 0)
+                throw new Exception("Stream type is not registered: " +  type);
 
             return index;
         }

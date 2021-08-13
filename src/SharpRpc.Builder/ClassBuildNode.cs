@@ -17,33 +17,33 @@ namespace SharpRpc.Builder
     {
         private List<PropertyDeclarationSyntax> _properties;
 
-        public ClassBuildNode(TypeString className, ClassDeclarationSyntax declaration, List<PropertyDeclarationSyntax> properties)
+        public ClassBuildNode(TypeString className, TypeDeclarationSyntax declaration, List<PropertyDeclarationSyntax> properties)
         {
             ClassName = className;
-            ClassDeclaration = declaration;
+            TypeDeclaration = declaration;
             _properties = properties;
         }
 
-        public ClassBuildNode(TypeString className, ClassDeclarationSyntax declaration, params PropertyDeclarationSyntax[] properties)
+        public ClassBuildNode(TypeString className, TypeDeclarationSyntax declaration, params PropertyDeclarationSyntax[] properties)
         {
             ClassName = className;
-            ClassDeclaration = declaration;
+            TypeDeclaration = declaration;
             _properties = properties.ToList();
         }
 
         public TypeString ClassName { get; private set; }
-        public ClassDeclarationSyntax ClassDeclaration { get; private set; }
+        public TypeDeclarationSyntax TypeDeclaration { get; private set; }
         public IReadOnlyList<PropertyDeclarationSyntax> PropertyDeclarations => _properties;
         public List<ClassBuildNode> Successors { get; } = new List<ClassBuildNode>();
 
-        public ClassDeclarationSyntax CompleteBuilding()
+        public TypeDeclarationSyntax CompleteBuilding()
         {
-            return ClassDeclaration.AddMembers(_properties.ToArray());
+            return TypeDeclaration.AddMembers(_properties.ToArray());
         }
 
-        public void UpdateDeclaration(Func<ClassDeclarationSyntax, ClassDeclarationSyntax> updateFunc)
+        public void UpdateDeclaration(Func<TypeDeclarationSyntax, TypeDeclarationSyntax> updateFunc)
         {
-            ClassDeclaration = updateFunc(ClassDeclaration);
+            TypeDeclaration = updateFunc(TypeDeclaration);
         }
 
         public void UpdatePropertyDeclaration(int index, Func<PropertyDeclarationSyntax, PropertyDeclarationSyntax> updateFunc)

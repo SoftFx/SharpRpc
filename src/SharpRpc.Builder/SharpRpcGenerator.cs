@@ -77,27 +77,25 @@ namespace SharpRpc.Builder
                 .GenerateSystemMessages(contractInfo)
                 .ToList();
 
-            //var authBaseNode = MessageBuilder.GenerateBaseAuthData(contractInfo);
-            //var systemAuthNodes = MessageBuilder
-            //    .GenerateAuthContracts(contractInfo)
-            //    .ToList();
+            var streamMessageNodes = MessageBuilder
+                .GenerateStreamMessages(contractInfo)
+                .ToList();
 
-            var messageNodes = MessageBuilder
+            var userMessageNodes = MessageBuilder
                 .GenerateUserMessages(contractInfo, context, diagnostics)
                 .ToList();
 
             foreach (var msgNode in systemMessageNodes)
                 baseMsgNode.Successors.Add(msgNode);
 
-            foreach (var msgNode in messageNodes)
+            foreach (var msgNode in streamMessageNodes)
                 baseMsgNode.Successors.Add(msgNode);
 
-            //foreach (var authDataNode in systemAuthNodes)
-            //    authBaseNode.Successors.Add(authDataNode);
+            foreach (var msgNode in userMessageNodes)
+                baseMsgNode.Successors.Add(msgNode);
 
             var sFixture = new SerializerFixture()
                 .AddHierachy(baseMsgNode);
-            //.AddHierachy(authBaseNode);
 
             var sAdapterClasses = sFixture
                 .GenerateSerializationAdapters(contractInfo, context)
@@ -109,26 +107,22 @@ namespace SharpRpc.Builder
                 .Select(n => n.CompleteBuilding())
                 .ToArray();
 
-            //var baseAuthClass = authBaseNode.CompleteBuilding();
+            var streamMessageClasses = streamMessageNodes
+                .Select(n => n.CompleteBuilding())
+                .ToArray();
 
-            //var systemAuthDataClasses = systemAuthNodes
-            //    .Select(n => n.CompleteBuilding())
-            //    .ToArray();
-
-            var messageClasses = messageNodes
+            var userMessageClasses = userMessageNodes
                 .Select(n => n.CompleteBuilding())
                 .ToArray();
 
             var systemBundleClass = SF.ClassDeclaration(contractInfo.SystemBundleClassName.Short)
                 .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
                 .AddMembers(systemMessageClasses);
-            //.AddMembers(baseAuthClass)
-            //.AddMembers(systemAuthDataClasses);
 
             var messageBundleClass = SF.ClassDeclaration(contractInfo.MessageBundleClassName.Short)
                 .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
                 .AddMembers(baseMessageClass)
-                .AddMembers(messageClasses);
+                .AddMembers(userMessageClasses);
 
             var messageFactoryClass = MessageBuilder.GenerateFactory(contractInfo);
 
@@ -153,6 +147,20 @@ namespace SharpRpc.Builder
                 var handlerClass = callbackServiceBuilder.GenerateHandler();
 
                 contractGenClass = contractGenClass.AddMembers(callbackClientClass, callbackServiceClass, handlerClass);
+            }
+
+            if (contractInfo.HasStreams)
+            {
+                var streamFactoryClasses = MessageBuilder
+                    .GenerateStreamFactories(contractInfo)
+                    .ToArray();
+
+                var streamBundleClass = SF.ClassDeclaration(contractInfo.StreamBundleClassName.Short)
+                    .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
+                    .AddMembers(streamMessageClasses)
+                    .AddMembers(streamFactoryClasses);
+
+                contractGenClass = contractGenClass.AddMembers(streamBundleClass);
             }
 
             if (hasPrebuilder)
@@ -391,12 +399,14 @@ namespace SharpRpc.Builder
             {
                 var streamType = inStreamAttr.GetConstructorArgumentOrDefault<ITypeSymbol>(0);
                 callInfo.InStreamItemType = streamType.ToDisplayString(FulluQualifiedSymbolFormat);
+                contract.RegisterStreamType(callInfo.InStreamItemType);
             }
 
             if (outStreamAttr != null)
             {
                 var streamType = outStreamAttr.GetConstructorArgumentOrDefault<ITypeSymbol>(0);
                 callInfo.OutStreamItemType = streamType.ToDisplayString(FulluQualifiedSymbolFormat);
+                contract.RegisterStreamType(callInfo.OutStreamItemType);
             }
         }
 

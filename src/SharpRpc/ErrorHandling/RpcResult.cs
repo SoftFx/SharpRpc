@@ -49,6 +49,14 @@ namespace SharpRpc
         {
             return new RpcException(Fault.Message, Code);
         }
+
+        internal RpcResult<T> ToValueResult<T>(T val = default(T))
+        {
+            if (IsOk)
+                return new RpcResult<T>(val);
+            else
+                return new RpcResult<T>(Code, Fault);
+        }
     }
 
     public struct RpcResult<T>
@@ -56,27 +64,27 @@ namespace SharpRpc
         public RpcResult(T result)
         {
             Code = RpcRetCode.Ok;
-            Result = result;
+            Value = result;
             Fault = null;
         }
 
         public RpcResult(RpcRetCode code, RpcFault fault)
         {
             Code = code;
-            Result = default(T);
+            Value = default(T);
             Fault = fault ?? new RpcFaultStub("");
         }
 
         public RpcResult(RpcRetCode code, string message)
         {
             Code = code;
-            Result = default(T);
+            Value = default(T);
             Fault = new RpcFaultStub(message ?? "");
         }
 
         public RpcRetCode Code { get; }
         public RpcFault Fault { get; }
-        public T Result { get; }
+        public T Value { get; }
 
         public RpcResult GetResultInfo()
         {

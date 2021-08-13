@@ -13,21 +13,20 @@ using System.Threading.Tasks;
 
 namespace SharpRpc
 {
-    public interface IStreamFixtureFactory<T>
+    public interface IStreamMessageFactory<T>
     {
         IStreamPage<T> CreatePage(string streamId);
-        IStreamRxAck CreateAcknowledgement(string streamId);
+        //IStreamRxAck CreateAcknowledgement(string streamId);
     }
 
-    public interface IStreamPageInfo
-    {
-        int Size { get; }
-        int ItemsCount { get; }
-    }
-
-    public interface IStreamPage<T> : IList<T>
+    public interface IStreamPage : IMessage
     {
         string StreamId { get; }
+    }
+
+    public interface IStreamPage<T> : IStreamPage
+    {
+        List<T> Items { get; set; }
     }
 
     public interface IStreamRxAck

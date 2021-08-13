@@ -32,6 +32,11 @@ namespace SharpRpc
             return waitItem.Task;
         }
 
+        public void Enqueue(IMessage message, Action<RpcResult> onSendCompletedCallback)
+        {
+            _userQueue.Enqueue(new CallbackItem(message, onSendCompletedCallback));
+        }
+
         public void CancelUserItems(RpcResult fault)
         {
             while (_userQueue.Count > 0)
@@ -81,9 +86,9 @@ namespace SharpRpc
 
         private class AsyncTryItem : TaskCompletionSource<RpcResult>, Item
         {
-            public AsyncTryItem(IMessage item)
+            public AsyncTryItem(IMessage msg)
             {
-                Message = item;
+                Message = msg;
             }
 
             public IMessage Message { get; }
@@ -91,6 +96,25 @@ namespace SharpRpc
             public void OnResult(RpcResult result)
             {
                 SetResult(result);
+            }
+        }
+
+        private class CallbackItem : Item
+        {
+            private readonly Action<RpcResult> _callback;
+
+            public CallbackItem(IMessage msg, Action<RpcResult> callback)
+            {
+                Message = msg;
+                _callback = callback;
+            }
+
+            public IMessage Message { get; }
+            public Task<RpcResult> Task => null;
+
+            public void OnResult(RpcResult result)
+            {
+                _callback(result);
             }
         }
     }

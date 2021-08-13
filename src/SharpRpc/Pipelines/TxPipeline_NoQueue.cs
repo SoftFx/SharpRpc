@@ -122,6 +122,10 @@ namespace SharpRpc
             return FwAdapter.WrappResult(ProcessMessage(message));
         }
 
+        public void TrySendAsync(IMessage message, Action<RpcResult> onSendCompletedCallback)
+        {
+        }
+
 #if NET5_0_OR_GREATER
         public ValueTask<RpcResult> SendSystemMessage(ISystemMessage message)
 #else

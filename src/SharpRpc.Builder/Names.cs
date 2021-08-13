@@ -33,7 +33,10 @@ namespace SharpRpc.Builder
         public static readonly TypeString RequestInterface = new TypeString("SharpRpc.IRequest");
         public static readonly TypeString ResponseInterface = new TypeString("SharpRpc.IResponse");
         public static readonly TypeString FaultMessageInterface = new TypeString("SharpRpc.IRequestFault");
+
         public static readonly TypeString StreamRequestInterface = new TypeString("SharpRpc.IOpenStreamRequest");
+        public static readonly TypeString StreamPageInterface = new TypeString("SharpRpc.IStreamPage");
+        public static readonly TypeString StreamFactoryInterface = new TypeString("SharpRpc.IStreamMessageFactory");
 
         public static readonly TypeString RpcInputStreamCallClass = new TypeString("SharpRpc.InputStreamCall");
         public static readonly TypeString RpcDuplexStreamCallClass = new TypeString("SharpRpc.DuplexStreamCall");

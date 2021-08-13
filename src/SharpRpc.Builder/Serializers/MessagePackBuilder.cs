@@ -34,8 +34,11 @@ namespace SharpRpc.Builder
 
         private void ApplyAttributes(ClassBuildNode node, int keySeed)
         {
-            node.UpdateDeclaration(
-               c => c.AddSeparatedAttributes(SH.Attribute(ContractAttributeClassName)));
+            if (!(node.TypeDeclaration is InterfaceDeclarationSyntax))
+            {
+                node.UpdateDeclaration(
+                   c => c.AddSeparatedAttributes(SH.Attribute(ContractAttributeClassName)));
+            }
 
             for (int i = 0; i < node.PropertyDeclarations.Count; i++)
             {
