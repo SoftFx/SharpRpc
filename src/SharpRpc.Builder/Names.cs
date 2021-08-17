@@ -5,6 +5,7 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -102,5 +103,15 @@ namespace SharpRpc.Builder
         public static readonly string SystemTask = "System.Threading.Tasks.Task";
         public static readonly string SystemValueTask = "System.Threading.Tasks.ValueTask";
         public static readonly string SystemException = "System.Exception";
+
+        public static TypeSyntax GetInputStreamStubType(string streamSubTye)
+        {
+            return SyntaxHelper.GenericType("SharpRpc.InputStream", streamSubTye);
+        }
+
+        public static TypeSyntax GetOutputStreamStubType(string streamSubTye)
+        {
+            return SyntaxHelper.GenericType("SharpRpc.OutputStream", streamSubTye);
+        }
     }
 }

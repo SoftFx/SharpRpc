@@ -368,18 +368,14 @@ namespace SharpRpc.Builder
 
             if (callDec.HasInStream)
             {
-                var factoryClassName = _contract.GetStreamFactoryClassName(callDec.InStreamItemType);
-                var factoryCreationExp = SF.ObjectCreationExpression(SH.FullTypeName(factoryClassName))
-                    .WithoutArguments();
-                openStreamInvoke = openStreamInvoke.AddArgumentListArguments(SF.Argument(factoryCreationExp));
+                openStreamInvoke = openStreamInvoke.AddArgumentListArguments(
+                    SF.Argument(GenerateStreamFactoryCreationExp(_contract, callDec.InStreamItemType)));
             }
 
             if (callDec.HasOutStream)
             {
-                var factoryClassName = _contract.GetStreamFactoryClassName(callDec.OutStreamItemType);
-                var factoryCreationExp = SF.ObjectCreationExpression(SH.FullTypeName(factoryClassName))
-                    .WithoutArguments();
-                openStreamInvoke = openStreamInvoke.AddArgumentListArguments(SF.Argument(factoryCreationExp));
+                openStreamInvoke = openStreamInvoke.AddArgumentListArguments(
+                    SF.Argument(GenerateStreamFactoryCreationExp(_contract, callDec.OutStreamItemType)));
             }
 
             bodyStatements.AddRange(GenerateCreateAndFillMessageStatements(callDec, msgClassName));
@@ -579,6 +575,13 @@ namespace SharpRpc.Builder
                 name = "Try" + name;
 
             return name;
+        }
+
+        internal static ExpressionSyntax GenerateStreamFactoryCreationExp(ContractDeclaration contractInfo, string factorySubtype)
+        {
+            var factoryClassName = contractInfo.GetStreamFactoryClassName(factorySubtype);
+            return SF.ObjectCreationExpression(SH.FullTypeName(factoryClassName))
+                .WithoutArguments();
         }
     }
 }

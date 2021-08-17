@@ -14,7 +14,7 @@ using System.Threading.Tasks;
 
 namespace SharpRpc
 {
-    public sealed class PagingTxStream<T>
+    public sealed class PagingTxStream<T> : OutputStream<T>
     {
         private readonly object _lockObj = new object();
         private readonly Queue<IStreamPage<T>> _queueCompletePages = new Queue<IStreamPage<T>>();

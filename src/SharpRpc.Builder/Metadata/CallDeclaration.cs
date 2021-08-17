@@ -6,6 +6,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -55,6 +57,11 @@ namespace SharpRpc.Builder
             builder.Append(")");
 
             return builder.ToString();
+        }
+
+        public bool HasParameterWithName(string name)
+        {
+            return Params.Any(p => p.ParamName == name);
         }
     }
 }

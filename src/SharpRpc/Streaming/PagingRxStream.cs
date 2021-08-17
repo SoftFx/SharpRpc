@@ -18,9 +18,9 @@ using System.Threading.Tasks;
 namespace SharpRpc
 {
 #if NET5_0_OR_GREATER
-    public class PagingRxStream<T> : IAsyncEnumerable<T>
+    public class PagingRxStream<T> : InputStream<T>, IAsyncEnumerable<T>
 #else
-    public class PagingRxStream<T>
+    public class PagingRxStream<T> : InputStream<T>
 #endif
     {
         private object _lockObj = new object();

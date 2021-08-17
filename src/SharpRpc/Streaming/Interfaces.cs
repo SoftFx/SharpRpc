@@ -9,6 +9,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace SharpRpc
@@ -29,10 +30,21 @@ namespace SharpRpc
         List<T> Items { get; set; }
     }
 
-    public interface IStreamRxAck
+    public interface InputStream<T>
     {
-        string StreamId { get; }
-        int ConsumedItems { get; set; }
-        int ConsumedBytes { get; set; }
+#if NET5_0_OR_GREATER
+        public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default);
+#endif
     }
+
+    public interface OutputStream<T>
+    {
+    }
+
+    //public interface IStreamRxAck
+    //{
+    //    string StreamId { get; }
+    //    int ConsumedItems { get; set; }
+    //    int ConsumedBytes { get; set; }
+    //}
 }

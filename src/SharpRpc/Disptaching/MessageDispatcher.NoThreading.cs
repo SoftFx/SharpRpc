@@ -84,9 +84,7 @@ namespace SharpRpc
                 }
 
                 foreach (var msg in IncomingMessages)
-                {
-                    
-                }
+                    Core.ProcessMessage(msg);
 
                 lock (_lockObj)
                 {

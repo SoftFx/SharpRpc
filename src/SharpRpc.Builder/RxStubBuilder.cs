@@ -150,6 +150,22 @@ namespace SharpRpc.Builder
         {
             var methodParams = new List<ParameterSyntax>();
 
+            if (callDec.HasInStream)
+            {
+                var paramSyntax = SF.Parameter(SF.Identifier(FindSafeParamName("inputStream", callDec)))
+                    .WithType(Names.GetInputStreamStubType(callDec.InStreamItemType));
+
+                methodParams.Add(paramSyntax);
+            }
+
+            if (callDec.HasOutStream)
+            {
+                var paramSyntax = SF.Parameter(SF.Identifier(FindSafeParamName("outputStream", callDec)))
+                    .WithType(Names.GetOutputStreamStubType(callDec.OutStreamItemType));
+
+                methodParams.Add(paramSyntax);
+            }
+
             foreach (var param in callDec.Params)
             {
                 var paramSyntax = SF
@@ -174,22 +190,57 @@ namespace SharpRpc.Builder
         {
             var methodName = "Invoke" + callDec.MethodName;
             var requetsMessageType = _contract.GetRequestClassName(callDec.MethodName);
+            var catchBody = SF.Block();
 
-            var handlerInvokationExp = SF.AwaitExpression(GenerateRpcInvocation(callDec, "request"));
+            if (callDec.HasStreams)
+            {
+                if (callDec.HasInStream)
+                {
+                    if (callDec.HasOutStream)
+                    {
+                        var streamHandlerMethod = SH.GenericName("CreateDuplexStreamHandler", callDec.InStreamItemType, callDec.OutStreamItemType);
+                        var inFactory = TxStubBuilder.GenerateStreamFactoryCreationExp(_contract, callDec.InStreamItemType);
+                        var outFactory = TxStubBuilder.GenerateStreamFactoryCreationExp(_contract, callDec.OutStreamItemType);
+                        var streamHandlerCreation = SF.InvocationExpression(streamHandlerMethod)
+                            .AddArgumentListArguments(SH.IdentifierArgument("request"), SF.Argument(inFactory), SF.Argument(outFactory));
+                        catchBody = catchBody.AddStatements(SH.VarDeclaration("streamHandler", streamHandlerCreation));
+                    }
+                    else
+                    {
+                        var streamHandlerMethod = SH.GenericName("CreateInputStreamHandler", callDec.InStreamItemType);
+                        var factory = TxStubBuilder.GenerateStreamFactoryCreationExp(_contract, callDec.InStreamItemType);
+                        var streamHandlerCreation = SF.InvocationExpression(streamHandlerMethod)
+                            .AddArgumentListArguments(SH.IdentifierArgument("request"), SF.Argument(factory));
+                        catchBody = catchBody.AddStatements(SH.VarDeclaration("streamHandler", streamHandlerCreation));
+                    }
+                }
+                else
+                {
+                    var streamHandlerMethod = SH.GenericName("CreateOutputStreamHandler", callDec.OutStreamItemType);
+                    var factory = TxStubBuilder.GenerateStreamFactoryCreationExp(_contract, callDec.OutStreamItemType);
+                    var streamHandlerCreation = SF.InvocationExpression(streamHandlerMethod)
+                        .AddArgumentListArguments(SH.IdentifierArgument("request"), SF.Argument(factory));
+                    catchBody = catchBody.AddStatements(SH.VarDeclaration("streamHandler", streamHandlerCreation));
+                }
+            }
+
+            var handlerInvocationExp = SF.AwaitExpression(GenerateRpcInvocation(callDec, "request"));
 
             StatementSyntax handlerInvokationStatement;
 
             if (callDec.ReturnsData)
-                handlerInvokationStatement = SH.VarDeclaration("result", handlerInvokationExp);
+                handlerInvokationStatement = SH.VarDeclaration("result", handlerInvocationExp);
             else
-                handlerInvokationStatement = SF.ExpressionStatement(handlerInvokationExp);
+                handlerInvokationStatement = SF.ExpressionStatement(handlerInvocationExp);
 
-            var respStatements = GenerateResponseCreationStatements(callDec).ToArray();
+            catchBody = catchBody
+                .AddStatements(handlerInvokationStatement)
+                .AddStatements(GenerateResponseCreationStatements(callDec).ToArray());
 
             var tryCtachBlock = SF.TryStatement()
                 .AddCatches(GenerateCustomCatches(callDec).ToArray())
                 .AddCatches(GenerateRegularCatch(), GenerateUnexpectedCatch())
-                .WithBlock(SF.Block(handlerInvokationStatement).AddStatements(respStatements));
+                .WithBlock(catchBody);
 
             var retType = SH.GenericType(_contract.Compatibility.GetAsyncWrapper(), Names.ResponseInterface.Full);
 
@@ -303,17 +354,17 @@ namespace SharpRpc.Builder
         {
             var args = new List<ArgumentSyntax>();
 
+            if (callDec.HasInStream)
+                args.Add(SF.Argument(SH.MemeberOfIdentifier("streamHandler", "InputStream")));
+
+            if (callDec.HasOutStream)
+                args.Add(SF.Argument(SH.MemeberOfIdentifier("streamHandler", "OutputStream")));
+
             foreach (var param in callDec.Params)
-            {
-                args.Add(SF.Argument(
-                    SF.MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
-                    SF.IdentifierName(typedMessageVarName),
-                    SF.IdentifierName(param.MessagePropertyName))));
-            }
+                args.Add(SF.Argument(SH.MemeberOfIdentifier(typedMessageVarName, param.MessagePropertyName)));
 
             var methodName = callDec.MethodName;
 
-            //return SF.InvocationExpression(SF.IdentifierName(methodName), SH.CallArguments(args));
             return SF.InvocationExpression(SH.MemberOf(SF.IdentifierName("_stub"), methodName), SH.CallArguments(args));
         }
 
@@ -465,6 +516,21 @@ namespace SharpRpc.Builder
 
             return SF.CatchClause(SF.CatchDeclaration(exceptionType, SF.Identifier("ex")),
                 null, SF.Block(retStatement));
+        }
+
+        private string FindSafeParamName(string initialParamName, CallDeclaration callDec)
+        {
+            if (callDec.HasParameterWithName(initialParamName))
+            {
+                for (int i = 0; i < int.MaxValue; i++)
+                {
+                    var newName = initialParamName + i;
+                    if (!callDec.HasParameterWithName(newName))
+                        return newName;
+                }
+            }
+
+            return initialParamName;
         }
     }
 }
