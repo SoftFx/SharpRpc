@@ -205,21 +205,30 @@ namespace SharpRpc.Builder
 
         #endregion
 
-        public static LocalDeclarationStatementSyntax VariableDeclaration(string type, string name, EqualsValueClauseSyntax initializer = null)
+        public static VariableDeclarationSyntax VariableDeclaration(string type, string name, EqualsValueClauseSyntax initializer = null)
         {
             return SyntaxFactory.VariableDeclaration(SyntaxFactory.ParseTypeName(type))
                 .AddVariables(SyntaxFactory.VariableDeclarator(name)
-                .WithInitializer(initializer))
-                .AsLocalDeclaration();
+                .WithInitializer(initializer));
+                //.AsLocalDeclaration();
         }
 
-        public static LocalDeclarationStatementSyntax VarDeclaration(string name, ExpressionSyntax initializer)
+        public static LocalDeclarationStatementSyntax LocalVariableDeclaration(string type, string name, EqualsValueClauseSyntax initializer = null)
+        {
+            return VariableDeclaration(type, name, initializer).AsLocalDeclaration();
+        }
+
+        public static VariableDeclarationSyntax VarDeclaration(string name, ExpressionSyntax initializer)
         {
             var varDeclarator = SyntaxFactory.VariableDeclarator(SyntaxFactory.Identifier(name))
                 .WithInitializer(SyntaxFactory.EqualsValueClause(initializer));
 
-            return SyntaxFactory.VariableDeclaration(SyntaxFactory.IdentifierName("var"), ToSeparatedList(varDeclarator))
-                .AsLocalDeclaration();
+            return SyntaxFactory.VariableDeclaration(SyntaxFactory.IdentifierName("var"), ToSeparatedList(varDeclarator));
+        }
+
+        public static LocalDeclarationStatementSyntax LocalVarDeclaration(string name, ExpressionSyntax initializer)
+        {
+            return VarDeclaration(name, initializer).AsLocalDeclaration();
         }
 
         public static FieldDeclarationSyntax FieldDeclaration(string fieldName, TypeSyntax fieldType)

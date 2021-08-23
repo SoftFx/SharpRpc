@@ -77,7 +77,7 @@ namespace SharpRpc
 
                     byteCount = await _transport.Receive(buffer, CancellationToken.None); // _rxCancelSrc.Token);
 
-                    await _taskQueue.Dive();
+                    //await _taskQueue.Dive();
 
                     if (byteCount == 0)
                     {
@@ -139,7 +139,7 @@ namespace SharpRpc
                     {
                         var msg = _serializer.Deserialize(_reader);
 
-                        System.Diagnostics.Debug.WriteLine("RX " + msg.GetType().Name);
+                        Debug.WriteLine("RX " + msg.GetType().Name);
 
                         if (msg is ISystemMessage sysMsg)
                         {

@@ -77,10 +77,6 @@ namespace SharpRpc.Builder
                 .GenerateSystemMessages(contractInfo)
                 .ToList();
 
-            var streamMessageNodes = MessageBuilder
-                .GenerateStreamMessages(contractInfo)
-                .ToList();
-
             var userMessageNodes = MessageBuilder
                 .GenerateUserMessages(contractInfo, context, diagnostics)
                 .ToList();
@@ -88,12 +84,21 @@ namespace SharpRpc.Builder
             foreach (var msgNode in systemMessageNodes)
                 baseMsgNode.Successors.Add(msgNode);
 
-            foreach (var msgNode in streamMessageNodes)
-                baseMsgNode.Successors.Add(msgNode);
-
             foreach (var msgNode in userMessageNodes)
                 baseMsgNode.Successors.Add(msgNode);
 
+            var streamMessageNodes = (List<ClassBuildNode>)null;
+
+            if (contractInfo.HasStreams)
+            {
+                streamMessageNodes = MessageBuilder
+                    .GenerateStreamMessages(contractInfo)
+                    .ToList();
+
+                foreach (var msgNode in streamMessageNodes)
+                    baseMsgNode.Successors.Add(msgNode);
+            }
+   
             var sFixture = new SerializerFixture()
                 .AddHierachy(baseMsgNode);
 
@@ -104,10 +109,6 @@ namespace SharpRpc.Builder
             var baseMessageClass = baseMsgNode.CompleteBuilding();
 
             var systemMessageClasses = systemMessageNodes
-                .Select(n => n.CompleteBuilding())
-                .ToArray();
-
-            var streamMessageClasses = streamMessageNodes
                 .Select(n => n.CompleteBuilding())
                 .ToArray();
 
@@ -123,6 +124,24 @@ namespace SharpRpc.Builder
                 .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
                 .AddMembers(baseMessageClass)
                 .AddMembers(userMessageClasses);
+
+            var streamBundleClass = (ClassDeclarationSyntax)null;
+
+            if (contractInfo.HasStreams)
+            {
+                var streamMessageClasses = streamMessageNodes
+                    .Select(n => n.CompleteBuilding())
+                    .ToArray();
+
+                var streamFactoryClasses = MessageBuilder
+                    .GenerateStreamFactories(contractInfo)
+                    .ToArray();
+
+                streamBundleClass = SF.ClassDeclaration(contractInfo.StreamBundleClassName.Short)
+                    .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
+                    .AddMembers(streamMessageClasses)
+                    .AddMembers(streamFactoryClasses);
+            }
 
             var messageFactoryClass = MessageBuilder.GenerateFactory(contractInfo);
 
@@ -149,19 +168,8 @@ namespace SharpRpc.Builder
                 contractGenClass = contractGenClass.AddMembers(callbackClientClass, callbackServiceClass, handlerClass);
             }
 
-            if (contractInfo.HasStreams)
-            {
-                var streamFactoryClasses = MessageBuilder
-                    .GenerateStreamFactories(contractInfo)
-                    .ToArray();
-
-                var streamBundleClass = SF.ClassDeclaration(contractInfo.StreamBundleClassName.Short)
-                    .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
-                    .AddMembers(streamMessageClasses)
-                    .AddMembers(streamFactoryClasses);
-
+            if (streamBundleClass != null)
                 contractGenClass = contractGenClass.AddMembers(streamBundleClass);
-            }
 
             if (hasPrebuilder)
             {

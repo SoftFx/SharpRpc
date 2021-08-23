@@ -52,12 +52,14 @@ namespace SharpRpc
 
         public void ProcessMessage(IMessage message)
         {
-            if (message is IReqRespMessage)
+            if (message is IInteropMessage)
             {
                 if (message is IResponse resp)
                     ProcessResponse(resp);
                 else if (message is IRequest req)
                     ProcessRequest(req);
+                else if (message is IStreamAuxMessage auxMsg)
+                    ProcessAxuMessage(auxMsg);
             }
             else
                 ProcessOneWayMessage(message);
@@ -162,9 +164,25 @@ namespace SharpRpc
                 taskToComplete.Complete(resp);
         }
 
+        private void ProcessAxuMessage(IStreamAuxMessage message)
+        {
+            IInteropOperation operation = null;
+
+            lock (_operations)
+            {
+                if (!_operations.TryGetValue(message.StreamId, out operation))
+                {
+                    // TO DO : signal protocol violation
+                    return;
+                }
+            }
+
+            operation.Update(message);
+        }
+
         public interface IInteropOperation
         {
-            RpcResult Update(IStreamPage page);
+            RpcResult Update(IStreamAuxMessage page);
             RpcResult Complete(IResponse respMessage);
             void Fail(RpcResult result);
             void Fail(IRequestFault faultMessage);
@@ -189,7 +207,7 @@ namespace SharpRpc
                 SetException(faultMessage.CreateException());
             }
 
-            public RpcResult Update(IStreamPage page)
+            public RpcResult Update(IStreamAuxMessage page)
             {
                 return new RpcResult(RpcRetCode.ProtocolViolation, "");
             }
@@ -215,7 +233,7 @@ namespace SharpRpc
                 SetResult(result);
             }
 
-            public RpcResult Update(IStreamPage page)
+            public RpcResult Update(IStreamAuxMessage page)
             {
                 return new RpcResult(RpcRetCode.ProtocolViolation, "");
             }
@@ -246,7 +264,7 @@ namespace SharpRpc
                 SetException(faultMessage.CreateException());
             }
 
-            public RpcResult Update(IStreamPage page)
+            public RpcResult Update(IStreamAuxMessage page)
             {
                 return new RpcResult(RpcRetCode.ProtocolViolation, "");
             }
@@ -278,7 +296,7 @@ namespace SharpRpc
                 SetResult(result);
             }
 
-            public RpcResult Update(IStreamPage page)
+            public RpcResult Update(IStreamAuxMessage page)
             {
                 return new RpcResult(RpcRetCode.ProtocolViolation, "");
             }

@@ -66,6 +66,7 @@ namespace SharpRpc
         private bool HasRoomForNextMessage => _buffer.DataSize < _bufferSizeThreshold;
 
         public TaskFactory TaskQueue { get; }
+        public bool ProvidesImmidiateSerialization => true;
 
         public RpcResult TrySend(IMessage message)
         {
@@ -105,13 +106,7 @@ namespace SharpRpc
                 CheckConnectionFlags();
 
                 if (!CanProcessUserMessage)
-                {
-                    //var waitItem = new AsyncTryItem(message);
-                    //_asyncQueue.Enqueue(waitItem);
-                    //return FwAdapter.WrappResult(waitItem.Task);
-
                     return FwAdapter.WrappResult(_asyncGate.Enqueue(message, false, false));
-                }
                 else
                 {
                     _isProcessingItem = true;
@@ -124,6 +119,25 @@ namespace SharpRpc
 
         public void TrySendAsync(IMessage message, Action<RpcResult> onSendCompletedCallback)
         {
+            lock (_lockObj)
+            {
+                if (_fault.Code != RpcRetCode.Ok)
+                    onSendCompletedCallback(_fault);
+
+                CheckConnectionFlags();
+
+                if (!CanProcessUserMessage)
+                    _asyncGate.Enqueue(message, onSendCompletedCallback);
+                else
+                {
+                    _isProcessingItem = true;
+                    _buffer.Lock();
+                }
+            }
+
+            ProcessMessage(message);
+
+            onSendCompletedCallback(RpcResult.Ok);
         }
 
 #if NET5_0_OR_GREATER
@@ -140,13 +154,7 @@ namespace SharpRpc
                 CheckConnectionFlags();
 
                 if (!CanProcessSystemMessage)
-                {
-                    //var waitItem = new AsyncTryItem(message);
-                    //_systemQueue.Enqueue(waitItem);
-                    //return FwAdapter.WrappResult(waitItem.Task);
-
                     return FwAdapter.WrappResult(_asyncGate.Enqueue(message, false, true));
-                }
                 else
                 {
                     _isProcessingItem = true;
@@ -184,13 +192,7 @@ namespace SharpRpc
                 CheckConnectionFlags();
 
                 if (!CanProcessUserMessage)
-                {
-                    //var waitItem = new AsyncThrowItem(message);
-                    //_asyncQueue.Enqueue(waitItem);
-                    //return FwAdapter.WrappResult((Task)waitItem.Task);
-
                     return FwAdapter.WrappResult((Task)_asyncGate.Enqueue(message, true, false));
-                }
                 else
                 {
                     _isProcessingItem = true;

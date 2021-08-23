@@ -80,6 +80,8 @@ namespace SharpRpc
 
         private void Enqueue(IMessage message)
         {
+            Debug.Assert(message != null);
+
             _queue.Enqueue(message);
             OnDataArrived();
         }
@@ -213,6 +215,7 @@ namespace SharpRpc
         #region TxPipeline impl
 
         public TaskFactory TaskQueue { get; }
+        public bool ProvidesImmidiateSerialization => false;
 
         public void Start(ByteTransport transport)
         {

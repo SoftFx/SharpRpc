@@ -5,10 +5,7 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -17,12 +14,17 @@ namespace SharpRpc
     public interface IStreamMessageFactory<T>
     {
         IStreamPage<T> CreatePage(string streamId);
-        //IStreamRxAck CreateAcknowledgement(string streamId);
+        IStreamCompletionMessage CreateCompletionMessage(string streamId);
+        IStreamPageAck CreatePageAcknowledgement(string streamId);
     }
 
-    public interface IStreamPage : IMessage
+    public interface IStreamAuxMessage : IInteropMessage
     {
         string StreamId { get; }
+    }
+
+    public interface IStreamPage : IStreamAuxMessage
+    {
     }
 
     public interface IStreamPage<T> : IStreamPage
@@ -30,15 +32,30 @@ namespace SharpRpc
         List<T> Items { get; set; }
     }
 
-    public interface InputStream<T>
+    public interface IStreamCompletionMessage : IStreamAuxMessage
+    {
+    }
+
+    public interface IStreamPageAck : IStreamAuxMessage
+    {
+    }
+
+    public interface StreamReader<T>
     {
 #if NET5_0_OR_GREATER
         public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default);
 #endif
     }
 
-    public interface OutputStream<T>
+    public interface StreamWriter<T>
     {
+#if NET5_0_OR_GREATER
+        ValueTask<RpcResult> WriteAsync(T item);
+#else
+        Task<RpcResult> WriteAsync(T item);
+#endif
+
+        Task<RpcResult> CompleteAsync();
     }
 
     //public interface IStreamRxAck

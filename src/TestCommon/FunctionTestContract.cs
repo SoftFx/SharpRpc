@@ -58,16 +58,24 @@ namespace TestCommon
 
         [Rpc(RpcType.Call)]
         [StreamOutput(typeof(int))]
-        int TestOutStream(int p1, string p2);
+        int TestOutStream(int p1, string p2, StreamTestOptions options);
 
         [Rpc(RpcType.Call)]
         [StreamInput(typeof(int))]
-        int TestInStream(int p1, string p2);
+        int TestInStream(int p1, string p2, StreamTestOptions options);
 
         [Rpc(RpcType.Call)]
         [StreamInput(typeof(int))]
         [StreamOutput(typeof(int))]
-        int TestDuplexStream(int p1, string p2);
+        int TestDuplexStream(int p1, string p2, StreamTestOptions options);
+    }
+
+    public enum StreamTestOptions
+    {
+        InvokeCompletion,
+        DoNotInvokeCompletion,
+        ReturnFault,
+        ReturnCustomFault
     }
 
     [MessagePackObject]

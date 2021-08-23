@@ -21,11 +21,11 @@ namespace SharpRpc
         void WriteTo(ushort serializedId, MessageWriter writer);
     }
 
-    public interface IReqRespMessage : IMessage
+    public interface IInteropMessage : IMessage
     {
     }
 
-    public interface IRequest : IReqRespMessage
+    public interface IRequest : IInteropMessage
     {
         string CallId { get; set; }
         //int? FromRecipient { get; set; }
@@ -35,7 +35,7 @@ namespace SharpRpc
     {
     }
 
-    public interface IResponse : IReqRespMessage
+    public interface IResponse : IInteropMessage
     {
         string CallId { get; set; }
         //int? ToRecipient { get; }

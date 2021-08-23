@@ -5,13 +5,10 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+using SharpRpc;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Security.Cryptography;
-using System.Text;
 using System.Threading.Tasks;
-using SharpRpc;
 using TestCommon;
 
 namespace TestClient
@@ -31,7 +28,12 @@ namespace TestClient
                 //TestFaults(client);
                 //TestCalbacks(client);
                 //TestComplexData(client);
-                TestStreams(client);
+
+                TestInputStream(client);
+                TestOutputStream(client, true);
+                TestOutputStream(client, false);
+                TestDuplexStream(client, true);
+                TestDuplexStream(client, false);
 
                 Console.WriteLine("Done testing.");
             }
@@ -206,7 +208,6 @@ namespace TestClient
                 throw new Exception("Invalid exception message!");
         }
 
-
         private static void AssertCustomFault<T>(RpcRetCode expectedCode, T expectedFault, Func<RpcResult> call)
             where T : RpcFault
         {
@@ -256,33 +257,108 @@ namespace TestClient
                 throw new Exception("InvokeCallback returned unexpected result!");
         }
 
-        public static void TestStreams(FunctionTestContract_Gen.Client client)
+        private static void TestInputStream(FunctionTestContract_Gen.Client client)
         {
-            TestOutputStream(client);
-        }
+            Console.WriteLine("TestStreams.Input");
 
-        private static void TestOutputStream(FunctionTestContract_Gen.Client client)
-        {
-            Console.WriteLine("TestStreams.Output");
+            var call = client.TestInStream(10, "11", StreamTestOptions.DoNotInvokeCompletion);
 
-            var call = client.TestOutStream(10, "11");
+            var itemsCount = 100;
+            var expectedSumm = (1 + itemsCount) * itemsCount / 2;
+            var expectedResult = expectedSumm + 10 + 11;
 
-            var r1 = call.OutputStream.WriteAsync(1).Result;
-            if (!r1.IsOk)
-                throw new Exception("WriteAsync returned " + r1.Code);
+            for (int i = 1; i <= itemsCount; i++)
+            {
+                var rWrite = call.InputStream.WriteAsync(i).Result;
+                if (!rWrite.IsOk)
+                    throw new Exception("WriteAsync() returned " + rWrite.Code);
+            }
 
-            var r2 = call.OutputStream.WriteAsync(2).Result;
-            if (!r2.IsOk)
-                throw new Exception("WriteAsync returned " + r2.Code);
+            var rCompletion = call.InputStream.CompleteAsync().Result;
 
-            var r3 = call.OutputStream.WriteAsync(3).Result;
-            if (!r3.IsOk)
-                throw new Exception("WriteAsync returned " + r3.Code);
+            if (!rCompletion.IsOk)
+                throw new Exception("CompleteAsync() returned " + rCompletion.Code);
 
             var result = call.AsyncResult.Result.Value;
 
-            if (result != 28)
+            if (result != expectedResult)
                 throw new Exception("Stream call returned an unexpected result!");
+        }
+
+        private static void TestOutputStream(FunctionTestContract_Gen.Client client, bool withCompletion)
+        {
+            Console.WriteLine("TestStreams.Output, completion=" + withCompletion);
+
+#if NET5_0_OR_GREATER
+            var itemsCount = 100;
+            var expectedSumm = (1 + itemsCount) * itemsCount / 2;
+            var expectedResult = 11;
+
+            var options = withCompletion ? StreamTestOptions.InvokeCompletion : StreamTestOptions.DoNotInvokeCompletion;
+            var call = client.TestOutStream(itemsCount, "11", options);
+
+            var e = call.OutputStream.GetAsyncEnumerator();
+            var summ = 0;
+
+            while (e.MoveNextAsync().Result)
+                summ += e.Current;
+
+            if (summ != expectedSumm)
+                throw new Exception("Items summ does not match expected value!");
+
+            var ret = call.AsyncResult.Result;
+
+            if (ret.Value != expectedResult)
+                throw new Exception("Returned value does not match expected!");
+#endif
+        }
+
+        private static void TestDuplexStream(FunctionTestContract_Gen.Client client, bool withCompletion)
+        {
+            Console.WriteLine("TestStreams.Duplex, completion=" + withCompletion);
+
+#if NET5_0_OR_GREATER
+
+            var options = withCompletion ? StreamTestOptions.InvokeCompletion : StreamTestOptions.DoNotInvokeCompletion;
+            var call = client.TestDuplexStream(10, "11", options);
+
+            var itemsCount = 100;
+            var expectedSumm = (1 + itemsCount) * itemsCount / 2;
+            var expectedResult = 10 + 11;
+
+            var readTask = Task.Factory.StartNew<int>(() =>
+            {
+                var e = call.OutputStream.GetAsyncEnumerator();
+                var summ = 0;
+
+                while (e.MoveNextAsync().Result)
+                    summ += e.Current;
+
+                return summ;
+            });
+
+            for (int i = 1; i <= itemsCount; i++)
+            {
+                var rWrite = call.InputStream.WriteAsync(i).Result;
+                if (!rWrite.IsOk)
+                    throw new Exception("WriteAsync() returned " + rWrite.Code);
+            }
+
+            var rCompletion = call.InputStream.CompleteAsync().Result;
+
+            if (!rCompletion.IsOk)
+                throw new Exception("CompleteAsync() returned " + rCompletion.Code);
+
+            var summ = readTask.Result;
+            
+            if (summ != expectedSumm)
+                throw new Exception("Items summ does not match expected value!");
+
+            var result = call.AsyncResult.Result.Value;
+
+            if (result != expectedResult)
+                throw new Exception("Stream call returned an unexpected result!");
+#endif
         }
 
         private class CallbackHandler : FunctionTestContract_Gen.CallbackServiceBase

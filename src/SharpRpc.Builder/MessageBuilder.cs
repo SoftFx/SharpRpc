@@ -59,6 +59,9 @@ namespace SharpRpc.Builder
 
         public static IEnumerable<ClassBuildNode> GenerateStreamMessages(ContractDeclaration contract)
         {
+            yield return GenerateStreamAcknowledgementMessage(contract);
+            yield return GenerateStreamCompletionMessage(contract);
+
             foreach (var streamType in contract.StreamTypes)
                 yield return GenerateStreamPageMessage(contract, streamType);
         }
@@ -472,27 +475,114 @@ namespace SharpRpc.Builder
             return new ClassBuildNode(messageClassName, messageClassDeclaration, streamIdProperty, itemsProperty);
         }
 
+        private static ClassBuildNode GenerateStreamAcknowledgementMessage(ContractDeclaration contractInfo)
+        {
+            var messageClassName = contractInfo.StreamPageAckMessageClassName;
+
+            var streamIdParam = SyntaxHelper.Parameter("streamId", "string");
+            var streamIdInitStatement = SyntaxHelper.AssignmentStatement(SyntaxFactory.IdentifierName("StreamId"), SyntaxFactory.IdentifierName("streamId"));
+            var constructor = SyntaxFactory.ConstructorDeclaration(messageClassName.Short)
+                .AddModifiers(SyntaxHelper.PublicToken())
+                .AddParameterListParameters(streamIdParam)
+                .AddBodyStatements(streamIdInitStatement);
+
+            var streamIdProperty = SyntaxFactory
+                .PropertyDeclaration(SyntaxFactory.ParseTypeName("string"), "StreamId")
+                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+                .AddAutoGetter()
+                .AddAutoSetter();
+
+            var msgBase = SyntaxFactory.SimpleBaseType(SyntaxHelper.FullTypeName(contractInfo.BaseMessageClassName));
+            var iStreamAckBase = SyntaxFactory.SimpleBaseType(SyntaxHelper.FullTypeName(Names.StreamPageAckInterface));
+
+            var messageClassDeclaration = SyntaxFactory.ClassDeclaration(messageClassName.Short)
+                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+                .AddBaseListTypes(msgBase, iStreamAckBase)
+                .AddMembers(constructor);
+
+            return new ClassBuildNode(messageClassName, messageClassDeclaration, streamIdProperty);
+        }
+
+        private static ClassBuildNode GenerateStreamCompletionMessage(ContractDeclaration contractInfo)
+        {
+            var messageClassName = contractInfo.StreamCompletionMessageClassName;
+
+            var streamIdParam = SyntaxHelper.Parameter("streamId", "string");
+            var streamIdInitStatement = SyntaxHelper.AssignmentStatement(SyntaxFactory.IdentifierName("StreamId"), SyntaxFactory.IdentifierName("streamId"));
+            var constructor = SyntaxFactory.ConstructorDeclaration(messageClassName.Short)
+                .AddModifiers(SyntaxHelper.PublicToken())
+                .AddParameterListParameters(streamIdParam)
+                .AddBodyStatements(streamIdInitStatement);
+
+            var streamIdProperty = SyntaxFactory
+                .PropertyDeclaration(SyntaxFactory.ParseTypeName("string"), "StreamId")
+                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+                .AddAutoGetter()
+                .AddAutoSetter();
+
+            var msgBase = SyntaxFactory.SimpleBaseType(SyntaxHelper.FullTypeName(contractInfo.BaseMessageClassName));
+            var iStreamComplBase = SyntaxFactory.SimpleBaseType(SyntaxHelper.FullTypeName(Names.StreamCompletionMessageInterface));
+
+            var messageClassDeclaration = SyntaxFactory.ClassDeclaration(messageClassName.Short)
+                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+                .AddBaseListTypes(msgBase, iStreamComplBase)
+                .AddMembers(constructor);
+
+            return new ClassBuildNode(messageClassName, messageClassDeclaration, streamIdProperty);
+        }
+
         private static ClassDeclarationSyntax GenerateStreamFactory(ContractDeclaration contractInfo, string streamType)
         {
             var factoryClassName = contractInfo.GetStreamFactoryClassName(streamType);
             var factoryInterface = SyntaxHelper.GenericName(Names.StreamFactoryInterface.Full, streamType);
-            var pageClassName = contractInfo.GetStreamPageClassName(streamType);
 
+            var streamIdParam = SyntaxHelper.Parameter("streamId", "string");
+
+            // page factory method
+
+            var pageClassName = contractInfo.GetStreamPageClassName(streamType);
             var pageCreationStatement = SyntaxFactory.ReturnStatement(
                 SyntaxFactory.ObjectCreationExpression(SyntaxHelper.ShortTypeName(pageClassName))
                     .AddArgumentListArguments(SyntaxHelper.IdentifierArgument("streamId")));
 
-            var streamIdParam = SyntaxHelper.Parameter("streamId", "string");
             var createPageRetType = SyntaxHelper.GenericType(Names.StreamPageInterface.Full, streamType);
             var createPageMethod = SyntaxFactory.MethodDeclaration(createPageRetType, "CreatePage")
                 .AddModifiers(SyntaxHelper.PublicToken())
                 .AddParameterListParameters(streamIdParam)
                 .AddBodyStatements(pageCreationStatement);
 
+            // acknowledgement factory method
+
+            var ackClassName = contractInfo.StreamPageAckMessageClassName;
+            var ackCreationStatement = SyntaxFactory.ReturnStatement(
+                SyntaxFactory.ObjectCreationExpression(SyntaxHelper.ShortTypeName(ackClassName))
+                    .AddArgumentListArguments(SyntaxHelper.IdentifierArgument("streamId")));
+
+            var createAckRetType = SyntaxFactory.IdentifierName(Names.StreamPageAckInterface.Full);
+            var createAckMethod = SyntaxFactory.MethodDeclaration(createAckRetType, "CreatePageAcknowledgement")
+                .AddModifiers(SyntaxHelper.PublicToken())
+                .AddParameterListParameters(streamIdParam)
+                .AddBodyStatements(ackCreationStatement);
+
+            // completion factory method
+
+            var completionMessageType = SyntaxHelper.ShortTypeName(contractInfo.StreamCompletionMessageClassName);
+            var completionCreationStatement = SyntaxFactory.ReturnStatement(
+                SyntaxFactory.ObjectCreationExpression(completionMessageType)
+                    .AddArgumentListArguments(SyntaxHelper.IdentifierArgument("streamId")));
+
+            var createCompletionRetType = SyntaxFactory.IdentifierName(Names.StreamCompletionMessageInterface.Full);
+            var createCompletionMethod = SyntaxFactory.MethodDeclaration(createCompletionRetType, "CreateCompletionMessage")
+                .AddModifiers(SyntaxHelper.PublicToken())
+                .AddParameterListParameters(streamIdParam)
+                .AddBodyStatements(completionCreationStatement);
+
+            // class declaration
+
             return SyntaxFactory.ClassDeclaration(factoryClassName.Short)
                 .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
                 .AddBaseListTypes(SyntaxFactory.SimpleBaseType(factoryInterface))
-                .AddMembers(createPageMethod);
+                .AddMembers(createPageMethod, createCompletionMethod, createAckMethod);
         }
     }
 }

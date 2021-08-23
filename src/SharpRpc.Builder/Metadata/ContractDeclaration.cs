@@ -33,6 +33,8 @@ namespace SharpRpc.Builder
             LoginMessageClassName = new TypeString(SystemBundleClassName.Short, "Login");
             LogoutMessageClassName = new TypeString(SystemBundleClassName.Short, "Logout");
             FaultMessageClassName = new TypeString(SystemBundleClassName.Short, "RequestFault");
+            StreamPageAckMessageClassName = new TypeString(StreamBundleClassName.Short, "PageAcknowledgement");
+            StreamCompletionMessageClassName = new TypeString(StreamBundleClassName.Short, "StreamCompletion");
             HeartbeatMessageClassName = new TypeString(SystemBundleClassName.Short, "Heartbeat");
             //AuthDataClassName = new TypeString(SystemBundleClassName.Short, "AuthData");
             //BasicAuthDataClassName = new TypeString(SystemBundleClassName.Short, "BasicAuthData");
@@ -62,6 +64,8 @@ namespace SharpRpc.Builder
         public TypeString LoginMessageClassName { get; }
         public TypeString LogoutMessageClassName { get; }
         public TypeString FaultMessageClassName { get; }
+        public TypeString StreamPageAckMessageClassName { get; }
+        public TypeString StreamCompletionMessageClassName { get; }
         public TypeString HeartbeatMessageClassName { get; }
         public List<CallDeclaration> Calls { get; } = new List<CallDeclaration>();
         public List<string> FaultTypes => _faultTypesById;
@@ -139,6 +143,13 @@ namespace SharpRpc.Builder
             var id = GetStreamTypeId(type);
 
             return new TypeString(StreamBundleClassName.Short, "Page" + id);
+        }
+
+        public TypeString GetPageAckClassName(string type)
+        {
+            var id = GetStreamTypeId(type);
+
+            return new TypeString(StreamBundleClassName.Short, "PageAck" + id);
         }
 
         public TypeString GetStreamFactoryClassName(string type)

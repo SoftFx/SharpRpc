@@ -13,7 +13,7 @@ using System.Threading.Tasks;
 
 namespace SharpRpc.Streaming
 {
-    class BufferingRxStream
+    class BufferingStreamWriter
     {
     }
 }

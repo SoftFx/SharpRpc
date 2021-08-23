@@ -17,34 +17,40 @@ namespace SharpRpc
 {
     public interface OutputStreamCall<TItem>
     {
-        PagingTxStream<TItem> OutputStream { get; }
+        StreamReader<TItem> OutputStream { get; }
         Task<RpcResult> Completion { get; }
     }
 
     public interface OutputStreamCall<TItem, TReturn>
     {
-        PagingTxStream<TItem> OutputStream { get; }
+        StreamReader<TItem> OutputStream { get; }
         Task<RpcResult<TReturn>> AsyncResult { get; }
     }
 
     public interface InputStreamCall<TItem>
     {
-        PagingRxStream<TItem> InputStream { get; }
+        StreamWriter<TItem> InputStream { get; }
         Task<RpcResult> Completion { get; }
     }
 
     public interface InputStreamCall<TItem, TReturn>
     {
-        PagingRxStream<TItem> InputStream { get; }
+        StreamWriter<TItem> InputStream { get; }
         Task<RpcResult<TReturn>> AsyncResult { get; }
     }
 
-    public interface DuplexStreamCall<TInItem, TOutItem> : InputStreamCall<TInItem>, OutputStreamCall<TOutItem>
+    public interface DuplexStreamCall<TInItem, TOutItem>
     {
+        StreamWriter<TInItem> InputStream { get; }
+        StreamReader<TOutItem> OutputStream { get; }
+        Task<RpcResult> Completion { get; }
     }
 
-    public interface DuplexStreamCall<TInItem, TOutItem, TReturn> : InputStreamCall<TInItem, TReturn>, OutputStreamCall<TOutItem, TReturn>
+    public interface DuplexStreamCall<TInItem, TOutItem, TReturn>
     {
+        StreamReader<TOutItem> OutputStream { get; }
+        StreamWriter<TInItem> InputStream { get; }
+        Task<RpcResult<TReturn>> AsyncResult { get; }
     }
 
     internal class StreamCall<TInItem, TOutItem, TReturn> :
@@ -57,15 +63,18 @@ namespace SharpRpc
         private readonly TaskCompletionSource<RpcResult<TReturn>> _typedCompletion;
         private readonly TaskCompletionSource<RpcResult> _voidCompletion;
 
+        private readonly PagingStreamWriter<TInItem> _inputStub;
+        private readonly PagingStreamReader<TOutItem> _outputStub;
+
         public StreamCall(IOpenStreamRequest request, Channel ch, IStreamMessageFactory<TInItem> inFactory, IStreamMessageFactory<TOutItem> outFactory, bool hasRetParam)
         {
             CallId = Guid.NewGuid().ToString();
 
             if (inFactory != null)
-                InputStream = new PagingRxStream<TInItem>(inFactory);
+                _inputStub = new PagingStreamWriter<TInItem>(CallId, ch, inFactory, false, 10, 10);
 
             if (outFactory != null)
-                OutputStream = new PagingTxStream<TOutItem>(CallId, ch, outFactory, 10, 10);
+                _outputStub = new PagingStreamReader<TOutItem>(outFactory);
 
             if (hasRetParam)
                 _typedCompletion = new TaskCompletionSource<RpcResult<TReturn>>();
@@ -83,8 +92,8 @@ namespace SharpRpc
 
         public string CallId { get; }
 
-        public PagingRxStream<TInItem> InputStream { get; }
-        public PagingTxStream<TOutItem> OutputStream { get; }
+        public StreamWriter<TInItem> InputStream => _inputStub;
+        public StreamReader<TOutItem> OutputStream => _outputStub;
 
         public Task<RpcResult> Completion => _voidCompletion.Task;
         public Task<RpcResult<TReturn>> AsyncResult => _typedCompletion.Task;
@@ -94,15 +103,14 @@ namespace SharpRpc
         private void RequestSendCompleted(RpcResult result)
         {
             if (result.IsOk)
-                OutputStream?.AllowSend();
+                _inputStub?.AllowSend();
             else
                 EndCall(result, default(TReturn));
         }
 
         private void EndCall(RpcResult result, TReturn resultValue)
         {
-            //InputStream?.clos
-            OutputStream?.Close(result);
+            _inputStub?.Close(result);
 
             if (ReturnsResult)
                 _typedCompletion.TrySetResult(result.ToValueResult(resultValue));
@@ -154,9 +162,20 @@ namespace SharpRpc
             }
         }
 
-        RpcResult MessageDispatcherCore.IInteropOperation.Update(IStreamPage page)
+        RpcResult MessageDispatcherCore.IInteropOperation.Update(IStreamAuxMessage auxMessage)
         {
-            return RpcResult.Ok;
+            if (auxMessage is IStreamPage<TOutItem> page)
+            {
+                _outputStub.OnRx(page);
+                return RpcResult.Ok;
+            }
+            else if (auxMessage is IStreamCompletionMessage compl)
+            {
+                _outputStub.OnRx(compl);
+                return RpcResult.Ok;
+            }
+
+            return new RpcResult(RpcRetCode.ProtocolViolation, "");
         }
 
         #endregion

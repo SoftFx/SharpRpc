@@ -116,35 +116,54 @@ namespace TestCommon
             return FwAdapter.WrappResult(result);
         }
 
-        
-
 #if NET5_0_OR_GREATER
-        public override ValueTask<int> TestInStream(InputStream<int> inputStream, int p1, string p2)
+        public override async ValueTask<int> TestInStream(StreamReader<int> inputStream, int p1, string p2, StreamTestOptions options)
+        {
+            var sum = 0;
+
+            await foreach (var i in inputStream)
+                sum += i;
+
+            return sum + p1 + int.Parse(p2);
+        }
 #else
-        public override Task<int> TestInStream(InputStream<int> inputStream, int p1, string p2)
-#endif
+        public override Task<int> TestInStream(StreamReader<int> inputStream, int p1, string p2, StreamTestOptions options)
         {
             return FwAdapter.WrappResult(p1);
         }
+#endif
 
 #if NET5_0_OR_GREATER
-        public override ValueTask<int> TestOutStream(OutputStream<int> outputStream, int p1, string p2)
+        public override async ValueTask<int> TestOutStream(StreamWriter<int> outputStream, int p1, string p2, StreamTestOptions options)
 #else
-        public override Task<int> TestOutStream(OutputStream<int> outputStream, int p1, string p2)
+        public override async Task<int> TestOutStream(StreamWriter<int> outputStream, int p1, string p2, StreamTestOptions options)
 #endif
         {
+            for (int i = 1; i <= p1; i++)
+                await outputStream.WriteAsync(i);
 
-            return FwAdapter.WrappResult(p1);
+            if (options == StreamTestOptions.InvokeCompletion)
+                await outputStream.CompleteAsync();
+
+            return int.Parse(p2);
         }
-
 
 #if NET5_0_OR_GREATER
-        public override ValueTask<int> TestDuplexStream(InputStream<int> inputStream, OutputStream<int> outputStream, int p1, string p2)
-#else
-        public override Task<int> TestDuplexStream(InputStream<int> inputStream, OutputStream<int> outputStream, int p1, string p2)
-#endif
+        public override async ValueTask<int> TestDuplexStream(StreamReader<int> inputStream, StreamWriter<int> outputStream, int p1, string p2, StreamTestOptions options)
         {
-            return FwAdapter.WrappResult(p1);
+            await foreach (var item in inputStream)
+                await outputStream.WriteAsync(item);
+
+            if (options == StreamTestOptions.InvokeCompletion)
+                await outputStream.CompleteAsync();
+
+            return p1 + int.Parse(p2);
         }
+#else
+        public override async Task<int> TestDuplexStream(StreamReader<int> inputStream, StreamWriter<int> outputStream, int p1, string p2, StreamTestOptions options)
+        {
+            return p1 + int.Parse(p2);
+        }
+#endif
     }
 }

@@ -164,7 +164,7 @@ namespace SharpRpc.Builder
             var invokeExpression = SF.InvocationExpression(methodToCall)
                 .WithArguments(SH.IdentifierArgument("message"));
 
-            return SH.VarDeclaration("bytes", invokeExpression);
+            return SH.LocalVarDeclaration("bytes", invokeExpression);
         }
     }
 }

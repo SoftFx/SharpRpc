@@ -16,7 +16,7 @@ namespace SharpRpc
 {
     public class MessageDispatcherConfig : EndpointConfigElement
     {
-        private DispatcherConcurrencyMode _rxConcurrency = DispatcherConcurrencyMode.Single;
+        private DispatcherConcurrencyMode _rxConcurrency = DispatcherConcurrencyMode.None;
 
         internal MessageDispatcherConfig(IConfigHost host) : base(host)
         {

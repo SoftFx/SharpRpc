@@ -83,24 +83,18 @@ namespace SharpRpc
 
         protected StreamHandler<object, T> CreateOutputStreamHandler<T>(IOpenStreamRequest request, IStreamMessageFactory<T> factory)
         {
-            var handler = new StreamHandler<object, T>(request, _ch, null, factory);
-            _ch.Dispatcher.RegisterCallObject(request.CallId, handler);
-            return handler;
+            return new StreamHandler<object, T>(request, _ch, null, factory);
         }
 
         protected StreamHandler<T, object> CreateInputStreamHandler<T>(IOpenStreamRequest request, IStreamMessageFactory<T> factory)
         {
-            var handler = new StreamHandler<T, object>(request, _ch, factory, null);
-            _ch.Dispatcher.RegisterCallObject(request.CallId, handler);
-            return handler;
+            return new StreamHandler<T, object>(request, _ch, factory, null);
         }
 
         protected StreamHandler<TIn, TOut> CreateDuplexStreamHandler<TIn, TOut>(IOpenStreamRequest request,
             IStreamMessageFactory<TIn> inFactory, IStreamMessageFactory<TOut> outFactory)
         {
-            var handler = new StreamHandler<TIn, TOut>(request, _ch, inFactory, outFactory);
-            _ch.Dispatcher.RegisterCallObject(request.CallId, handler);
-            return handler;
+            return new StreamHandler<TIn, TOut>(request, _ch, inFactory, outFactory);
         }
 
 #if NET5_0_OR_GREATER

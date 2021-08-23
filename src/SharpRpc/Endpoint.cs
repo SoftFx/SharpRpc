@@ -21,7 +21,7 @@ namespace SharpRpc
         private int _rxSegmentSize = ushort.MaxValue * 1;
         private int _txSegmentSize = ushort.MaxValue * 1;
         private TimeSpan _rxTimeout = TimeSpan.FromMinutes(1);
-        private bool _asyncMessageParse = true;
+        private bool _asyncMessageParse = false;
         private object _owner;
         private TaskScheduler _scheduler = null;
 

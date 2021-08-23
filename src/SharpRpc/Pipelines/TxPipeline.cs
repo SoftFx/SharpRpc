@@ -17,12 +17,8 @@ namespace SharpRpc
 {
     internal interface TxPipeline
     {
-        //public ByteTransport Transport { get; protected set; }
-
-        //event Action ConnectionRequested;
-        //event Action<RpcResult> CommunicationFaulted;
-
         TaskFactory TaskQueue { get; }
+        bool ProvidesImmidiateSerialization { get; }
 
         RpcResult TrySend(IMessage message);
         void Send(IMessage message);
@@ -40,15 +36,5 @@ namespace SharpRpc
         void StartProcessingUserMessages();
         void StopProcessingUserMessages(RpcResult fault);
         Task Close(TimeSpan gracefulCloseTimeout);
-
-        //protected void SignalCommunicationError(RpcResult fault)
-        //{
-        //    CommunicationFaulted.Invoke(fault);
-        //}
-
-        //protected void SignalConnectionRequest()
-        //{
-        //    ConnectionRequested.Invoke();
-        //}
     }
 }

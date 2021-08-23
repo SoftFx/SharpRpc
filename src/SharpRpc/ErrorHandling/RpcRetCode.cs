@@ -35,6 +35,7 @@ namespace SharpRpc
         EventHandlerCrashed,
         RequestFaulted,
         // Unexpected exception (not covered by fault contract)
-        RequestCrashed
+        RequestCrashed,
+        StreamCompleted
     }
 }

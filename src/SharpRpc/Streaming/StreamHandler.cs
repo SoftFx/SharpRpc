@@ -30,23 +30,29 @@ namespace SharpRpc
     //    PagingTxStream<TOutItem> OutputStream { get; }
     //}
 
-    public class StreamHandler<TInItem, TOutItem> : MessageDispatcherCore.IInteropOperation //: InputStreamHandler<TInItem>, OutputStreamHandler<TOutItem>
+    public class StreamHandler<TInItem, TOutItem> : MessageDispatcherCore.IInteropOperation, IDisposable //: InputStreamHandler<TInItem>, OutputStreamHandler<TOutItem>
     {
         public StreamHandler(IOpenStreamRequest request, Channel ch, IStreamMessageFactory<TInItem> inFactory, IStreamMessageFactory<TOutItem> outFactory)
         {
             CallId = request.CallId;
+
             if (inFactory != null)
-                InputStream = new PagingRxStream<TInItem>(inFactory);
+                InputStream = new PagingStreamReader<TInItem>(inFactory);
+
             if (outFactory != null)
-                OutputStream = new PagingTxStream<TOutItem>(CallId, ch, outFactory, 10, 10);
+                OutputStream = new PagingStreamWriter<TOutItem>(CallId, ch, outFactory, true, 10, 10);
+
+            ch.Dispatcher.RegisterCallObject(request.CallId, this);
         }
 
         public string CallId { get; }
-        public PagingRxStream<TInItem> InputStream { get; }
-        public PagingTxStream<TOutItem> OutputStream { get; }
+        public PagingStreamReader<TInItem> InputStream { get; }
+        public PagingStreamWriter<TOutItem> OutputStream { get; }
 
-        public void Close()
+        public void Dispose()
         {
+            InputStream?.Abort();
+            OutputStream?.MarkAsCompleted();
         }
 
         RpcResult MessageDispatcherCore.IInteropOperation.Complete(IResponse respMessage)
@@ -62,15 +68,20 @@ namespace SharpRpc
         {
         }
 
-        RpcResult MessageDispatcherCore.IInteropOperation.Update(IStreamPage page)
+        RpcResult MessageDispatcherCore.IInteropOperation.Update(IStreamAuxMessage auxMessage)
         {
-            var typedPage = page as IStreamPage<TInItem>;
+            if (auxMessage is IStreamPage<TInItem> page)
+            {
+                InputStream.OnRx(page);
+                return RpcResult.Ok;
+            }
+            else if (auxMessage is IStreamCompletionMessage compl)
+            {
+                InputStream.OnRx(compl);
+                return RpcResult.Ok;
+            }
 
-            if (typedPage == null)
-                return new RpcResult(RpcRetCode.ProtocolViolation, "");
-
-            InputStream.OnRx(typedPage);
-            return RpcResult.Ok;
+            return new RpcResult(RpcRetCode.ProtocolViolation, "");
         }
     }
 }

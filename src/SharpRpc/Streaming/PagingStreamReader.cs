@@ -18,9 +18,9 @@ using System.Threading.Tasks;
 namespace SharpRpc
 {
 #if NET5_0_OR_GREATER
-    public class PagingRxStream<T> : InputStream<T>, IAsyncEnumerable<T>
+    public class PagingStreamReader<T> : StreamReader<T>, IAsyncEnumerable<T>
 #else
-    public class PagingRxStream<T> : InputStream<T>
+    public class PagingStreamReader<T> : StreamReader<T>
 #endif
     {
         private object _lockObj = new object();
@@ -28,10 +28,11 @@ namespace SharpRpc
         private IList<T> _currentPage;
         private int _currentPageIndex;
         private IStreamEnumerator _enumerator;
+        private bool _completed;
 
         //private bool _isWating;
 
-        internal PagingRxStream(IStreamMessageFactory<T> factory)
+        internal PagingStreamReader(IStreamMessageFactory<T> factory)
         {
         }
 
@@ -39,19 +40,52 @@ namespace SharpRpc
         {
             var wakeupListener = false;
 
+            if (page.Items == null || page.Items.Count == 0)
+                return; // TO DO : signal protocol violation
+
             lock (_lockObj)
             {
                 if (_currentPage == null)
                 {
                     Debug.Assert(_currentPageIndex == 0);
-
                     _currentPage = page.Items;
-                    wakeupListener = true;
                 }
                 else
                     _pages.Enqueue(page.Items);
 
-                OnDataArrived();
+                wakeupListener = OnDataArrived();
+            }
+
+            if (wakeupListener)
+                _enumerator.WakeUpListener();
+        }
+
+        internal void OnRx(IStreamCompletionMessage msg)
+        {
+            CompleteStream(false);
+        }
+
+        internal void Abort()
+        {
+            CompleteStream(true);
+        }
+
+        private void CompleteStream(bool clearQueue)
+        {
+            var wakeupListener = false;
+
+            lock (_lockObj)
+            {
+                _completed = true;
+
+                if (clearQueue)
+                {
+                    _pages.Clear();
+                    _currentPage = null;
+                    _currentPageIndex = 0;
+                }
+
+                wakeupListener = OnDataArrived();
             }
 
             if (wakeupListener)
@@ -83,16 +117,20 @@ namespace SharpRpc
             return item;
         }
 
-        private bool TryGetNextItem(out T item)
+        private NextItemCode TryGetNextItem(out T item)
         {
             if (_currentPage != null)
             {
                 item = GetNextItem();
-                return true;
+                return NextItemCode.Ok;
             }
 
             item = default(T);
-            return false;
+
+            if (_completed)
+                return NextItemCode.Completed;
+
+            return NextItemCode.NoItems;
         }
 
 #if NET5_0_OR_GREATER
@@ -138,21 +176,28 @@ namespace SharpRpc
         //    return new ValueTask();
         //}
 
+        private enum NextItemCode
+        {
+            Ok,
+            NoItems,
+            Completed
+        }
+
         private interface IStreamEnumerator
         {
             bool OnDataArrived();
             void WakeUpListener();
-            void OnClose();
         }
 
 #if NET5_0_OR_GREATER
         private class AsyncEnumerator : IAsyncEnumerator<T>, IStreamEnumerator
         {
-            private readonly PagingRxStream<T> _stream;
+            private readonly PagingStreamReader<T> _stream;
             private TaskCompletionSource<bool> _itemWaitSrc;
             //private TaskCompletionSource<bool> _closeWaitSrc;
+            private bool _completed;
 
-            public AsyncEnumerator(PagingRxStream<T> stream)
+            public AsyncEnumerator(PagingStreamReader<T> stream)
             {
                 _stream = stream;
             }
@@ -168,34 +213,42 @@ namespace SharpRpc
             {
                 lock (_stream._lockObj)
                 {
-                    if (_stream.TryGetNextItem(out var nextItem))
-                    {
-                        Current = nextItem;
+                    var code = _stream.TryGetNextItem(out var nextItem);
+                    Current = nextItem;
+
+                    if (code == NextItemCode.Ok)
                         return FwAdapter.AsyncTrue;
-                    }
-                    else
+                    else if (code == NextItemCode.NoItems)
                     {
                         _itemWaitSrc = new TaskCompletionSource<bool>();
                         return new ValueTask<bool>(_itemWaitSrc.Task);
                     }
+                    else //NextItemCode.Completed
+                        return FwAdapter.AsyncFalse;
                 }
             }
 
             public bool OnDataArrived()
             {
-                Current = _stream.GetNextItem();
-                return _itemWaitSrc != null;
+                if (_itemWaitSrc != null)
+                {
+                    var code = _stream.TryGetNextItem(out var nextItem);
+                    Current = nextItem;
+
+                    if (code == NextItemCode.Completed)
+                        _completed = true;
+
+                    return true;
+                }
+
+                return false;
             }
 
             public void WakeUpListener()
             {
                 var eventCpy = _itemWaitSrc;
                 _itemWaitSrc = null;
-                eventCpy.SetResult(true);
-            }
-
-            public void OnClose()
-            {
+                eventCpy.SetResult(!_completed);
             }
         }
 #endif

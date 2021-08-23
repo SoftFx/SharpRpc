@@ -173,9 +173,9 @@ namespace SharpRpc.Builder
             var addHandlerParam = !_isCallback && _contract.HasCallbacks;
 
             var serializerCreateClause = SH.InvocationExpression(Names.FacadeSerializerAdapterFactoryMethod, SF.Argument(SF.IdentifierName("serializer")));
-            var serializerVarStatement = SH.VarDeclaration("adapter", serializerCreateClause);
+            var serializerVarStatement = SH.LocalVarDeclaration("adapter", serializerCreateClause);
 
-            var descriptorVarStatement = SH.VarDeclaration("descriptor",
+            var descriptorVarStatement = SH.LocalVarDeclaration("descriptor",
                 SH.InvocationExpression(Names.FacadeCreateDescriptorMethod, SH.IdentifierArgument("adapter")));
 
             var clientCreateExpression = SF.ObjectCreationExpression(SH.ShortTypeName(_contract.ClientStubClassName))
@@ -413,7 +413,7 @@ namespace SharpRpc.Builder
                 SF.ObjectCreationExpression(SF.ParseTypeName(msgClassName.Full))
                 .WithArgumentList(SF.ArgumentList()));
 
-            yield return SH.VariableDeclaration(msgClassName.Full, "message", msgCreateClause);
+            yield return SH.LocalVariableDeclaration(msgClassName.Full, "message", msgCreateClause);
 
             foreach (var paramDec in callDec.Params)
             {

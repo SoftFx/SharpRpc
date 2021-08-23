@@ -24,7 +24,11 @@ namespace SharpRpc
         //private readonly CancellationTokenSource _loginWaitCancel = new CancellationTokenSource();
         private TaskFactory _taskQueue;
 
+#if DEBUG
+        public override TimeSpan LoginTimeout => TimeSpan.FromMinutes(2);
+#else
         public override TimeSpan LoginTimeout => TimeSpan.FromSeconds(5);
+#endif
 
         protected override void OnInit()
         {
@@ -46,7 +50,7 @@ namespace SharpRpc
             // wait for login (with timeout)
             try
             {
-                using (cToken.Register(OnLoginTimeout))
+                using (cToken.Register(OnLoginCanceled))
                     loginMsg = await _loginWaitHandle.Task;
             }
             catch (TaskCanceledException)
@@ -137,7 +141,7 @@ namespace SharpRpc
             return RpcResult.Ok;
         }
 
-        private void OnLoginTimeout()
+        private void OnLoginCanceled()
         {
             _loginWaitHandle.TrySetCanceled();
         }
