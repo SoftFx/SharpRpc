@@ -50,7 +50,7 @@ namespace SharpRpc
         }
 
         private bool DataIsAvailable => _queueTopPage.Items.Count > 0 || _queueCompletePages.Count > 0;
-        private bool HasSpaceInQueue => _queueTopPage.Items.Count < _maxPageSize;
+        private bool HasSpaceInQueue => _queueCompletePages.Count < _maxWindowSize;
 
         public string CallId { get; }
         public int QueueSize { get; private set; }
@@ -72,7 +72,6 @@ namespace SharpRpc
                 {
                     EnqueueItem(item);
                     sendNextPage = OnDataArrived();
-                    
                 }
                 else
                 {
@@ -148,7 +147,7 @@ namespace SharpRpc
             if (!_isSedning)
             {
                 _isSedning = true;
-                //SendNextPage();
+                _pageToSend = DequeuePage();
                 return _isSendingEnabled;
             }
 
@@ -157,7 +156,7 @@ namespace SharpRpc
 
         private void SendNextPage()
         {
-            _pageToSend = DequeuePage();
+            //_pageToSend = DequeuePage();
             _ch.Tx.TrySendAsync(_pageToSend, OnSendCompleted);
         }
 
@@ -181,6 +180,7 @@ namespace SharpRpc
                 {
                     if (DataIsAvailable || _enqueueAwaiters.Count > 0)
                     {
+                        _pageToSend = DequeuePage();
                         sendNextPage = true;
                         ProcessAwaiters();
                     }
@@ -198,7 +198,6 @@ namespace SharpRpc
 
             if (sendNextPage)
                 SendNextPage();
-
         }
 
         private void ProcessAwaiters()

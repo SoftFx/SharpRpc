@@ -79,5 +79,32 @@ namespace TestCommon
 #endif
             return FwAdapter.WrappResult(rep);
         }
+
+#if NET5_0_OR_GREATER
+        public override async ValueTask UpstreamUpdates(StreamReader<FooEntity> inputStream)
+        {
+            var summ = 0.0;
+
+            await foreach (var update in inputStream)
+                summ += update.Ask;
+        }
+
+        public override async ValueTask DownstreamUpdates(StreamWriter<FooEntity> outputStream)
+        {
+            _multicaster.Add(outputStream);
+
+            await Task.Delay(TimeSpan.FromMinutes(10));
+        }
+#else
+        public override Task UpstreamUpdates(StreamReader<FooEntity> inputStream)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override Task DownstreamUpdates(StreamWriter<FooEntity> outputStream)
+        {
+            throw new NotImplementedException();
+        }
+#endif
     }
 }

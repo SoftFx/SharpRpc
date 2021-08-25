@@ -64,7 +64,7 @@ namespace SharpRpc
                     if (data.Array == null)
                         return;
 
-                    //await Task.Yield();
+                    await Task.Yield();
 
                     try
                     {

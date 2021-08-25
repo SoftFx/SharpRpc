@@ -71,7 +71,7 @@ namespace SharpRpc
             CallId = Guid.NewGuid().ToString();
 
             if (inFactory != null)
-                _inputStub = new PagingStreamWriter<TInItem>(CallId, ch, inFactory, false, 10, 10);
+                _inputStub = new PagingStreamWriter<TInItem>(CallId, ch, inFactory, false, 200, 2);
 
             if (outFactory != null)
                 _outputStub = new PagingStreamReader<TOutItem>(outFactory);

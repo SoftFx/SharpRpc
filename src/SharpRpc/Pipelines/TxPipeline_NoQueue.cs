@@ -8,6 +8,7 @@
 using SharpRpc.Lib;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing.Drawing2D;
 using System.Runtime.Serialization;
 using System.Text;
@@ -70,6 +71,8 @@ namespace SharpRpc
 
         public RpcResult TrySend(IMessage message)
         {
+            //Debug.Assert(!Monitor.IsEntered(_lockObj));
+
             lock (_lockObj)
             {
                 if (_fault.Code != RpcRetCode.Ok)
@@ -98,6 +101,8 @@ namespace SharpRpc
         public Task<RpcResult> TrySendAsync(IMessage message)
 #endif
         {
+            //Debug.Assert(!Monitor.IsEntered(_lockObj));
+
             lock (_lockObj)
             {
                 if (_fault.Code != RpcRetCode.Ok)
@@ -119,6 +124,8 @@ namespace SharpRpc
 
         public void TrySendAsync(IMessage message, Action<RpcResult> onSendCompletedCallback)
         {
+            //Debug.Assert(!Monitor.IsEntered(_lockObj));
+
             lock (_lockObj)
             {
                 if (_fault.Code != RpcRetCode.Ok)
@@ -127,7 +134,10 @@ namespace SharpRpc
                 CheckConnectionFlags();
 
                 if (!CanProcessUserMessage)
+                {
                     _asyncGate.Enqueue(message, onSendCompletedCallback);
+                    return;
+                }
                 else
                 {
                     _isProcessingItem = true;
@@ -146,6 +156,8 @@ namespace SharpRpc
         public Task<RpcResult> SendSystemMessage(ISystemMessage message)
 #endif
         {
+            //Debug.Assert(!Monitor.IsEntered(_lockObj));
+
             lock (_lockObj)
             {
                 if (_isClosing)
@@ -165,8 +177,10 @@ namespace SharpRpc
             return FwAdapter.WrappResult(ProcessMessage(message));
         }
 
-        private void CasuallySend(ISystemMessage message)
+        private void SendOrForget(ISystemMessage message)
         {
+            //Debug.Assert(!Monitor.IsEntered(_lockObj));
+
             lock (_lockObj)
             {
                 if (_isClosing || !CanProcessSystemMessage)
@@ -185,6 +199,8 @@ namespace SharpRpc
         public Task SendAsync(IMessage message)
 #endif
         {
+            //Debug.Assert(!Monitor.IsEntered(_lockObj));
+
             lock (_lockObj)
             {
                 _fault.ThrowIfNotOk();
@@ -244,6 +260,8 @@ namespace SharpRpc
             }
             finally
             {
+                //Debug.Assert(!Monitor.IsEntered(_lockObj));
+
                 lock (_lockObj)
                 {
                     _isProcessingItem = false;
@@ -309,6 +327,8 @@ namespace SharpRpc
 
         public void Start(ByteTransport transport)
         {
+            //Debug.Assert(!Monitor.IsEntered(_lockObj));
+
             lock (_lockObj)
             {
                 _isStarted = true;
@@ -321,6 +341,8 @@ namespace SharpRpc
 
         public void StartProcessingUserMessages()
         {
+            //Debug.Assert(!Monitor.IsEntered(_lockObj));
+
             lock (_lockObj)
             {
                 if (_isStarted && !_isClosing)
@@ -358,6 +380,8 @@ namespace SharpRpc
         {
             bool gracefulClose = gracefulCloseTimeout > TimeSpan.Zero;
 
+            //Debug.Assert(!Monitor.IsEntered(_lockObj));
+
             lock (_lockObj)
             {
                 if (!_isClosing)
@@ -394,9 +418,11 @@ namespace SharpRpc
         {
             lock (_lockObj)
             {
-                if (DateTime.UtcNow - _lastTxTime > _idleThreshold)
-                    CasuallySend(_keepAliveMessage);
+                if (DateTime.UtcNow - _lastTxTime <= _idleThreshold)
+                    return;
             }
+
+            SendOrForget(_keepAliveMessage);
         }
 
         private void RefreshLastTxTime()

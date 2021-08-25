@@ -15,7 +15,7 @@ using System.Threading.Tasks;
 
 namespace SharpRpc.Lib
 {
-    internal static class ThreadingExt
+    public static class ThreadingExt
     {
         public static DiveAwaitable Dive(this TaskFactory factory)
         {

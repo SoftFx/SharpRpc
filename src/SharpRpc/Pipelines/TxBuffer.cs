@@ -76,20 +76,17 @@ namespace SharpRpc
         // shoult be called under lock
         public void Lock()
         {
+            Debug.Assert(Monitor.IsEntered(_lockObj));
+            //Debug.Assert(!IsCurrentSegmentLocked);
+
             //lock (_lockObj)
             IsCurrentSegmentLocked = true;
         }
 
-        //public DequeueRequest Unlock()
-        //{
-        //    IsCurrentSegmentLocked = false;
-        //    return SignalDataAvailable();
-        //}
-
         public void WriteMessage(IMessage message)
         {
-            //lock (_lockObj)
-            //    IsCurrentSegmentLocked = true;
+            Debug.Assert(!Monitor.IsEntered(_lockObj));
+            Debug.Assert(IsCurrentSegmentLocked);
 
             _marker.OnMessageStart();
 
@@ -104,6 +101,8 @@ namespace SharpRpc
 
             lock (_lockObj)
             {
+                Debug.Assert(IsCurrentSegmentLocked);
+
                 IsCurrentSegmentLocked = false;
                 SignalDataAvailable();
             }
@@ -116,8 +115,6 @@ namespace SharpRpc
         {
             _isClosed = true;
 
-            //var cpy = _dequeueWaitHandle;
-            //_dequeueWaitHandle = null;
             if (_isDequeueAwaited)
             {
                 _dequeueWaitHandle.SetCompleted(new ArraySegment<byte>());
@@ -125,34 +122,9 @@ namespace SharpRpc
             }
         }
 
-        //public void ReleaseLock()
-        //{
-        //    //IsCurrentSegmentLocked = false;
-
-        //    DequeueRequest toSignal = null;
-
-        //    //lock (_lockObj)
-        //    {
-        //        IsCurrentSegmentLocked = false;
-        //        toSignal = SignalDataAvailable();
-        //    }
-
-        //    toSignal?.Signal();
-        //}
-
-        //public void StartMessageWrite(MessageHeader header)
-        //{
-        //    _marker.OnMessageStart(header);
-        //}
-
-        //public void EndMessageWrite()
-        //{
-        //    _marker.OnMessageEnd();
-        //}
-
         public SlimAwaitable<ArraySegment<byte>> DequeueNext()
         {
-            Debug.Assert(!Monitor.IsEntered(_lockObj));
+            //Debug.Assert(!Monitor.IsEntered(_lockObj));
 
             lock (_lockObj)
             {
@@ -166,7 +138,7 @@ namespace SharpRpc
 
                 _dequeueWaitHandle.Reset();
 
-                Debug.Assert(!_isDequeueAwaited);
+                //Debug.Assert(!_isDequeueAwaited);
 
                 if (HasCompletedSegments || hasCurrentData)
                 {
@@ -185,37 +157,14 @@ namespace SharpRpc
             }
         }
 
-        //public void ReturnSegments(List<ArraySegment<byte>> container)
-        //{
-        //    foreach (var segment in container)
-        //        _memManager.FreeSegment(segment);
-        //}
-
         private void SignalDataAvailable()
         {
             if (_isDequeueAwaited)
             {
                 _isDequeueAwaited = false;
                 _dequeueWaitHandle.SetCompleted(Dequeue(), true);
-                //var data = Dequeue();
-                //Task.Factory.StartNew(s =>
-                //{
-                //    lock (_lockObj)
-                //        _dequeueWaitHandle.SetCompleted((ArraySegment<byte>)s);
-                //}, data);
             }
         }
-
-        //private DequeueRequest SignalDataAvailable()
-        //{
-        //    var cpy = _dequeueWaitHandle;
-        //    _dequeueWaitHandle = null;
-
-        //    if (cpy != null)
-        //        cpy.Result = Dequeue();
-
-        //    return cpy;
-        //}
 
         private ArraySegment<byte> Dequeue()
         {
@@ -241,8 +190,15 @@ namespace SharpRpc
 
         public Memory<byte> GetMemory(int sizeHint = 0)
         {
-            EnsureSpace(sizeHint);
-            return new Memory<byte>(CurrentSegment, CurrentOffset, SegmentSize - CurrentOffset);
+            try
+            {
+                EnsureSpace(sizeHint);
+                return new Memory<byte>(CurrentSegment, CurrentOffset, SegmentSize - CurrentOffset);
+            }
+            catch
+            {
+                throw;
+            }
         }
 
         public Span<byte> GetSpan(int sizeHint = 0)
@@ -273,22 +229,11 @@ namespace SharpRpc
             _marker.OnAlloc();
         }
 
-        // should be called
         private void CompleteCurrentSegment()
         {
             _marker.OnSegmentClose();
             _completeSegments.Enqueue(new ArraySegment<byte>(CurrentSegment, 0, CurrentOffset));
             AllocNewSegment();
-
-            //DequeueRequest toSignal = null;
-
-            //lock (_lockObj)
-            //{
-                
-            //    SignalDataAvailable();
-            //}
-
-            //toSignal?.Signal();
         }
 
         private void AllocNewSegment()
@@ -328,15 +273,5 @@ namespace SharpRpc
         System.IO.Stream MessageWriter.ByteStream => _streamProxy;
         
         #endregion
-
-        //public class DequeueRequest : SlimAwaitable<ArraySegment<byte>>
-        //{
-        //    public ArraySegment<byte> Result { get; set; }
-
-        //    public void Signal()
-        //    {
-        //        SetCompleted(Result);
-        //    }
-        //}
     }
 }

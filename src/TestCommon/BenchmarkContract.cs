@@ -24,6 +24,14 @@ namespace TestCommon
         void ApplyUpdate(FooEntity entity);
 
         [Rpc(RpcType.Call)]
+        [StreamInput(typeof(FooEntity))]
+        void UpstreamUpdates();
+
+        [Rpc(RpcType.Call)]
+        [StreamOutput(typeof(FooEntity))]
+        void DownstreamUpdates();
+
+        [Rpc(RpcType.Call)]
         void Flush();
 
         [Rpc(RpcType.Call)]

@@ -108,19 +108,6 @@ namespace SharpRpc
                 }
             }
 
-            //private void MatchAndEnqueue(IMessage incomingMessage)
-            //{
-            //    if (incomingMessage is IResponse resp)
-            //    {
-            //        if (_callTasks.TryGetValue(resp.CallId, out ITask task))
-            //            _callTasks.Remove(resp.CallId);
-
-            //        _queue.Add(new MessageTaskPair(incomingMessage, task));
-            //    }
-            //    else //if (incomingMessage is IRequest)
-            //        _queue.Add(new MessageTaskPair(incomingMessage));
-            //}
-
             public override Task Stop(RpcResult fault)
             {
                 Task stopTask;
@@ -211,28 +198,7 @@ namespace SharpRpc
             private void InvokeOnStop()
             {
                 Core.FireClosed();
-
-                //try
-                //{
-                //    ((RpcCallHandler)MessageHandler).Session.FireClosed(new SessionClosedEventArgs());
-                //}
-                //catch (Exception)
-                //{
-                //    // TO DO : log or pass some more information about expcetion (stack trace)
-                //}
             }
-
-            //private struct MessageTaskPair
-            //{
-            //    public MessageTaskPair(IMessage message, ITask task = null)
-            //    {
-            //        Message = message;
-            //        Task = task;
-            //    }
-
-            //    public IMessage Message { get; }
-            //    public ITask Task { get; }
-            //}
         }
     }
 }

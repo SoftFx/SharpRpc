@@ -51,6 +51,13 @@ namespace SharpRpc
         {
             return valueTask.AsTask();
         }
+
+        public static void Wait(this ValueTask vTask)
+        {
+            if (!vTask.IsCompleted)
+                vTask.AsTask().Wait();
+        }
+
 #else
         public static Task AsyncVoid => Task.CompletedTask;
         public static Task<bool> AsyncTrue = Task.FromResult(true);

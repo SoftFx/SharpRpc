@@ -139,7 +139,7 @@ namespace SharpRpc
                     {
                         var msg = _serializer.Deserialize(_reader);
 
-                        Debug.WriteLine("RX " + msg.GetType().Name);
+                        //Debug.WriteLine("RX " + msg.GetType().Name);
 
                         if (msg is ISystemMessage sysMsg)
                         {
@@ -147,8 +147,11 @@ namespace SharpRpc
                             if (sysMsgResult.Code != RpcRetCode.Ok)
                                 return sysMsgResult;
                         }
-                        else //if (msg is IRequest || msg is IResponse)
-                            container.Add(msg);
+                        else
+                        {
+                            //if (msg is ISystemMessage || (msg is IInteropMessage && !(msg is IStreamPage)))
+                                container.Add(msg);
+                        }
                     }
                     catch (Exception ex)
                     {

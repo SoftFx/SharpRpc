@@ -160,9 +160,9 @@ namespace TestCommon
             return p1 + int.Parse(p2);
         }
 #else
-        public override async Task<int> TestDuplexStream(StreamReader<int> inputStream, StreamWriter<int> outputStream, int p1, string p2, StreamTestOptions options)
+        public override Task<int> TestDuplexStream(StreamReader<int> inputStream, StreamWriter<int> outputStream, int p1, string p2, StreamTestOptions options)
         {
-            return p1 + int.Parse(p2);
+            throw new NotImplementedException();
         }
 #endif
     }
