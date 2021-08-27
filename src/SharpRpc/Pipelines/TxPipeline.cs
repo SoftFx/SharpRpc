@@ -18,7 +18,7 @@ namespace SharpRpc
     internal interface TxPipeline
     {
         TaskFactory TaskQueue { get; }
-        bool ProvidesImmidiateSerialization { get; }
+        bool ImmidiateSerialization { get; }
 
         RpcResult TrySend(IMessage message);
         void Send(IMessage message);

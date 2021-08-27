@@ -189,40 +189,38 @@ namespace SharpRpc.Builder
         private MethodDeclarationSyntax GenerateRequestWrapMethod(CallDeclaration callDec)
         {
             var methodName = "Invoke" + callDec.MethodName;
+            var addStreamHandler = callDec.HasStreams;
             var requetsMessageType = _contract.GetRequestClassName(callDec.MethodName);
+            var statements = new List<StatementSyntax>();
 
             var handlerInvocationExp = SF.AwaitExpression(GenerateRpcInvocation(callDec, "request"));
 
-            StatementSyntax handlerInvokationStatement;
+            var catchBody = new List<StatementSyntax>();
 
             if (callDec.ReturnsData)
-                handlerInvokationStatement = SH.LocalVarDeclaration("result", handlerInvocationExp);
+                catchBody.Add(SH.LocalVarDeclaration("result", handlerInvocationExp));
             else
-                handlerInvokationStatement = SF.ExpressionStatement(handlerInvocationExp);
+                catchBody.Add(SF.ExpressionStatement(handlerInvocationExp));
 
-            var catchBody = SF.Block(handlerInvokationStatement)
-                .AddStatements(GenerateResponseCreationStatements(callDec).ToArray());
+            if (addStreamHandler)
+                catchBody.Add(GenerateStreamHandlerCloseStatement());
 
-            if (callDec.HasStreams)
-            {
-                var handlerCreationStatement = GenerateStreamHandlerCreationExp(callDec);
-                var usingStatement = SF.UsingStatement(catchBody)
-                    .WithDeclaration(SH.VarDeclaration("streamHandler", handlerCreationStatement));
+            catchBody.AddRange(GenerateResponseCreationStatements(callDec));
 
-                catchBody = SF.Block(usingStatement);
-            }
+            if (addStreamHandler)
+                statements.Add(SH.LocalVarDeclaration("streamHandler", GenerateStreamHandlerCreationExp(callDec)));
 
-            var tryCtachBlock = SF.TryStatement()
-                .AddCatches(GenerateCustomCatches(callDec).ToArray())
-                .AddCatches(GenerateRegularCatch(), GenerateUnexpectedCatch())
-                .WithBlock(catchBody);
+            statements.Add(SF.TryStatement()
+                .AddCatches(GenerateCustomCatches(callDec, addStreamHandler).ToArray())
+                .AddCatches(GenerateRegularCatch(addStreamHandler), GenerateUnexpectedCatch())
+                .AddBlockStatements(catchBody.ToArray()));
 
             var retType = SH.GenericType(_contract.Compatibility.GetAsyncWrapper(), Names.ResponseInterface.Full);
 
             return SF.MethodDeclaration(retType, methodName)
                .AddModifiers(SF.Token(SyntaxKind.PrivateKeyword), SF.Token(SyntaxKind.AsyncKeyword))
                .AddParameterListParameters(SH.Parameter("request", requetsMessageType.Full))
-               .WithBody(SF.Block(tryCtachBlock));
+               .WithBody(SF.Block(statements));
         }
 
         private InvocationExpressionSyntax GenerateStreamHandlerCreationExp(CallDeclaration callDec)
@@ -255,6 +253,14 @@ namespace SharpRpc.Builder
                     .AddArgumentListArguments(SH.IdentifierArgument("request"), SF.Argument(factory));
                 //return SH.VarDeclaration("streamHandler", streamHandlerCreation);
             }
+        }
+
+        private StatementSyntax GenerateStreamHandlerCloseStatement()
+        {
+            var closeInvcation = SF.InvocationExpression(SF.IdentifierName("CloseStreamHandler"))
+                .AddArgumentListArguments(SH.IdentifierArgument("streamHandler"));
+
+            return SF.ExpressionStatement(SF.AwaitExpression(closeInvcation));
         }
 
         private MethodDeclarationSyntax GenerateOnMessageOverride()
@@ -482,22 +488,27 @@ namespace SharpRpc.Builder
                 : _contract.Calls.Where(c => !c.IsCallback)).ToList();
         }
 
-        private IEnumerable<CatchClauseSyntax> GenerateCustomCatches(CallDeclaration call)
+        private IEnumerable<CatchClauseSyntax> GenerateCustomCatches(CallDeclaration call, bool genHandlerClose)
         {
             foreach (var customFault in call.Faults)
-                yield return GenerateCustomFaultCatch(customFault);
+                yield return GenerateCustomFaultCatch(customFault, genHandlerClose);
         }
 
-        private CatchClauseSyntax GenerateRegularCatch()
+        private CatchClauseSyntax GenerateRegularCatch(bool genHandlerClose)
         {
             var callIdArgument = SF.Argument(SH.MemeberOfIdentifier("request", "CallId"));
             var textArgument = SF.Argument(SH.MemeberOfIdentifier("ex", "Message"));
 
-            var retStatement = SF.ReturnStatement(
-                    SH.InvocationExpression(Names.ServiceOnRegularFaultMethod, callIdArgument, textArgument));
+            var catchBody = new List<StatementSyntax>();
+
+            if (genHandlerClose)
+                catchBody.Add(GenerateStreamHandlerCloseStatement());
+
+            catchBody.Add(SF.ReturnStatement(
+                    SH.InvocationExpression(Names.ServiceOnRegularFaultMethod, callIdArgument, textArgument)));
 
             return SF.CatchClause(SF.CatchDeclaration(SH.FullTypeName(Names.RpcFaultException), SF.Identifier("ex")),
-                null, SF.Block(retStatement));
+                null, SF.Block(catchBody));
         }
 
         private CatchClauseSyntax GenerateUnexpectedCatch()
@@ -511,18 +522,23 @@ namespace SharpRpc.Builder
                 null, SF.Block(retStatement));
         }
 
-        private CatchClauseSyntax GenerateCustomFaultCatch(string faultType)
+        private CatchClauseSyntax GenerateCustomFaultCatch(string faultType, bool genHandlerClose)
         {
             var callIdArgument = SF.Argument(SH.MemeberOfIdentifier("request", "CallId"));
             var faultArgument = SF.Argument(SH.MemeberOfIdentifier("ex", "Fault"));
 
-            var retStatement = SF.ReturnStatement(
-                    SH.InvocationExpression(Names.ServiceOnCustomFaultMethod, callIdArgument, faultArgument));
+            var catchBody = new List<StatementSyntax>();
+
+            if (genHandlerClose)
+                catchBody.Add(GenerateStreamHandlerCloseStatement());
+
+            catchBody.Add(SF.ReturnStatement(
+                    SH.InvocationExpression(Names.ServiceOnCustomFaultMethod, callIdArgument, faultArgument)));
 
             var exceptionType = SH.GenericName(Names.RpcFaultException.Full, faultType);
 
             return SF.CatchClause(SF.CatchDeclaration(exceptionType, SF.Identifier("ex")),
-                null, SF.Block(retStatement));
+                null, SF.Block(catchBody));
         }
 
         private string FindSafeParamName(string initialParamName, CallDeclaration callDec)

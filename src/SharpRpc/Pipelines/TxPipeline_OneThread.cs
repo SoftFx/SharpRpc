@@ -215,7 +215,7 @@ namespace SharpRpc
         #region TxPipeline impl
 
         public TaskFactory TaskQueue { get; }
-        public bool ProvidesImmidiateSerialization => false;
+        public bool ImmidiateSerialization => false;
 
         public void Start(ByteTransport transport)
         {

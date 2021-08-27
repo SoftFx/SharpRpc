@@ -97,6 +97,11 @@ namespace SharpRpc
             return new StreamHandler<TIn, TOut>(request, _ch, inFactory, outFactory);
         }
 
+        protected Task CloseStreamHandler(IStreamHandler handler)
+        {
+            return handler.Close(_ch);
+        }
+
 #if NET5_0_OR_GREATER
         ValueTask IUserMessageHandler.ProcessMessage(IMessage message)
 #else

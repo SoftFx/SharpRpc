@@ -23,11 +23,11 @@ namespace TestClient
 
             try
             {
-                //TestCall1(client);
-                //TestCall2(client);
-                //TestFaults(client);
-                //TestCalbacks(client);
-                //TestComplexData(client);
+                TestCall1(client);
+                TestCall2(client);
+                TestFaults(client);
+                TestCalbacks(client);
+                TestComplexData(client);
 
                 TestInputStream(client);
                 TestOutputStream(client, true);

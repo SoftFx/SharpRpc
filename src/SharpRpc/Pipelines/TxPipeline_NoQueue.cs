@@ -67,7 +67,7 @@ namespace SharpRpc
         private bool HasRoomForNextMessage => _buffer.DataSize < _bufferSizeThreshold;
 
         public TaskFactory TaskQueue { get; }
-        public bool ProvidesImmidiateSerialization => true;
+        public bool ImmidiateSerialization => true;
 
         public RpcResult TrySend(IMessage message)
         {

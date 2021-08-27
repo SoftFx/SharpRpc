@@ -6,6 +6,7 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 using SharpRpc.Lib;
+using SharpRpc.Streaming;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -14,6 +15,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Xml.XPath;
 
 namespace SharpRpc
 {
@@ -29,16 +31,21 @@ namespace SharpRpc
         private int _currentPageIndex;
         private IStreamEnumerator _enumerator;
         private bool _completed;
+        private readonly StreamReadCoordinator _coordinator;
+        private readonly TxPipeline _tx;
 
         //private bool _isWating;
 
-        internal PagingStreamReader(IStreamMessageFactory<T> factory)
+        internal PagingStreamReader(string callId, TxPipeline tx, IStreamMessageFactory<T> factory)
         {
+            _tx = tx;
+            _coordinator = new StreamReadCoordinator(callId, factory);
         }
 
         internal void OnRx(IStreamPage<T> page)
         {
             var wakeupListener = false;
+            IStreamPageAck ack = null;
 
             if (page.Items == null || page.Items.Count == 0)
                 return; // TO DO : signal protocol violation
@@ -53,8 +60,11 @@ namespace SharpRpc
                 else
                     _pages.Enqueue(page.Items);
 
-                wakeupListener = OnDataArrived();
+                wakeupListener = OnDataArrived(out ack);
             }
+
+            if (ack != null)
+                SendAck(ack);
 
             if (wakeupListener)
                 _enumerator.WakeUpListener();
@@ -73,6 +83,7 @@ namespace SharpRpc
         private void CompleteStream(bool clearQueue)
         {
             var wakeupListener = false;
+            IStreamPageAck ack = null;
 
             lock (_lockObj)
             {
@@ -85,22 +96,26 @@ namespace SharpRpc
                     _currentPageIndex = 0;
                 }
 
-                wakeupListener = OnDataArrived();
+                wakeupListener = OnDataArrived(out ack);
             }
+
+            if (ack != null)
+                SendAck(ack);
 
             if (wakeupListener)
                 _enumerator.WakeUpListener();
         }
 
-        private bool OnDataArrived()
+        private bool OnDataArrived(out IStreamPageAck ack)
         {
             if (_enumerator != null)
-                return _enumerator.OnDataArrived();
+                return _enumerator.OnDataArrived(out ack);
 
+            ack = null;
             return false;
         }
 
-        private T GetNextItem()
+        private T GetNextItem(out IStreamPageAck ack)
         {
             var item = _currentPage[_currentPageIndex++];
 
@@ -112,25 +127,41 @@ namespace SharpRpc
                     _currentPage = _pages.Dequeue();
                 else
                     _currentPage = null;
+
+                ack = _coordinator.OnPageConsume();
             }
+            else
+                ack = null;
 
             return item;
         }
 
-        private NextItemCode TryGetNextItem(out T item)
+        private NextItemCode TryGetNextItem(out T item, out IStreamPageAck ack)
         {
             if (_currentPage != null)
             {
-                item = GetNextItem();
+                item = GetNextItem(out ack);
                 return NextItemCode.Ok;
             }
 
             item = default(T);
+            ack = null;
 
             if (_completed)
                 return NextItemCode.Completed;
 
             return NextItemCode.NoItems;
+        }
+
+        private void SendAck(IStreamPageAck ack)
+        {
+            _tx.TrySendAsync(ack, OnAckSent);
+        }
+
+        private void OnAckSent(RpcResult sendResult)
+        {
+            // TO DO : analyze sendResult ???
+            _coordinator.OnAckSent();
         }
 
 #if NET5_0_OR_GREATER
@@ -185,7 +216,7 @@ namespace SharpRpc
 
         private interface IStreamEnumerator
         {
-            bool OnDataArrived();
+            bool OnDataArrived(out IStreamPageAck ack);
             void WakeUpListener();
         }
 
@@ -211,28 +242,36 @@ namespace SharpRpc
 
             public ValueTask<bool> MoveNextAsync()
             {
+                IStreamPageAck ack = null;
+                ValueTask<bool> result;
+
                 lock (_stream._lockObj)
                 {
-                    var code = _stream.TryGetNextItem(out var nextItem);
+                    var code = _stream.TryGetNextItem(out var nextItem, out ack);
                     Current = nextItem;
 
                     if (code == NextItemCode.Ok)
-                        return FwAdapter.AsyncTrue;
+                        result = FwAdapter.AsyncTrue;
                     else if (code == NextItemCode.NoItems)
                     {
                         _itemWaitSrc = new TaskCompletionSource<bool>();
-                        return new ValueTask<bool>(_itemWaitSrc.Task);
+                        result = new ValueTask<bool>(_itemWaitSrc.Task);
                     }
                     else //NextItemCode.Completed
-                        return FwAdapter.AsyncFalse;
+                        result = FwAdapter.AsyncFalse;
                 }
+
+                if (ack != null)
+                    _stream.SendAck(ack);
+
+                return result;
             }
 
-            public bool OnDataArrived()
+            public bool OnDataArrived(out IStreamPageAck ack)
             {
                 if (_itemWaitSrc != null)
                 {
-                    var code = _stream.TryGetNextItem(out var nextItem);
+                    var code = _stream.TryGetNextItem(out var nextItem, out ack);
                     Current = nextItem;
 
                     if (code == NextItemCode.Completed)
@@ -241,6 +280,7 @@ namespace SharpRpc
                     return true;
                 }
 
+                ack = null;
                 return false;
             }
 

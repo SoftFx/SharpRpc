@@ -177,7 +177,12 @@ namespace SharpRpc
                 }
             }
 
-            operation.Update(message);
+            var opUpdateResult = operation.Update(message);
+
+            if (!opUpdateResult.IsOk)
+            {
+                // TO DO
+            }
         }
 
         public interface IInteropOperation

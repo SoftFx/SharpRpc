@@ -5,12 +5,7 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-using SharpRpc.Lib;
-using System;
 using System.Collections.Generic;
-using System.Diagnostics.Contracts;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace SharpRpc
@@ -18,11 +13,11 @@ namespace SharpRpc
     public sealed class PagingStreamWriter<T> : StreamWriter<T>
     {
         private readonly object _lockObj = new object();
-        private readonly Queue<IStreamPage<T>> _queueCompletePages = new Queue<IStreamPage<T>>();
+        //private readonly Queue<IStreamPage<T>> _queueCompletePages = new Queue<IStreamPage<T>>();
         private readonly Queue<IStreamPage<T>> _unsuedPagesCache = new Queue<IStreamPage<T>>();
-        private IStreamPage<T> _queueTopPage;
+        private IStreamPage<T> _queue;
         private IStreamPage<T> _pageToSend;
-        private readonly bool _isPageCacheEnabled;
+        private readonly bool _canImmediatelyReusePages;
         private readonly Channel _ch;
         private readonly Queue<EnqueueAwaiter> _enqueueAwaiters = new Queue<EnqueueAwaiter>();
         //private readonly List<EnqueueAwaiter> _awaitersToRelease = new List<EnqueueAwaiter>();
@@ -32,25 +27,30 @@ namespace SharpRpc
         private RpcResult _closeFault;
         private bool _isSedning;
         private int _maxPageSize;
-        private int _maxWindowSize;
+        private int _windowSize;
         private readonly IStreamMessageFactory<T> _factory;
+        private readonly StreamWriteCoordinator _coordinator;
 
-        internal PagingStreamWriter(string callId, Channel channel, IStreamMessageFactory<T> factory, bool allowSendInitialValue, int maxPageSize, int maxWindowSize)
+        internal PagingStreamWriter(string callId, Channel channel, IStreamMessageFactory<T> factory, bool allowSendInitialValue, int maxPageSize, int windowSize)
         {
             CallId = callId;
             _ch = channel;
             _factory = factory;
             _maxPageSize = maxPageSize;
-
-            _isPageCacheEnabled = channel.Tx.ProvidesImmidiateSerialization;
+            _windowSize = windowSize;
             _isSendingEnabled = allowSendInitialValue;
 
-            _queueTopPage = AllocatePage();
-            _maxWindowSize = maxWindowSize;
+            _canImmediatelyReusePages = channel.Tx.ImmidiateSerialization;
+            
+            _queue = CreatePage();
+            if (_canImmediatelyReusePages)
+                _pageToSend = CreatePage(); 
+
+            _coordinator = new StreamWriteCoordinator(_windowSize);
         }
 
-        private bool DataIsAvailable => _queueTopPage.Items.Count > 0 || _queueCompletePages.Count > 0;
-        private bool HasSpaceInQueue => _queueCompletePages.Count < _maxWindowSize;
+        private bool DataIsAvailable => _queue.Items.Count > 0;
+        private bool HasSpaceInQueue => _queue.Items.Count < _maxPageSize;
 
         public string CallId { get; }
         public int QueueSize { get; private set; }
@@ -112,43 +112,62 @@ namespace SharpRpc
 
         internal void AllowSend()
         {
-            bool invokeSend = false;
-
             lock (_lockObj)
             {
                 _isSendingEnabled = true;
-                invokeSend = _isSedning;
+
+                if (!_isSedning && !_coordinator.IsBlocked)
+                {
+                    _isSedning = true;
+                    _pageToSend = DequeuePage();
+                }
+                else
+                    return;
             }
 
-            if (invokeSend)
-                SendNextPage();
+            SendNextPage();
         }
 
         internal void Close(RpcResult fault)
         {
             lock (_lockObj)
+            {
                 AbortStream(fault);
+            }
         }
 
         #endregion
 
+        internal void OnRx(IStreamPageAck ack)
+        {
+            lock (_lockObj)
+            {
+                _coordinator.OnAcknowledgementRx(ack);
+
+                if (DataIsAvailable && !_isSedning && !_coordinator.IsBlocked)
+                {
+                    _isSedning = true;
+                    _pageToSend = DequeuePage();
+                }
+                else
+                    return;
+            }
+
+            SendNextPage();
+        }
+
         private void EnqueueItem(T item)
         {
-            _queueTopPage.Items.Add(item);
-            if (_queueTopPage.Items.Count >= _maxPageSize)
-            {
-                _queueCompletePages.Enqueue(_queueTopPage);
-                _queueTopPage = AllocatePage();
-            }
+            _queue.Items.Add(item);
         }
 
         private bool OnDataArrived()
         {
-            if (!_isSedning)
+            if (!_isSedning && !_coordinator.IsBlocked && _isSendingEnabled)
             {
                 _isSedning = true;
                 _pageToSend = DequeuePage();
-                return _isSendingEnabled;
+                return true;
             }
 
             return false;
@@ -157,6 +176,7 @@ namespace SharpRpc
         private void SendNextPage()
         {
             //_pageToSend = DequeuePage();
+
             _ch.Tx.TrySendAsync(_pageToSend, OnSendCompleted);
         }
 
@@ -168,21 +188,23 @@ namespace SharpRpc
             {
                 if (_pageToSend != null)
                 {
-                    if (_isPageCacheEnabled)
-                    {
+                    if (_canImmediatelyReusePages)
                         _pageToSend.Items.Clear();
-                        FreePage(_pageToSend);
-                    }
-                    _pageToSend = null;
+                    else
+                        _pageToSend = null;
                 }
                 
                 if (sendResult.IsOk)
                 {
-                    if (DataIsAvailable || _enqueueAwaiters.Count > 0)
+                    _coordinator.OnPageSent();
+
+                    if(_enqueueAwaiters.Count > 0)
+                        ProcessAwaiters();
+
+                    if (DataIsAvailable && !_coordinator.IsBlocked)
                     {
                         _pageToSend = DequeuePage();
                         sendNextPage = true;
-                        ProcessAwaiters();
                     }
                     else
                     {
@@ -243,14 +265,19 @@ namespace SharpRpc
             _completionEventSrc.TrySetResult(result);
         }
 
+        private IStreamPage<T> CreatePage()
+        {
+            var page = _factory.CreatePage(CallId);
+            page.Items = new List<T>();
+            return page;
+        }
+
         private IStreamPage<T> AllocatePage()
         {
             if (_unsuedPagesCache.Count > 0)
                 return _unsuedPagesCache.Dequeue();
-
-            var page = _factory.CreatePage(CallId);
-            page.Items = new List<T>();
-            return page;
+            else
+                return CreatePage();
         }
 
         private void FreePage(IStreamPage<T> page)
@@ -260,11 +287,13 @@ namespace SharpRpc
 
         private IStreamPage<T> DequeuePage()
         {
-            if (_queueCompletePages.Count > 0)
-                return _queueCompletePages.Dequeue();
+            var page = _queue;
 
-            var page = _queueTopPage;
-            _queueTopPage = AllocatePage();
+            if (_canImmediatelyReusePages)
+                _queue = _pageToSend;
+            else
+                _queue = AllocatePage();
+
             return page;
         }
 

@@ -492,6 +492,12 @@ namespace SharpRpc.Builder
                 .AddAutoGetter()
                 .AddAutoSetter();
 
+            var pagesConsumedProperty = SyntaxFactory
+                .PropertyDeclaration(SyntaxFactory.ParseTypeName("ushort"), "PagesConsumed")
+                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+                .AddAutoGetter()
+                .AddAutoSetter();
+
             var msgBase = SyntaxFactory.SimpleBaseType(SyntaxHelper.FullTypeName(contractInfo.BaseMessageClassName));
             var iStreamAckBase = SyntaxFactory.SimpleBaseType(SyntaxHelper.FullTypeName(Names.StreamPageAckInterface));
 
@@ -500,7 +506,7 @@ namespace SharpRpc.Builder
                 .AddBaseListTypes(msgBase, iStreamAckBase)
                 .AddMembers(constructor);
 
-            return new ClassBuildNode(messageClassName, messageClassDeclaration, streamIdProperty);
+            return new ClassBuildNode(messageClassName, messageClassDeclaration, streamIdProperty, pagesConsumedProperty);
         }
 
         private static ClassBuildNode GenerateStreamCompletionMessage(ContractDeclaration contractInfo)

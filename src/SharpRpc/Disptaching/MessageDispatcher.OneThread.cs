@@ -160,6 +160,11 @@ namespace SharpRpc
                 return Core.TryRegisterOperation(callId, callTask);
             }
 
+            public override void UnregisterCallObject(string callId)
+            {
+                Core.UnregisterOperation(callId);
+            }
+
             private void EnqueueNextBatch()
             {
                 _isProcessing = true;

@@ -71,10 +71,10 @@ namespace SharpRpc
             CallId = Guid.NewGuid().ToString();
 
             if (inFactory != null)
-                _inputStub = new PagingStreamWriter<TInItem>(CallId, ch, inFactory, false, 200, 2);
+                _inputStub = new PagingStreamWriter<TInItem>(CallId, ch, inFactory, false, 80, 6);
 
             if (outFactory != null)
-                _outputStub = new PagingStreamReader<TOutItem>(outFactory);
+                _outputStub = new PagingStreamReader<TOutItem>(CallId, ch.Tx, outFactory);
 
             if (hasRetParam)
                 _typedCompletion = new TaskCompletionSource<RpcResult<TReturn>>();
@@ -122,6 +122,8 @@ namespace SharpRpc
 
         RpcResult MessageDispatcherCore.IInteropOperation.Complete(IResponse respMessage)
         {
+            //System.Diagnostics.Debug.WriteLine("RX " + CallId + " RESP " + respMessage.GetType().Name);
+
             if (ReturnsResult)
             {
                 var resp = respMessage as IResponse<TReturn>;
@@ -164,6 +166,8 @@ namespace SharpRpc
 
         RpcResult MessageDispatcherCore.IInteropOperation.Update(IStreamAuxMessage auxMessage)
         {
+            //System.Diagnostics.Debug.WriteLine("RX " + CallId + " A.MSG " + auxMessage.GetType().Name);
+
             if (auxMessage is IStreamPage<TOutItem> page)
             {
                 _outputStub.OnRx(page);
@@ -172,6 +176,11 @@ namespace SharpRpc
             else if (auxMessage is IStreamCompletionMessage compl)
             {
                 _outputStub.OnRx(compl);
+                return RpcResult.Ok;
+            }
+            else if (auxMessage is IStreamPageAck ack)
+            {
+                _inputStub.OnRx(ack);
                 return RpcResult.Ok;
             }
 

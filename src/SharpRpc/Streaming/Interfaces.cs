@@ -11,11 +11,20 @@ using System.Threading.Tasks;
 
 namespace SharpRpc
 {
-    public interface IStreamMessageFactory<T>
+    public interface IStreamMessageFactory
     {
-        IStreamPage<T> CreatePage(string streamId);
         IStreamCompletionMessage CreateCompletionMessage(string streamId);
         IStreamPageAck CreatePageAcknowledgement(string streamId);
+    }
+
+    public interface IStreamMessageFactory<T> : IStreamMessageFactory
+    {
+        IStreamPage<T> CreatePage(string streamId);
+    }
+
+    public interface IOpenStreamRequest : IRequest
+    {
+        //int WindowSize { get; set; }
     }
 
     public interface IStreamAuxMessage : IInteropMessage
@@ -38,6 +47,7 @@ namespace SharpRpc
 
     public interface IStreamPageAck : IStreamAuxMessage
     {
+        ushort PagesConsumed { get; set; }
     }
 
     public interface StreamReader<T>

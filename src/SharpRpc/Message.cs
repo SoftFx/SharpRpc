@@ -31,10 +31,6 @@ namespace SharpRpc
         //int? FromRecipient { get; set; }
     }
 
-    public interface IOpenStreamRequest : IRequest
-    {
-    }
-
     public interface IResponse : IInteropMessage
     {
         string CallId { get; set; }

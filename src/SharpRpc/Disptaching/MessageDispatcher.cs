@@ -56,9 +56,8 @@ namespace SharpRpc
         public abstract Task OnMessages();
 #endif
         public abstract Task Stop(RpcResult fault);
-
         public abstract RpcResult RegisterCallObject(string callId, MessageDispatcherCore.IInteropOperation callObject);
-
+        public abstract void UnregisterCallObject(string callId);
         protected abstract void DoCall(IRequest requestMsg, MessageDispatcherCore.IInteropOperation callOp);
 
         public Task Call<TResp>(IRequest requestMsg)

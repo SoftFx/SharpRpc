@@ -30,17 +30,25 @@ namespace SharpRpc
     //    PagingTxStream<TOutItem> OutputStream { get; }
     //}
 
-    public class StreamHandler<TInItem, TOutItem> : MessageDispatcherCore.IInteropOperation, IDisposable //: InputStreamHandler<TInItem>, OutputStreamHandler<TOutItem>
+    public interface IStreamHandler
+    {
+        string CallId { get; }
+        Task Close(Channel ch);
+    }
+
+    public class StreamHandler<TInItem, TOutItem> : IStreamHandler, MessageDispatcherCore.IInteropOperation //: InputStreamHandler<TInItem>, OutputStreamHandler<TOutItem>
     {
         public StreamHandler(IOpenStreamRequest request, Channel ch, IStreamMessageFactory<TInItem> inFactory, IStreamMessageFactory<TOutItem> outFactory)
         {
             CallId = request.CallId;
 
+            System.Diagnostics.Debug.WriteLine("RX " + CallId + " RQ " + request.GetType().Name);
+
             if (inFactory != null)
-                InputStream = new PagingStreamReader<TInItem>(inFactory);
+                InputStream = new PagingStreamReader<TInItem>(CallId, ch.Tx, inFactory);
 
             if (outFactory != null)
-                OutputStream = new PagingStreamWriter<TOutItem>(CallId, ch, outFactory, true, 10, 10);
+                OutputStream = new PagingStreamWriter<TOutItem>(CallId, ch, outFactory, true, 100, 5);
 
             ch.Dispatcher.RegisterCallObject(request.CallId, this);
         }
@@ -49,10 +57,16 @@ namespace SharpRpc
         public PagingStreamReader<TInItem> InputStream { get; }
         public PagingStreamWriter<TOutItem> OutputStream { get; }
 
-        public void Dispose()
+        public async Task Close(Channel ch)
         {
+            //System.Diagnostics.Debug.WriteLine("CLOSE " + CallId);
+
             InputStream?.Abort();
-            OutputStream?.MarkAsCompleted();
+
+            if (OutputStream != null)
+                await OutputStream.CompleteAsync();
+
+            ch.Dispatcher.UnregisterCallObject(CallId);
         }
 
         RpcResult MessageDispatcherCore.IInteropOperation.Complete(IResponse respMessage)
@@ -70,6 +84,8 @@ namespace SharpRpc
 
         RpcResult MessageDispatcherCore.IInteropOperation.Update(IStreamAuxMessage auxMessage)
         {
+            //System.Diagnostics.Debug.WriteLine("RX " + CallId + " A.MSG " + auxMessage.GetType().Name);
+
             if (auxMessage is IStreamPage<TInItem> page)
             {
                 InputStream.OnRx(page);
@@ -78,6 +94,11 @@ namespace SharpRpc
             else if (auxMessage is IStreamCompletionMessage compl)
             {
                 InputStream.OnRx(compl);
+                return RpcResult.Ok;
+            }
+            else if (auxMessage is IStreamPageAck ack)
+            {
+                OutputStream.OnRx(ack);
                 return RpcResult.Ok;
             }
 
