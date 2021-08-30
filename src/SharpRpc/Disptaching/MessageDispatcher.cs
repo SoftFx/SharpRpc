@@ -9,25 +9,30 @@ using SharpRpc.Lib;
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace SharpRpc
 {
     internal abstract partial class MessageDispatcher
     {
-        public static MessageDispatcher Create(MessageDispatcherConfig config, TxPipeline sender, IUserMessageHandler handler)
+        private string _opIdPrefix;
+        private int _opIdSeed;
+
+        public static MessageDispatcher Create(MessageDispatcherConfig config, TxPipeline sender, IUserMessageHandler handler, bool serverSide)
         {
             switch (config.RxConcurrencyMode)
             {
-                case DispatcherConcurrencyMode.None: return new NoThreading().Init(sender, handler);
-                case DispatcherConcurrencyMode.Single: return new OneThread().Init(sender, handler);
+                case DispatcherConcurrencyMode.None: return new NoThreading().Init(serverSide, sender, handler);
+                case DispatcherConcurrencyMode.Single: return new OneThread().Init(serverSide, sender, handler);
                 default: throw new NotSupportedException("Conccurency mode is not supported: " + config.RxConcurrencyMode);
             }
         }
 
-        protected MessageDispatcher Init(TxPipeline tx, IUserMessageHandler handler)
+        protected MessageDispatcher Init(bool serverSide, TxPipeline tx, IUserMessageHandler handler)
         {
             Tx = tx;
+            _opIdPrefix = serverSide ? "S" : "C";
             //MessageHandler = handler;
             TaskQueue = tx.TaskQueue;
             Core = new MessageDispatcherCore(tx, handler, OnError);
@@ -59,6 +64,12 @@ namespace SharpRpc
         public abstract RpcResult RegisterCallObject(string callId, MessageDispatcherCore.IInteropOperation callObject);
         public abstract void UnregisterCallObject(string callId);
         protected abstract void DoCall(IRequest requestMsg, MessageDispatcherCore.IInteropOperation callOp);
+
+
+        public string GenerateOperationId()
+        {
+            return _opIdPrefix + Interlocked.Increment(ref _opIdSeed);
+        }
 
         public Task Call<TResp>(IRequest requestMsg)
             where TResp : IResponse

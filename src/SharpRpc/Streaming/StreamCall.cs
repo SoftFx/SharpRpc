@@ -68,7 +68,7 @@ namespace SharpRpc
 
         public StreamCall(IOpenStreamRequest request, Channel ch, IStreamMessageFactory<TInItem> inFactory, IStreamMessageFactory<TOutItem> outFactory, bool hasRetParam)
         {
-            CallId = Guid.NewGuid().ToString();
+            CallId = ch.Dispatcher.GenerateOperationId(); // Guid.NewGuid().ToString();
 
             if (inFactory != null)
                 _inputStub = new PagingStreamWriter<TInItem>(CallId, ch, inFactory, false, 80, 6);

@@ -99,7 +99,7 @@ namespace SharpRpc
 
             protected override async void DoCall(IRequest requestMsg, MessageDispatcherCore.IInteropOperation callTask)
             {
-                var callId = Guid.NewGuid().ToString();
+                var callId = GenerateOperationId(); // Guid.NewGuid().ToString();
 
                 requestMsg.CallId = callId;
 
@@ -133,15 +133,6 @@ namespace SharpRpc
             private void InvokeOnStop()
             {
                 Core.FireClosed();
-
-                //try
-                //{
-                //    ((RpcCallHandler)MessageHandler).Session.FireClosed(new SessionClosedEventArgs());
-                //}
-                //catch (Exception)
-                //{
-                //    // TO DO : log or pass some more information about expcetion (stack trace)
-                //}
 
                 _closeCompletion.SetResult(true);
             }

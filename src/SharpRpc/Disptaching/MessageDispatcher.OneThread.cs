@@ -134,7 +134,7 @@ namespace SharpRpc
 
             protected override async void DoCall(IRequest requestMsg, MessageDispatcherCore.IInteropOperation callTask)
             {
-                var callId = Guid.NewGuid().ToString();
+                var callId = GenerateOperationId(); // Guid.NewGuid().ToString();
 
                 requestMsg.CallId = callId;
 

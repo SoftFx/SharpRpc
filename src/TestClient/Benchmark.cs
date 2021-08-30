@@ -42,7 +42,7 @@ namespace TestClient
         {
             // one way
 
-            DoOneWayTestSeries(address, 500000, 1,  multiplier, options);
+            //DoOneWayTestSeries(address, 500000, 1,  multiplier, options);
             //DoOneWayTestSeries(address, 50000, 10, multiplier, options);
             DoOneWayTestSeries(address, 20000, 30, multiplier, options);
             //DoOneWayTestSeries(address, 10000, 50, multiplier, options);
@@ -57,9 +57,9 @@ namespace TestClient
 
             if (!options.HasFlag(TestOptions.Backwards))
             {
-                DoTest(address, 500000 * multiplier, 1, options | TestOptions.Stream);
+                //DoTest(address, 500000 * multiplier, 1, options | TestOptions.Stream);
                 //DoTest(address, 50000 * multiplier, 10, options | TestOptions.Stream);
-                DoTest(address, 20000 * multiplier, 30, options | TestOptions.Stream);
+                //DoTest(address, 20000 * multiplier, 30, options | TestOptions.Stream);
             }
 
             // request-response
@@ -76,7 +76,7 @@ namespace TestClient
         private void DoOneWayTestSeries(string address, int msgCount, int clientCount, int multiplier, TestOptions baseOptions)
         {
             //DoTest(address, msgCount * multiplier, clientCount, baseOptions | TestOptions.OneWay);
-            DoTest(address, msgCount * multiplier, clientCount, baseOptions | TestOptions.OneWay | TestOptions.Async);
+            //DoTest(address, msgCount * multiplier, clientCount, baseOptions | TestOptions.OneWay | TestOptions.Async);
             //DoTest(address, msgCount * multiplier, clientCount, baseOptions | TestOptions.OneWay | TestOptions.Prebuild);
             DoTest(address, msgCount * multiplier, clientCount, baseOptions | TestOptions.OneWay | TestOptions.Async | TestOptions.Prebuild);
         }
