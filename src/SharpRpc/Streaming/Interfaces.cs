@@ -22,7 +22,7 @@ namespace SharpRpc
         IStreamPage<T> CreatePage(string streamId);
     }
 
-    public interface IOpenStreamRequest : IRequest
+    public interface IOpenStreamRequest : IRequestMessage
     {
         //int WindowSize { get; set; }
     }

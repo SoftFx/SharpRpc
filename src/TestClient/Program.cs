@@ -84,7 +84,7 @@ namespace TestClient
                     }
                 }
                 else
-                    Console.WriteLine("Failed to connect! Code: {0} Message: {1}", connectRet.Code, connectRet.Fault.Message);
+                    Console.WriteLine("Failed to connect! Code: {0} Message: {1}", connectRet.Code, connectRet.FaultMessage);
             }
             else
                 Console.WriteLine("Invalid input.");

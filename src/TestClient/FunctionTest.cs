@@ -100,7 +100,7 @@ namespace TestClient
         {
             Console.WriteLine("TestFaults.Regular");
 
-            AssertFault(RpcRetCode.RequestFaulted, "Test exception", () =>
+            AssertFault(RpcRetCode.RequestFault, "Test exception", () =>
             {
                 client.TestRpcException(10, "11");
                 return RpcResult.Ok;
@@ -108,11 +108,11 @@ namespace TestClient
 
             Console.WriteLine("TestFaults.Regular.Try");
 
-            AssertFault(RpcRetCode.RequestFaulted, "Test exception", () => client.Try.TestRpcException(10, "11").GetResultInfo());
+            AssertFault(RpcRetCode.RequestFault, "Test exception", () => client.Try.TestRpcException(10, "11").GetResultInfo());
 
             Console.WriteLine("TestFaults.Crash");
 
-            AssertFault(RpcRetCode.RequestCrashed, "Request faulted due to", () =>
+            AssertFault(RpcRetCode.RequestCrash, "Request faulted due to", () =>
             {
                 client.TestCrash(10, "11");
                 return RpcResult.Ok;
@@ -120,11 +120,11 @@ namespace TestClient
 
             Console.WriteLine("TestFaults.Crash.Try");
 
-            AssertFault(RpcRetCode.RequestCrashed, "Request faulted due to", () => client.Try.TestCrash(10, "11").GetResultInfo());
+            AssertFault(RpcRetCode.RequestCrash, "Request faulted due to", () => client.Try.TestCrash(10, "11").GetResultInfo());
 
             Console.WriteLine("TestFaults.Custom1");
 
-            AssertCustomFault(RpcRetCode.RequestCrashed, new TestFault1 { Message = "Fault Message 1" }, () =>
+            AssertCustomFault(RpcRetCode.RequestCrash, new TestFault1 { CustomCode = 11 }, () =>
             {
                 client.TestCallFault(1);
                 return RpcResult.Ok;
@@ -132,7 +132,7 @@ namespace TestClient
 
             Console.WriteLine("TestFaults.Custom1.Try");
 
-            AssertCustomFault(RpcRetCode.RequestCrashed, new TestFault1 { Message = "Fault Message 1" }, () => client.Try.TestCallFault(1));
+            AssertCustomFault(RpcRetCode.RequestCrash, new TestFault1 { CustomCode = 11 }, () => client.Try.TestCallFault(1));
         }
 
         private static void TestComplexData(FunctionTestContract_Gen.Client client)
@@ -184,7 +184,7 @@ namespace TestClient
             {
                 var result = call();
                 code = result.Code;
-                message = result.Fault.Message;
+                message = result.FaultMessage;
             }
             catch (AggregateException aex)
             {
@@ -209,16 +209,15 @@ namespace TestClient
         }
 
         private static void AssertCustomFault<T>(RpcRetCode expectedCode, T expectedFault, Func<RpcResult> call)
-            where T : RpcFault
         {
-            RpcFault fault;
+            object fault;
             RpcRetCode? code;
 
             try
             {
                 var result = call();
                 code = result.Code;
-                fault = result.Fault;
+                fault = result.CustomFaultData;
             }
             catch (AggregateException aex)
             {

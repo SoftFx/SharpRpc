@@ -16,8 +16,6 @@ namespace SharpRpc.Builder
     public class ContractDeclaration
     {
         private List<SerializerDeclaration> _serializers = new List<SerializerDeclaration>();
-        private List<string> _faultTypesById = new List<string>();
-        private List<string> _streamTypesById = new List<string>();
 
         public ContractDeclaration(string typeFullName, ContractCompatibility compatibility)
         {
@@ -25,17 +23,15 @@ namespace SharpRpc.Builder
             Compatibility = compatibility;
             FacadeClassName = new TypeString(InterfaceName.Namespace, InterfaceName.Short + "_Gen");
             MessageBundleClassName = new TypeString(FacadeClassName.Full, "Messages");
-            SystemBundleClassName = new TypeString(FacadeClassName.Full, "SystemMessages");
             PrebuiltBundleClassName = new TypeString(FacadeClassName.Full, "PrebuiltMessages");
-            StreamBundleClassName = new TypeString(FacadeClassName.Full, "StreamMessages");
             MessageFactoryClassName = new TypeString(FacadeClassName.Full, "SystemMessagesFactory");
             BaseMessageClassName = new TypeString(MessageBundleClassName.Full, "MessageBase");
-            LoginMessageClassName = new TypeString(SystemBundleClassName.Short, "Login");
-            LogoutMessageClassName = new TypeString(SystemBundleClassName.Short, "Logout");
-            FaultMessageClassName = new TypeString(SystemBundleClassName.Short, "RequestFault");
-            StreamPageAckMessageClassName = new TypeString(StreamBundleClassName.Short, "PageAcknowledgement");
-            StreamCompletionMessageClassName = new TypeString(StreamBundleClassName.Short, "StreamCompletion");
-            HeartbeatMessageClassName = new TypeString(SystemBundleClassName.Short, "Heartbeat");
+            LoginMessageClassName = new TypeString(MessageBundleClassName.Short, "Login");
+            LogoutMessageClassName = new TypeString(MessageBundleClassName.Short, "Logout");
+            FaultMessageClassName = new TypeString(MessageBundleClassName.Short, "RequestFault");
+            StreamPageAckMessageClassName = new TypeString(MessageBundleClassName.Short, "PageAcknowledgement");
+            StreamCompletionMessageClassName = new TypeString(MessageBundleClassName.Short, "StreamCompletion");
+            HeartbeatMessageClassName = new TypeString(MessageBundleClassName.Short, "Heartbeat");
             //AuthDataClassName = new TypeString(SystemBundleClassName.Short, "AuthData");
             //BasicAuthDataClassName = new TypeString(SystemBundleClassName.Short, "BasicAuthData");
             ClientStubClassName = new TypeString(FacadeClassName.Full, "Client");
@@ -49,9 +45,7 @@ namespace SharpRpc.Builder
         public TypeString InterfaceName { get; }
         public TypeString FacadeClassName { get; }
         public TypeString MessageBundleClassName { get; }
-        public TypeString SystemBundleClassName { get; }
         public TypeString PrebuiltBundleClassName { get; }
-        public TypeString StreamBundleClassName { get; }
         public TypeString MessageFactoryClassName { get; }
         public TypeString ClientStubClassName { get; }
         public TypeString CallbackClientStubClassName { get; }
@@ -67,13 +61,11 @@ namespace SharpRpc.Builder
         public TypeString StreamPageAckMessageClassName { get; }
         public TypeString StreamCompletionMessageClassName { get; }
         public TypeString HeartbeatMessageClassName { get; }
-        public List<CallDeclaration> Calls { get; } = new List<CallDeclaration>();
-        public List<string> FaultTypes => _faultTypesById;
-        public List<string> StreamTypes => _streamTypesById;
+        public List<OperationDeclaration> Operations { get; } = new List<OperationDeclaration>();
         public ContractCompatibility Compatibility { get; }
+        public bool EnablePrebuild { get; set; }
 
-        public bool HasCallbacks => Calls.Any(c => c.IsCallback);
-        public bool HasStreams => _streamTypesById.Count > 0;
+        public bool HasCallbacks => Operations.Any(c => c.IsCallback);
 
         internal IReadOnlyList<SerializerDeclaration> Serializers => _serializers;
 
@@ -90,9 +82,9 @@ namespace SharpRpc.Builder
             _serializers.Add(new SerializerDeclaration(serializerBuilder, InterfaceName));
         }
 
-        public TypeString GetOnWayMessageClassName(string contractMethodName)
+        public TypeString GetOnWayMessageClassName(OperationDeclaration callInfo)
         {
-            return GetMessageClassName(contractMethodName, Names.MessageClassPostfix);
+            return new TypeString(MessageBundleClassName.Short, callInfo.OneWayMessageName);
         }
 
         public TypeString GetPrebuiltMessageClassName(string contracMethodName)
@@ -100,79 +92,46 @@ namespace SharpRpc.Builder
             return new TypeString(PrebuiltBundleClassName.Short, contracMethodName);
         }
 
-        public TypeString GetRequestClassName(string contractMethodName)
+        public TypeString GetRequestClassName(OperationDeclaration callInfo)
         {
-            return GetMessageClassName(contractMethodName, Names.RequestClassPostfix);
+            return new TypeString(MessageBundleClassName.Short, callInfo.RequestMessageName);
         }
 
-        public TypeString GetResponseClassName(string contractMethodName)
+        public TypeString GetResponseClassName(OperationDeclaration callInfo)
         {
-            return GetMessageClassName(contractMethodName, Names.ResponseClassPostfix);
+            return new TypeString(MessageBundleClassName.Short, callInfo.ResponseMessageName);
         }
 
-        public TypeString GetCustomFaultMessageClassName(string faultDataType)
+        public TypeString GetFaultMessageClassName(OperationDeclaration opInfo)
         {
-            var id = GetFaultTypeId(faultDataType);
-
-            return new TypeString(SystemBundleClassName.Short, "CustomRequestFault" + id);
+            return new TypeString(MessageBundleClassName.Short, opInfo.FaultMessageName);
         }
 
-        public TypeString GetMessageClassName(string contractMethodName, string postfix)
+        public TypeString GetFaultAdapterClassName(ushort faultKey, OperationDeclaration opInfo)
         {
-            return new TypeString(MessageBundleClassName.Short, contractMethodName + postfix);
+            var faultMsgType = GetFaultMessageClassName(opInfo);
+
+            return new TypeString(faultMsgType.Full, "F" + faultKey + "_Adapter");
         }
 
-        public void RegisterFault(string faultType)
+        public TypeString GetInputStreamMessageClassName(OperationDeclaration operation)
         {
-            if (!_faultTypesById.Contains(faultType))
-                _faultTypesById.Add(faultType);
+            return new TypeString(MessageBundleClassName.Short, "C" + operation.Key + "_InputPage");
         }
 
-        private int GetFaultTypeId(string faultType)
+        public TypeString GetOutputStreamMessageClassName(OperationDeclaration operation)
         {
-            var index = _faultTypesById.IndexOf(faultType);
-
-            if (index < 0)
-                throw new Exception("Fault type is not registered: " + faultType);
-
-            return index;
+            return new TypeString(MessageBundleClassName.Short, "C" + operation.Key +  "_OutputPage");
         }
 
-        public TypeString GetStreamPageClassName(string type)
+        public TypeString GetInputStreamFactoryClassName(OperationDeclaration operation)
         {
-            var id = GetStreamTypeId(type);
-
-            return new TypeString(StreamBundleClassName.Short, "Page" + id);
+            return new TypeString(MessageBundleClassName.Short, "C" + operation.Key + "_InputStreamFactory");
         }
 
-        public TypeString GetPageAckClassName(string type)
+        public TypeString GetOutputStreamFactoryClassName(OperationDeclaration operation)
         {
-            var id = GetStreamTypeId(type);
-
-            return new TypeString(StreamBundleClassName.Short, "PageAck" + id);
-        }
-
-        public TypeString GetStreamFactoryClassName(string type)
-        {
-            var id = GetStreamTypeId(type);
-
-            return new TypeString(StreamBundleClassName.Short, "Factory" + id);
-        }
-
-        public void RegisterStreamType(string type)
-        {
-            if (!_streamTypesById.Contains(type))
-                _streamTypesById.Add(type);
-        }
-
-        private int GetStreamTypeId(string type)
-        {
-            var index = _streamTypesById.IndexOf(type);
-
-            if (index < 0)
-                throw new Exception("Stream type is not registered: " +  type);
-
-            return index;
+            return new TypeString(MessageBundleClassName.Short, "C" + operation.Key + "_OutputStreamFactory");
         }
     }
 }

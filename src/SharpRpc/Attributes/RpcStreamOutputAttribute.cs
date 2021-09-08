@@ -6,28 +6,13 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace SharpRpc
 {
     [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
-    public class StreamInputAttribute : Attribute
+    public class RpcStreamOutputAttribute : Attribute
     {
-        public StreamInputAttribute(Type itemType)
-        {
-            ItemType = itemType;
-        }
-
-        public Type ItemType { get; }
-    }
-
-    [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
-    public class StreamOutputAttribute : Attribute
-    {
-        public StreamOutputAttribute(Type itemType)
+        public RpcStreamOutputAttribute(Type itemType)
         {
             ItemType = itemType;
         }

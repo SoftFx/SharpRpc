@@ -178,7 +178,7 @@ namespace SharpRpc
             if (!IsFaultClose(fault.Code))
                 Logger.Verbose(Name, "Session " + channel.Id + " was closed.");
             else
-                Logger.Verbose(Name, "Session " + channel.Id + " was faulted. Code: " + fault.Code + " Message: " + fault.Fault.Message);
+                Logger.Verbose(Name, "Session " + channel.Id + " was faulted. Code: " + fault.Code + " Message: " + fault.FaultMessage);
         }
 
         private void ThrowIfConfigProhibited()

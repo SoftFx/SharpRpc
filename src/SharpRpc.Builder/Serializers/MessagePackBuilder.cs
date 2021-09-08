@@ -27,44 +27,47 @@ namespace SharpRpc.Builder
 
         public override string Name => "MessagePack";
 
-        public override void BuildUpClassHierachy(ClassBuildNode rootNode)
+        public override void BuildUpClasses(List<ClassBuildNode> classNodes)
         {
-            ApplyAttributes(rootNode, 0);
+            foreach (var node in classNodes)
+            {
+                AddContractAttribute(node);
+                AddMemberAttrubutes(node);
+
+                if (node.Successors.Count > 0)
+                    AddUnionAttributes(node);
+            }
         }
 
-        private void ApplyAttributes(ClassBuildNode node, int keySeed)
+        private void AddContractAttribute(ClassBuildNode node)
         {
             if (!(node.TypeDeclaration is InterfaceDeclarationSyntax))
             {
                 node.UpdateDeclaration(
                    c => c.AddSeparatedAttributes(SH.Attribute(ContractAttributeClassName)));
             }
+        }
 
+        private void AddMemberAttrubutes(ClassBuildNode node)
+        {
             for (int i = 0; i < node.PropertyDeclarations.Count; i++)
             {
                 var keyAttr = SH.Attribute(MemberAttributeClassName,
-                    SF.AttributeArgument(SH.LiteralExpression(keySeed++)));
+                    SF.AttributeArgument(SH.LiteralExpression(i)));
 
                 node.UpdatePropertyDeclaration(i, p => p.AddAttributes(keyAttr));
             }
-
-            AddUnions(node);
-
-            foreach (var successor in node.Successors)
-                ApplyAttributes(successor, keySeed);
         }
 
-        private void AddUnions(ClassBuildNode node)
+        private void AddUnionAttributes(ClassBuildNode node)
         {
             var attrList = new List<AttributeSyntax>();
 
-            for (int i = 0; i < node.Successors.Count; i++)
+            foreach (var successor in node.Successors)
             {
-                var className = node.Successors[i].ClassName;
-
                 attrList.Add(SH.Attribute(UnionAttributeClassName,
-                    SH.AttributeArgument(SH.LiteralExpression(i + 1)),
-                    SH.AttributeArgument(SH.TypeOfExpression(className.Full))));
+                    SH.AttributeArgument(SH.LiteralExpression(successor.Key)),
+                    SH.AttributeArgument(SH.TypeOfExpression(successor.ClassName.Full))));
             }
 
             node.UpdateDeclaration(d => d.AddSeparatedAttributes(attrList));

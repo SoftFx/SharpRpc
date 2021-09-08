@@ -54,9 +54,9 @@ namespace SharpRpc
         {
             if (message is IInteropMessage)
             {
-                if (message is IResponse resp)
+                if (message is IResponseMessage resp)
                     ProcessResponse(resp);
-                else if (message is IRequest req)
+                else if (message is IRequestMessage req)
                     ProcessRequest(req);
                 else if (message is IStreamAuxMessage auxMsg)
                     ProcessAxuMessage(auxMsg);
@@ -92,7 +92,7 @@ namespace SharpRpc
             catch (Exception)
             {
                 // TO DO : log or pass some more information about expcetion (stack trace)
-                return new RpcResult(RpcRetCode.RequestCrashed, "An exception has been occured in ");
+                return new RpcResult(RpcRetCode.RequestCrash, "An exception has been occured in ");
             }
 
             return RpcResult.Ok;
@@ -118,32 +118,32 @@ namespace SharpRpc
                 if (result.IsCompleted)
                 {
                     if (result.IsFaulted)
-                        OnError(RpcRetCode.MessageHandlerFailure, "Message handler threw an exception: " + result.ToTask().Exception.Message);
+                        OnError(RpcRetCode.MessageHandlerCrash, "Message handler threw an exception: " + result.ToTask().Exception.Message);
                 }
                 else
                 {
                     result.ToTask().ContinueWith(t =>
                     {
                         if (t.IsFaulted)
-                            OnError(RpcRetCode.MessageHandlerFailure, "Message handler threw an exception: " + t.Exception.Message);
+                            OnError(RpcRetCode.MessageHandlerCrash, "Message handler threw an exception: " + t.Exception.Message);
                     });
                 }
             }
             catch (Exception ex)
             {
                 // TO DO : stop processing here ???
-                OnError(RpcRetCode.MessageHandlerFailure, "Message handler threw an exception: " + ex.Message);
+                OnError(RpcRetCode.MessageHandlerCrash, "Message handler threw an exception: " + ex.Message);
             }
         }
 
-        private async void ProcessRequest(IRequest request)
+        private async void ProcessRequest(IRequestMessage request)
         {
             var respToSend = await MessageHandler.ProcessRequest(request);
             respToSend.CallId = request.CallId;
             await Tx.TrySendAsync(respToSend);
         }
 
-        private void ProcessResponse(IResponse resp)
+        private void ProcessResponse(IResponseMessage resp)
         {
             IInteropOperation taskToComplete = null;
 
@@ -158,7 +158,7 @@ namespace SharpRpc
                 }
             }
 
-            if (resp is IRequestFault faultMsg)
+            if (resp is IRequestFaultMessage faultMsg)
                 taskToComplete.Fail(faultMsg);
             else
                 taskToComplete.Complete(resp);
@@ -188,15 +188,15 @@ namespace SharpRpc
         public interface IInteropOperation
         {
             RpcResult Update(IStreamAuxMessage page);
-            RpcResult Complete(IResponse respMessage);
+            RpcResult Complete(IResponseMessage respMessage);
             void Fail(RpcResult result);
-            void Fail(IRequestFault faultMessage);
+            void Fail(IRequestFaultMessage faultMessage);
         }
 
         public class CallTask<TResp> : TaskCompletionSource<RpcResult>, IInteropOperation
-            where TResp : IResponse
+            where TResp : IResponseMessage
         {
-            public RpcResult Complete(IResponse respMessage)
+            public RpcResult Complete(IResponseMessage respMessage)
             {
                 SetResult(RpcResult.Ok);
                 return RpcResult.Ok;
@@ -207,7 +207,7 @@ namespace SharpRpc
                 SetException(result.ToException());
             }
 
-            public void Fail(IRequestFault faultMessage)
+            public void Fail(IRequestFaultMessage faultMessage)
             {
                 SetException(faultMessage.CreateException());
             }
@@ -219,9 +219,9 @@ namespace SharpRpc
         }
 
         public class TryCallTask<TResp> : TaskCompletionSource<RpcResult>, IInteropOperation
-            where TResp : IResponse
+            where TResp : IResponseMessage
         {
-            public RpcResult Complete(IResponse respMessage)
+            public RpcResult Complete(IResponseMessage respMessage)
             {
                 SetResult(RpcResult.Ok);
                 return RpcResult.Ok;
@@ -232,10 +232,9 @@ namespace SharpRpc
                 SetResult(result);
             }
 
-            public void Fail(IRequestFault faultMessage)
+            public void Fail(IRequestFaultMessage faultMessage)
             {
-                var result = new RpcResult(faultMessage.Code.ToRetCode(), faultMessage.GetFault());
-                SetResult(result);
+                SetResult(faultMessage.ToRpcResult());
             }
 
             public RpcResult Update(IStreamAuxMessage page)
@@ -245,11 +244,11 @@ namespace SharpRpc
         }
 
         public class CallTask<TResp, TReturn> : TaskCompletionSource<TReturn>, IInteropOperation
-            where TResp : IResponse
+            where TResp : IResponseMessage
         {
-            public RpcResult Complete(IResponse respMessage)
+            public RpcResult Complete(IResponseMessage respMessage)
             {
-                var resp = respMessage as IResponse<TReturn>;
+                var resp = respMessage as IResponseMessage<TReturn>;
                 if (resp != null)
                 {
                     SetResult(resp.Result);
@@ -264,7 +263,7 @@ namespace SharpRpc
                 SetException(result.ToException());
             }
 
-            public void Fail(IRequestFault faultMessage)
+            public void Fail(IRequestFaultMessage faultMessage)
             {
                 SetException(faultMessage.CreateException());
             }
@@ -276,11 +275,11 @@ namespace SharpRpc
         }
 
         public class TryCallTask<TResp, TReturn> : TaskCompletionSource<RpcResult<TReturn>>, IInteropOperation
-            where TResp : IResponse
+            where TResp : IResponseMessage
         {
-            public RpcResult Complete(IResponse respMessage)
+            public RpcResult Complete(IResponseMessage respMessage)
             {
-                var resp = respMessage as IResponse<TReturn>;
+                var resp = respMessage as IResponseMessage<TReturn>;
                 if (resp != null)
                 {
                     SetResult(new RpcResult<TReturn>(resp.Result));
@@ -292,13 +291,12 @@ namespace SharpRpc
 
             public void Fail(RpcResult result)
             {
-                SetResult(new RpcResult<TReturn>(result.Code, result.Fault));
+                SetResult(new RpcResult<TReturn>(result.Code, result.FaultMessage, result.CustomFaultData));
             }
 
-            public void Fail(IRequestFault faultMessage)
+            public void Fail(IRequestFaultMessage faultMessage)
             {
-                var result = new RpcResult<TReturn>(faultMessage.Code.ToRetCode(), faultMessage.GetFault());
-                SetResult(result);
+                SetResult(faultMessage.ToRpcResult<TReturn>());
             }
 
             public RpcResult Update(IStreamAuxMessage page)

@@ -19,7 +19,7 @@ namespace SharpRpc.Builder
         public abstract string Name { get; }
         public string EnumVal { get; set; }
 
-        public abstract void BuildUpClassHierachy(ClassBuildNode rootNode);
+        public abstract void BuildUpClasses(List<ClassBuildNode> classNodes);
 
         public abstract ClassDeclarationSyntax GenerateSerializerAdapter(TypeString serilizerClassName, TypeString baseMessageClassName, GeneratorExecutionContext context);
     }

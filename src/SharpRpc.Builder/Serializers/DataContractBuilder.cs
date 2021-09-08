@@ -21,7 +21,7 @@ namespace SharpRpc.Builder
 
         public override string Name => "DataContract";
 
-        public override void BuildUpClassHierachy(ClassBuildNode rootNode)
+        public override void BuildUpClasses(List<ClassBuildNode> classNodes)
         {
         }
 

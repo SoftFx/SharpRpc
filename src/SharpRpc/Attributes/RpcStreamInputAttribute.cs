@@ -13,16 +13,14 @@ using System.Threading.Tasks;
 
 namespace SharpRpc
 {
-    [AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
-    public class RpcFaultAttribute : Attribute
+    [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
+    public class RpcStreamInputAttribute : Attribute
     {
-        public RpcFaultAttribute(ushort key, Type type)
+        public RpcStreamInputAttribute(Type itemType)
         {
-            Key = key;
-            FaultType = type;
+            ItemType = itemType;
         }
 
-        public ushort Key { get; }
-        public Type FaultType { get; }
+        public Type ItemType { get; }
     }
 }

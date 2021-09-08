@@ -15,58 +15,59 @@ using SharpRpc;
 
 namespace TestCommon
 {
-    [RpcContract]
+    [RpcServiceContract]
     [RpcSerializer(SerializerChoice.MessagePack)]
     interface FunctionTestContract
     {
-        [Rpc(RpcType.Message)]
+        [RpcContract(0, RpcType.Message)]
         void TestNotify1(int p1, string p2);
 
-        [Rpc(RpcType.Call)]
+        [RpcContract(1, RpcType.Call)]
         void TestCall1(int p1, string p2);
 
-        [Rpc(RpcType.Call)]
+        [RpcContract(2, RpcType.Call)]
         string TestCall2(int p1, string p2);
 
-        [Rpc(RpcType.Call)]
+        [RpcContract(3, RpcType.Call)]
         string TestCrash(int p1, string p2);
 
-        [Rpc(RpcType.Call)]
+        [RpcContract(4, RpcType.Call)]
         string TestRpcException(int p1, string p2);
 
-        [Rpc(RpcType.Call)]
-        [RpcFault(typeof(TestFault1), typeof(TestFault2))]
+        [RpcContract(5, RpcType.Call)]
+        [RpcFault(0, typeof(TestFault1))]
+        [RpcFault(1, typeof(TestFault2))]
         void TestCallFault(int faultNo);
 
-        [Rpc(RpcType.Call)]
+        [RpcContract(6, RpcType.Call)]
         string InvokeCallback(int callbackNo, int p1, string p2);
 
-        [Rpc(RpcType.CallbackMessage)]
+        [RpcContract(7, RpcType.CallbackMessage)]
         void TestCallbackNotify1(int p1, string p2);
 
-        [Rpc(RpcType.Callback)]
+        [RpcContract(8, RpcType.Callback)]
         void TestCallback1(int p1, string p2);
 
-        [Rpc(RpcType.Callback)]
+        [RpcContract(9, RpcType.Callback)]
         int TestCallback2(int p1, string p2);
 
-        [Rpc(RpcType.Callback)]
+        [RpcContract(10, RpcType.Callback)]
         string TestCallback3(int p1, string p2);
 
-        [Rpc(RpcType.Call)]
+        [RpcContract(11, RpcType.Call)]
         List<Tuple<int>> ComplexTypesCall(List<DateTime> list, List<List<DateTime>> listOfLists, Dictionary<int, int> dictionary);
 
-        [Rpc(RpcType.Call)]
-        [StreamOutput(typeof(int))]
+        [RpcContract(12, RpcType.Call)]
+        [RpcStreamOutput(typeof(int))]
         int TestOutStream(int p1, string p2, StreamTestOptions options);
 
-        [Rpc(RpcType.Call)]
-        [StreamInput(typeof(int))]
+        [RpcContract(13, RpcType.Call)]
+        [RpcStreamInput(typeof(int))]
         int TestInStream(int p1, string p2, StreamTestOptions options);
 
-        [Rpc(RpcType.Call)]
-        [StreamInput(typeof(int))]
-        [StreamOutput(typeof(int))]
+        [RpcContract(14, RpcType.Call)]
+        [RpcStreamInput(typeof(int))]
+        [RpcStreamOutput(typeof(int))]
         int TestDuplexStream(int p1, string p2, StreamTestOptions options);
     }
 
@@ -79,36 +80,36 @@ namespace TestCommon
     }
 
     [MessagePackObject]
-    public class TestFault1 : RpcFault
+    public class TestFault1
     {
         [Key(1)]
-        public string Message { get; set; }
+        public int CustomCode { get; set; }
 
         public override bool Equals(object obj)
         {
-            return obj is TestFault1 tf && tf.Message == Message;
+            return obj is TestFault1 tf && tf.CustomCode == CustomCode;
         }
 
         public override int GetHashCode()
         {
-            return Message.GetHashCode();
+            return CustomCode.GetHashCode();
         }
     }
 
     [MessagePackObject]
-    public class TestFault2 : RpcFault
+    public class TestFault2
     {
         [Key(1)]
-        public string Message { get; set; }
+        public int CustomCode { get; set; }
 
         public override bool Equals(object obj)
         {
-            return obj is TestFault2 tf && tf.Message == Message;
+            return obj is TestFault2 tf && tf.CustomCode == CustomCode;
         }
 
         public override int GetHashCode()
         {
-            return Message.GetHashCode();
+            return CustomCode.GetHashCode();
         }
     }
 }

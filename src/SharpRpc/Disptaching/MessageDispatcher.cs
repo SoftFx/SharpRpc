@@ -63,7 +63,7 @@ namespace SharpRpc
         public abstract Task Stop(RpcResult fault);
         public abstract RpcResult RegisterCallObject(string callId, MessageDispatcherCore.IInteropOperation callObject);
         public abstract void UnregisterCallObject(string callId);
-        protected abstract void DoCall(IRequest requestMsg, MessageDispatcherCore.IInteropOperation callOp);
+        protected abstract void DoCall(IRequestMessage requestMsg, MessageDispatcherCore.IInteropOperation callOp);
 
 
         public string GenerateOperationId()
@@ -71,32 +71,32 @@ namespace SharpRpc
             return _opIdPrefix + Interlocked.Increment(ref _opIdSeed);
         }
 
-        public Task Call<TResp>(IRequest requestMsg)
-            where TResp : IResponse
+        public Task Call<TResp>(IRequestMessage requestMsg)
+            where TResp : IResponseMessage
         {
             var task = new MessageDispatcherCore.CallTask<TResp>();
             DoCall(requestMsg, task);
             return task.Task;
         }
 
-        public Task<TReturn> Call<TResp, TReturn>(IRequest requestMsg)
-            where TResp : IResponse
+        public Task<TReturn> Call<TResp, TReturn>(IRequestMessage requestMsg)
+            where TResp : IResponseMessage
         {
             var task = new MessageDispatcherCore.CallTask<TResp, TReturn>();
             DoCall(requestMsg, task);
             return task.Task;
         }
 
-        public Task<RpcResult> TryCall<TResp>(IRequest requestMsg)
-            where TResp : IResponse
+        public Task<RpcResult> TryCall<TResp>(IRequestMessage requestMsg)
+            where TResp : IResponseMessage
         {
             var task = new MessageDispatcherCore.TryCallTask<TResp>();
             DoCall(requestMsg, task);
             return task.Task;
         }
 
-        public Task<RpcResult<TReturn>> TryCall<TResp, TReturn>(IRequest requestMsg)
-            where TResp : IResponse
+        public Task<RpcResult<TReturn>> TryCall<TResp, TReturn>(IRequestMessage requestMsg)
+            where TResp : IResponseMessage
         {
             var task = new MessageDispatcherCore.TryCallTask<TResp, TReturn>();
             DoCall(requestMsg, task);
@@ -108,10 +108,10 @@ namespace SharpRpc
     {
 #if NET5_0_OR_GREATER
         ValueTask ProcessMessage(IMessage message);
-        ValueTask<IResponse> ProcessRequest(IRequest message);
+        ValueTask<IResponseMessage> ProcessRequest(IRequestMessage message);
 #else
         Task ProcessMessage(IMessage message);
-        Task<IResponse> ProcessRequest(IRequest message);
+        Task<IResponseMessage> ProcessRequest(IRequestMessage message);
 #endif
     }
 

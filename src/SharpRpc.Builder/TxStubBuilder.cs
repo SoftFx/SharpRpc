@@ -213,7 +213,7 @@ namespace SharpRpc.Builder
         {
             var methods = new List<MethodDeclarationSyntax>();
 
-            foreach (var callDec in _contract.Calls)
+            foreach (var callDec in _contract.Operations)
             {
                 if (callDec.HasStreams)
                 {
@@ -236,7 +236,7 @@ namespace SharpRpc.Builder
                     {
                         methods.Add(GenerateOneWayCall(callDec, clientStubTypeName, isAsync, isTry));
 
-                        if (callDec.EnablePrebuild)
+                        if (_contract.EnablePrebuild)
                             methods.Add(GeneratePrebuiltMessageSender(callDec, clientStubTypeName, isAsync, isTry));
                     }
                     else if (addCall)
@@ -247,12 +247,12 @@ namespace SharpRpc.Builder
             return methods.ToArray();
         }
 
-        private MethodDeclarationSyntax GenerateOneWayCall(CallDeclaration callDec, TypeString clientStubTypeName, bool isAsync, bool isTry)
+        private MethodDeclarationSyntax GenerateOneWayCall(OperationDeclaration callDec, TypeString clientStubTypeName, bool isAsync, bool isTry)
         {
             var bodyStatements = new List<StatementSyntax>();
             var methodParams = GenerateMethodParams(callDec);
 
-            var msgClassName = _contract.GetOnWayMessageClassName(callDec.MethodName);
+            var msgClassName = _contract.GetOnWayMessageClassName(callDec);
 
             bodyStatements.AddRange(GenerateCreateAndFillMessageStatements(callDec, msgClassName));
             bodyStatements.Add(GenerateSendMessageStatement(isAsync, isTry, out var retType));
@@ -267,7 +267,7 @@ namespace SharpRpc.Builder
             return method;
         }
 
-        private MethodDeclarationSyntax GeneratePrebuiltMessageSender(CallDeclaration callDec, TypeString clientStubTypeName, bool isAsync, bool isTry)
+        private MethodDeclarationSyntax GeneratePrebuiltMessageSender(OperationDeclaration callDec, TypeString clientStubTypeName, bool isAsync, bool isTry)
         {
             var bodyStatements = new List<StatementSyntax>();
             var msgClassName = _contract.GetPrebuiltMessageClassName(callDec.MethodName);
@@ -285,13 +285,13 @@ namespace SharpRpc.Builder
             return method;
         }
 
-        private MethodDeclarationSyntax GenerateCall(CallDeclaration callDec, TypeString clientStubTypeName, bool isAsync, bool isTry)
+        private MethodDeclarationSyntax GenerateCall(OperationDeclaration callDec, TypeString clientStubTypeName, bool isAsync, bool isTry)
         {
             var bodyStatements = new List<StatementSyntax>();
             var methodParams = GenerateMethodParams(callDec);
 
-            var requestMsgClassName = _contract.GetRequestClassName(callDec.MethodName);
-            var responseMsgClassName = _contract.GetResponseClassName(callDec.MethodName);
+            var requestMsgClassName = _contract.GetRequestClassName(callDec);
+            var responseMsgClassName = _contract.GetResponseClassName(callDec);
 
             bodyStatements.AddRange(GenerateCreateAndFillMessageStatements(callDec, requestMsgClassName));
 
@@ -310,7 +310,7 @@ namespace SharpRpc.Builder
             return method;
         }
 
-        private MethodDeclarationSyntax GenerateStreamCall(CallDeclaration callDec, TypeString clientStubTypeName)
+        private MethodDeclarationSyntax GenerateStreamCall(OperationDeclaration callDec, TypeString clientStubTypeName)
         {
             NameSyntax callProxyClass;
             NameSyntax methodToInvoke;
@@ -361,7 +361,7 @@ namespace SharpRpc.Builder
             var bodyStatements = new List<StatementSyntax>();
             var methodParams = GenerateMethodParams(callDec);
 
-            var msgClassName = _contract.GetRequestClassName(callDec.MethodName);
+            var msgClassName = _contract.GetRequestClassName(callDec);
 
             var openStreamInvoke = SF.InvocationExpression(methodToInvoke)
                 .AddArgumentListArguments(SH.IdentifierArgument("message"));
@@ -369,13 +369,13 @@ namespace SharpRpc.Builder
             if (callDec.HasInStream)
             {
                 openStreamInvoke = openStreamInvoke.AddArgumentListArguments(
-                    SF.Argument(GenerateStreamFactoryCreationExp(_contract, callDec.InStreamItemType)));
+                    SF.Argument(GenerateStreamFactoryCreationExp(_contract.GetInputStreamFactoryClassName(callDec))));
             }
 
             if (callDec.HasOutStream)
             {
                 openStreamInvoke = openStreamInvoke.AddArgumentListArguments(
-                    SF.Argument(GenerateStreamFactoryCreationExp(_contract, callDec.OutStreamItemType)));
+                    SF.Argument(GenerateStreamFactoryCreationExp(_contract.GetOutputStreamFactoryClassName(callDec))));
             }
 
             bodyStatements.AddRange(GenerateCreateAndFillMessageStatements(callDec, msgClassName));
@@ -391,7 +391,7 @@ namespace SharpRpc.Builder
             return method;
         }
 
-        internal static List<ParameterSyntax> GenerateMethodParams(CallDeclaration callDec)
+        internal static List<ParameterSyntax> GenerateMethodParams(OperationDeclaration callDec)
         {
             var methodParams = new List<ParameterSyntax>();
 
@@ -407,7 +407,7 @@ namespace SharpRpc.Builder
             return methodParams;
         }
 
-        internal static IEnumerable<StatementSyntax> GenerateCreateAndFillMessageStatements(CallDeclaration callDec, TypeString msgClassName)
+        internal static IEnumerable<StatementSyntax> GenerateCreateAndFillMessageStatements(OperationDeclaration callDec, TypeString msgClassName)
         {
             var msgCreateClause = SF.EqualsValueClause(
                 SF.ObjectCreationExpression(SF.ParseTypeName(msgClassName.Full))
@@ -577,9 +577,8 @@ namespace SharpRpc.Builder
             return name;
         }
 
-        internal static ExpressionSyntax GenerateStreamFactoryCreationExp(ContractDeclaration contractInfo, string factorySubtype)
+        internal static ExpressionSyntax GenerateStreamFactoryCreationExp(TypeString factoryClassName)
         {
-            var factoryClassName = contractInfo.GetStreamFactoryClassName(factorySubtype);
             return SF.ObjectCreationExpression(SH.FullTypeName(factoryClassName))
                 .WithoutArguments();
         }

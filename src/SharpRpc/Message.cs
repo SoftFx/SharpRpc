@@ -25,25 +25,36 @@ namespace SharpRpc
     {
     }
 
-    public interface IRequest : IInteropMessage
+    public interface IRequestMessage : IInteropMessage
     {
         string CallId { get; set; }
-        //int? FromRecipient { get; set; }
     }
 
-    public interface IResponse : IInteropMessage
+    public interface IResponseMessage : IInteropMessage
     {
         string CallId { get; set; }
-        //int? ToRecipient { get; }
     }
 
-    public interface IResponse<T> : IResponse
+    public interface IResponseMessage<T> : IResponseMessage
     {
         T Result { get; }
     }
 
+    public interface IRequestFaultMessage : IResponseMessage
+    {
+        string Text { get; set; }
+        RequestFaultCode Code { get; set; }
+        ICustomFaultBinding GetCustomFaultBinding();
+    }
+
     public interface ISystemMessage : IMessage
     {
+    }
+
+    public interface ICustomFaultBinding
+    {
+        object GetFault();
+        RpcFaultException CreateException(string message);
     }
 
     public interface MessageWriter

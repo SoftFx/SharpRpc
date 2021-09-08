@@ -238,6 +238,11 @@ namespace SharpRpc.Builder
                 .AddVariables(SyntaxFactory.VariableDeclarator(fieldName)));
         }
 
+        public static AssignmentExpressionSyntax AssignmentExpression(ExpressionSyntax left, ExpressionSyntax right)
+        {
+            return SyntaxFactory.AssignmentExpression(SyntaxKind.SimpleAssignmentExpression, left, right);
+        }
+
         public static ExpressionStatementSyntax AssignmentStatement(ExpressionSyntax left, ExpressionSyntax right)
         {
             return SyntaxFactory.ExpressionStatement(

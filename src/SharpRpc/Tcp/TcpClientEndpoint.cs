@@ -46,7 +46,7 @@ namespace SharpRpc
             catch (Exception ex)
             {
                 var fault = TcpTransport.ToRpcResult(ex);
-                return new RpcResult<ByteTransport>(fault.Code, fault.Fault);
+                return new RpcResult<ByteTransport>(fault.Code, fault.FaultMessage);
             }
         }
     }

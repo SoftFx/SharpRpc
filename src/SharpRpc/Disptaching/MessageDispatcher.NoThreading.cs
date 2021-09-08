@@ -97,7 +97,7 @@ namespace SharpRpc
                 return FwAdapter.AsyncVoid;
             }
 
-            protected override async void DoCall(IRequest requestMsg, MessageDispatcherCore.IInteropOperation callTask)
+            protected override async void DoCall(IRequestMessage requestMsg, MessageDispatcherCore.IInteropOperation callTask)
             {
                 var callId = GenerateOperationId(); // Guid.NewGuid().ToString();
 

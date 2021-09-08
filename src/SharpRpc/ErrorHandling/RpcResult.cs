@@ -14,40 +14,30 @@ namespace SharpRpc
             return new RpcResult<T1>(result);
         }
 
-        internal RpcResult(RpcRetCode code, RpcFault fault)
+        internal RpcResult(RpcRetCode code, string faultText, object customFaultData = null)
         {
             Code = code;
-            if (code != RpcRetCode.Ok)
-                Fault = fault ?? new RpcFaultStub("");
-            else
-                Fault = null;
-        }
-
-        internal RpcResult(RpcRetCode code, string message)
-        {
-            Code = code;
-            if (code != RpcRetCode.Ok)
-                Fault = new RpcFaultStub(message ?? "");
-            else
-                Fault = null;
+            FaultMessage = faultText;
+            CustomFaultData = customFaultData;    
         }
 
         public static readonly RpcResult Ok = new RpcResult();
         public static readonly RpcResult ChannelClose = new RpcResult(RpcRetCode.ChannelClosed, "Operation has been aborted due to Channel close.");
 
         public RpcRetCode Code { get; }
-        public RpcFault Fault { get; }
+        public string FaultMessage { get; }
+        public object CustomFaultData { get; }
         public bool IsOk => Code == RpcRetCode.Ok;
 
         public void ThrowIfNotOk()
         {
             if (Code != RpcRetCode.Ok)
-                throw new RpcException(Fault.Message, Code);
+                throw new RpcException(FaultMessage, Code);
         }
 
         public RpcException ToException()
         {
-            return new RpcException(Fault.Message, Code);
+            return new RpcException(FaultMessage, Code);
         }
 
         internal RpcResult<T> ToValueResult<T>(T val = default(T))
@@ -55,7 +45,7 @@ namespace SharpRpc
             if (IsOk)
                 return new RpcResult<T>(val);
             else
-                return new RpcResult<T>(Code, Fault);
+                return new RpcResult<T>(Code, FaultMessage, CustomFaultData);
         }
     }
 
@@ -65,64 +55,60 @@ namespace SharpRpc
         {
             Code = RpcRetCode.Ok;
             Value = result;
-            Fault = null;
+            FaultMessage = null;
+            CustomFaultData = null;
         }
 
-        public RpcResult(RpcRetCode code, RpcFault fault)
+        public RpcResult(RpcRetCode code, string faultText, object customFaultData = null)
         {
             Code = code;
             Value = default(T);
-            Fault = fault ?? new RpcFaultStub("");
-        }
-
-        public RpcResult(RpcRetCode code, string message)
-        {
-            Code = code;
-            Value = default(T);
-            Fault = new RpcFaultStub(message ?? "");
+            FaultMessage = faultText;
+            CustomFaultData = customFaultData;
         }
 
         public RpcRetCode Code { get; }
-        public RpcFault Fault { get; }
+        public string FaultMessage { get; }
+        public object CustomFaultData { get; }
         public T Value { get; }
 
         public RpcResult GetResultInfo()
         {
-            return new RpcResult(Code, Fault);
+            return new RpcResult(Code, FaultMessage, CustomFaultData);
         }
 
         public void ThrowIfNotOk()
         {
             if (Code != RpcRetCode.Ok)
-                throw new RpcException(Fault.Message, Code);
+                throw new RpcException(FaultMessage, Code);
         }
     }
 
-    public interface RpcFault
-    {
-        string Message { get; }
-    }
+    //public interface RpcFault
+    //{
+    //    string Message { get; }
+    //}
 
-    public class RpcFaultStub : RpcFault
-    {
-        public RpcFaultStub(string message)
-        {
-            Message = message;
-        }
+    //public class RpcFaultStub : RpcFault
+    //{
+    //    public RpcFaultStub(string message)
+    //    {
+    //        Message = message;
+    //    }
 
-        public RpcFaultStub(RequestFaultCode code, string text)
-        {
-            Message = GetFaultMessage(code, text);
-        }
+    //    public RpcFaultStub(RequestFaultCode code, string text)
+    //    {
+    //        Message = GetFaultMessage(code, text);
+    //    }
 
-        public string Message { get; }
+    //    public string Message { get; }
 
-        internal static string GetFaultMessage(RequestFaultCode code, string text)
-        {
-            if (code != RequestFaultCode.UnexpectedFault)
-                return text;
-            else
-                return "Request faulted due to unhandled exception in the request handler.";
-        }
-    }
+    //    internal static string GetFaultMessage(RequestFaultCode code, string text)
+    //    {
+    //        if (code != RequestFaultCode.Fault)
+    //            return text;
+    //        else
+    //            return "Request faulted due to unhandled exception in the request handler.";
+    //    }
+    //}
 }

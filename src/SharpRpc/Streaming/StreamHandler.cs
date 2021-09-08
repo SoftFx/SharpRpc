@@ -69,7 +69,7 @@ namespace SharpRpc
             ch.Dispatcher.UnregisterCallObject(CallId);
         }
 
-        RpcResult MessageDispatcherCore.IInteropOperation.Complete(IResponse respMessage)
+        RpcResult MessageDispatcherCore.IInteropOperation.Complete(IResponseMessage respMessage)
         {
             return new RpcResult(RpcRetCode.ProtocolViolation, "");
         }
@@ -78,7 +78,7 @@ namespace SharpRpc
         {
         }
 
-        void MessageDispatcherCore.IInteropOperation.Fail(IRequestFault faultMessage)
+        void MessageDispatcherCore.IInteropOperation.Fail(IRequestFaultMessage faultMessage)
         {
         }
 

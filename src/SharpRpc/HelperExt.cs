@@ -17,12 +17,36 @@ namespace SharpRpc
     {
         public static RpcRetCode ToRetCode(this RequestFaultCode faultCode)
         {
-            if (faultCode == RequestFaultCode.CustomFault)
-                return RpcRetCode.RequestFaulted;
-            else if (faultCode == RequestFaultCode.RegularFault)
-                return RpcRetCode.RequestFaulted;
+            if (faultCode == RequestFaultCode.Fault)
+                return RpcRetCode.RequestFault;
             else
-                return RpcRetCode.RequestCrashed;
+                return RpcRetCode.RequestCrash;
+        }
+
+        public static RpcResult ToRpcResult(this IRequestFaultMessage msg)
+        {
+            return new RpcResult(msg.Code.ToRetCode(), msg.Text, msg.GetCustomFaultData());
+        }
+
+        public static RpcResult<T> ToRpcResult<T>(this IRequestFaultMessage msg)
+        {
+            return new RpcResult<T>(msg.Code.ToRetCode(), msg.Text, msg.GetCustomFaultData());
+        }
+
+        public static object GetCustomFaultData(this IRequestFaultMessage faultMessage)
+        {
+            return faultMessage.GetCustomFaultBinding()?.GetFault();
+        }
+
+        public static RpcException CreateException(this IRequestFaultMessage faultMessage)
+        {
+            var binding = faultMessage.GetCustomFaultBinding();
+            var text = faultMessage.Text;
+
+            if (binding != null)
+                return binding.CreateException(text);
+            else
+                return new RpcException(faultMessage.Text, faultMessage.Code.ToRetCode());
         }
     }
 }

@@ -120,13 +120,13 @@ namespace SharpRpc
 
         #region MessageDispatcherCore.IInteropOperation
 
-        RpcResult MessageDispatcherCore.IInteropOperation.Complete(IResponse respMessage)
+        RpcResult MessageDispatcherCore.IInteropOperation.Complete(IResponseMessage respMessage)
         {
             //System.Diagnostics.Debug.WriteLine("RX " + CallId + " RESP " + respMessage.GetType().Name);
 
             if (ReturnsResult)
             {
-                var resp = respMessage as IResponse<TReturn>;
+                var resp = respMessage as IResponseMessage<TReturn>;
                 if (resp != null)
                 {
                     _typedCompletion.TrySetResult(new RpcResult<TReturn>(resp.Result));
@@ -150,18 +150,12 @@ namespace SharpRpc
                 _voidCompletion.TrySetResult(result);
         }
 
-        void MessageDispatcherCore.IInteropOperation.Fail(IRequestFault faultMessage)
+        void MessageDispatcherCore.IInteropOperation.Fail(IRequestFaultMessage faultMessage)
         {
             if (ReturnsResult)
-            {
-                var result = new RpcResult<TReturn>(faultMessage.Code.ToRetCode(), faultMessage.GetFault());
-                _typedCompletion.TrySetResult(result);
-            }
+                _typedCompletion.TrySetResult(faultMessage.ToRpcResult<TReturn>());
             else
-            {
-                var result = new RpcResult(faultMessage.Code.ToRetCode(), faultMessage.GetFault());
-                _voidCompletion.TrySetResult(result);
-            }
+                _voidCompletion.TrySetResult(faultMessage.ToRpcResult());
         }
 
         RpcResult MessageDispatcherCore.IInteropOperation.Update(IStreamAuxMessage auxMessage)

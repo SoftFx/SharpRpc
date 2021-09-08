@@ -15,28 +15,59 @@ using System.Text;
 
 namespace SharpRpc.Builder
 {
-    public class CallDeclaration
+    public class OperationDeclaration
     {
-        public CallDeclaration(string methodName, Location codeLocation, ContractCallType type)
+        public const int KeyReserve = 30;
+
+        public OperationDeclaration(ushort key, string methodName, Location codeLocation, ContractCallType type)
         {
+            Key = key;
             MethodName = methodName;
             CallType = type;
             CodeLocation = codeLocation;
+
+            RequestKey = KeyReserve + key * 5;
+            ResponseKey = RequestKey + 1;
+            FaultKey = RequestKey + 2;
+            InStreamPageKey = RequestKey + 3;
+            OutStreamPageKey = RequestKey + 4;
+
+            OneWayMessageName = "C" + key + "_Message";
+            RequestMessageName = "C" + key + "_Request";
+            ResponseMessageName = "C" + key + "_Response";
+            FaultMessageName = "C" + key + "_Fault";
+            InputPageMessageName = "C" + key + "_InputStreamPage";
+            OutputPageMessageName = "C" + key + "_OutputStreamPage";
+            FaultAdapterInterfaceName = "IFaultAdapter";
         }
 
+        public ushort Key { get; }
         public string MethodName { get; }
         public Location CodeLocation { get; }
         public ContractCallType CallType { get; }
-        public List<string> Faults { get; } = new List<string>();
+        public List<Tuple<ushort, string>> CustomFaults { get; } = new List<Tuple<ushort, string>>();
         public List<ParamDeclaration> Params { get; } = new List<ParamDeclaration>();
         public ParamDeclaration ReturnParam { get; set; }
-        public bool EnablePrebuild { get; set; }
         public string InStreamItemType { get; set; }
         public string OutStreamItemType { get; set; }
 
+        public int RequestKey { get; }
+        public int ResponseKey { get; }
+        public int FaultKey { get; }
+        public int InStreamPageKey { get; }
+        public int OutStreamPageKey { get; }
+
+        public string OneWayMessageName { get; }
+        public string RequestMessageName { get; }
+        public string ResponseMessageName { get; }
+        public string FaultMessageName { get; }
+        public string InputPageMessageName { get; }
+        public string OutputPageMessageName { get; }
+        public string FaultAdapterInterfaceName { get; }
+
         public bool IsOneWay => CallType == ContractCallType.MessageToClient || CallType == ContractCallType.MessageToServer;
         public bool IsCallback => CallType == ContractCallType.CallToClient || CallType == ContractCallType.MessageToClient;
-        public bool IsRequestResponceCall => CallType == ContractCallType.CallToClient || CallType == ContractCallType.CallToServer;
+        public bool IsRequestResponceCall => CallType == ContractCallType.CallToClient || CallType == ContractCallType.CallToServer || HasStreams;
         public bool ReturnsData => ReturnParam != null && !string.IsNullOrEmpty(ReturnParam.ParamType);
         public bool HasInStream => !string.IsNullOrEmpty(InStreamItemType);
         public bool HasOutStream => !string.IsNullOrEmpty(OutStreamItemType);
@@ -62,6 +93,11 @@ namespace SharpRpc.Builder
         public bool HasParameterWithName(string name)
         {
             return Params.Any(p => p.ParamName == name);
+        }
+
+        public void AddFault(ushort key, string type)
+        {
+            CustomFaults.Add(Tuple.Create(key, type));
         }
     }
 }

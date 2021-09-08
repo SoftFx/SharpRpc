@@ -77,9 +77,9 @@ namespace TestCommon
 #endif
         {
             if (faultNo == 1)
-                throw RpcFaultException.Create(new TestFault1 { Message = "Fault Message 1" });
+                throw RpcFaultException.Create("Fault Message 1", new TestFault1 { CustomCode = 11 });
             else
-                throw RpcFaultException.Create(new TestFault2 { Message = "Fault Message 2" });
+                throw RpcFaultException.Create("Fault Message 2", new TestFault2 { CustomCode = 12 });
         }
 
 #if NET5_0_OR_GREATER

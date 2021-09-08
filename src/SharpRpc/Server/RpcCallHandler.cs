@@ -20,10 +20,10 @@ namespace SharpRpc
 
 #if NET5_0_OR_GREATER
         protected abstract ValueTask OnMessage(IMessage message);
-        protected abstract ValueTask<IResponse> OnRequest(IRequest message);
+        protected abstract ValueTask<IResponseMessage> OnRequest(IRequestMessage message);
 #else
         protected abstract Task OnMessage(IMessage message);
-        protected abstract Task<IResponse> OnRequest(IRequest message);
+        protected abstract Task<IResponseMessage> OnRequest(IRequestMessage message);
 #endif
 
 #if NET5_0_OR_GREATER
@@ -36,40 +36,34 @@ namespace SharpRpc
         }
 
 #if NET5_0_OR_GREATER
-        protected ValueTask<IResponse> OnUnknownRequest(IRequest message)
+        protected ValueTask<IResponseMessage> OnUnknownRequest(IRequestMessage message)
 #else
-        protected Task<IResponse> OnUnknownRequest(IRequest message)
+        protected Task<IResponseMessage> OnUnknownRequest(IRequestMessage message)
 #endif
         {
             throw new NotImplementedException();
         }
 
-        protected IResponse OnCustomFault<T>(string callId, T fault)
-            where T : RpcFault
+        protected IResponseMessage OnRegularFault(IRequestFaultMessage faultMessage, string exceptionMessage)
         {
-            var resp = _ch.Contract.SystemMessages.CreateFaultMessage<T>(fault);
-            resp.CallId = callId;
-            resp.FaultData = fault;
-            return resp;
+            faultMessage.Code = RequestFaultCode.Fault;
+            faultMessage.Text = exceptionMessage;
+            return faultMessage;
         }
 
-        protected IResponse OnRegularFault(string callId, string exceptionMessage)
+        protected IResponseMessage OnCustomFault(IRequestFaultMessage faultMessage, string exceptionMessage)
+        {
+            faultMessage.Code = RequestFaultCode.Fault;
+            faultMessage.Text = exceptionMessage;
+            return faultMessage;
+        }
+        
+        protected IResponseMessage OnUnexpectedFault(IRequestFaultMessage faultMessage, Exception ex)
         {
             // TO DO : log!
 
-            var faultMsg = _ch.Contract.SystemMessages.CreateFaultMessage();
-            faultMsg.CallId = callId;
-            faultMsg.Code = RequestFaultCode.RegularFault;
-            faultMsg.Text = exceptionMessage;
-            return faultMsg;
-        }
-
-        protected IResponse OnUnexpectedFault(string callId, Exception ex)
-        {
-            var faultMsg = _ch.Contract.SystemMessages.CreateFaultMessage();
-            faultMsg.CallId = callId;
-            faultMsg.Code = RequestFaultCode.UnexpectedFault;
-            return faultMsg;
+            faultMessage.Code = RequestFaultCode.Crash;
+            return faultMessage;
         }
 
         protected virtual void OnInit(Channel channel) { }
@@ -112,9 +106,9 @@ namespace SharpRpc
         }
 
 #if NET5_0_OR_GREATER
-        ValueTask<IResponse> IUserMessageHandler.ProcessRequest(IRequest message)
+        ValueTask<IResponseMessage> IUserMessageHandler.ProcessRequest(IRequestMessage message)
 #else
-        Task<IResponse> IUserMessageHandler.ProcessRequest(IRequest message)
+        Task<IResponseMessage> IUserMessageHandler.ProcessRequest(IRequestMessage message)
 #endif
         {
             return OnRequest(message);

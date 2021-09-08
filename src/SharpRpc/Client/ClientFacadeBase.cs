@@ -50,26 +50,26 @@ namespace SharpRpc
             return Channel.Tx.SendAsync(message);
         }
 
-        protected Task CallAsync<TResp>(IRequest requestMessage)
-            where TResp : IResponse
+        protected Task CallAsync<TResp>(IRequestMessage requestMessage)
+            where TResp : IResponseMessage
         {
             return Channel.Dispatcher.Call<TResp>(requestMessage);
         }
 
-        protected Task<T> CallAsync<T, TResp>(IRequest requestMessage)
-            where TResp : IResponse
+        protected Task<T> CallAsync<T, TResp>(IRequestMessage requestMessage)
+            where TResp : IResponseMessage
         {
             return Channel.Dispatcher.Call<TResp, T>(requestMessage);
         }
 
-        protected Task<RpcResult> TryCallAsync<TResp>(IRequest requestMsg)
-            where TResp : IResponse
+        protected Task<RpcResult> TryCallAsync<TResp>(IRequestMessage requestMsg)
+            where TResp : IResponseMessage
         {
             return Channel.Dispatcher.TryCall<TResp>(requestMsg);
         }
 
-        protected Task<RpcResult<T>> TryCallAsync<T, TResp>(IRequest requestMsg)
-            where TResp : IResponse
+        protected Task<RpcResult<T>> TryCallAsync<T, TResp>(IRequestMessage requestMsg)
+            where TResp : IResponseMessage
         {
             return Channel.Dispatcher.TryCall<TResp, T>(requestMsg);
         }
