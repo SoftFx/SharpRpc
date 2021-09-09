@@ -204,7 +204,7 @@ namespace TestClient
             if (code != expectedCode)
                 throw new Exception("Invalid return code!");
 
-            if (!message.StartsWith(expectedMessageStart))
+            if (string.IsNullOrEmpty(message) || !message.StartsWith(expectedMessageStart))
                 throw new Exception("Invalid exception message!");
         }
 

@@ -34,11 +34,10 @@ namespace SharpRpc
         {
         }
 
-        //public RpcFaultException(RequestFaultCode code, string text)
-        //    : base(RpcFaultStub.GetFaultMessage(code, text), code.ToRetCode())
-        //{
-
-        //}
+        internal RpcFaultException(RpcRetCode code, string text)
+            : base(text, code)
+        {
+        }
 
         public static RpcFaultException<T> Create<T>(T fault)
         {

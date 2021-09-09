@@ -74,7 +74,7 @@ namespace SharpRpc.Builder
             return this;
         }
 
-        public void AddBaseClass(ClassBuildNode baseClassNode)
+        public void RegisterBaseClass(ClassBuildNode baseClassNode)
         {
             baseClassNode._successors.Add(this);
         }

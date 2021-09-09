@@ -139,6 +139,8 @@ namespace SharpRpc.Builder
 
         #endregion
 
+        #region Tokens
+
         public static SyntaxToken PublicToken()
         {
             return SyntaxFactory.Token(SyntaxKind.PublicKeyword);
@@ -154,6 +156,11 @@ namespace SharpRpc.Builder
             return SyntaxFactory.Token(SyntaxKind.VirtualKeyword);
         }
 
+        public static SyntaxToken AbstractToken()
+        {
+            return SyntaxFactory.Token(SyntaxKind.AbstractKeyword);
+        }
+
         public static SyntaxToken OverrideToken()
         {
             return SyntaxFactory.Token(SyntaxKind.OverrideKeyword);
@@ -163,6 +170,8 @@ namespace SharpRpc.Builder
         {
             return SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.VoidKeyword));
         }
+
+        #endregion
 
         public static ParameterSyntax Parameter(string paramName, string paramType)
         {
@@ -324,6 +333,8 @@ namespace SharpRpc.Builder
             return SyntaxFactory.TypeOfExpression(SyntaxFactory.ParseName(typeName));
         }
 
+        #region Literals
+
         public static LiteralExpressionSyntax LiteralExpression(int number)
         {
             return SyntaxFactory.LiteralExpression(SyntaxKind.NumericLiteralExpression, SyntaxFactory.Literal(number));
@@ -333,6 +344,13 @@ namespace SharpRpc.Builder
         {
             return SyntaxFactory.LiteralExpression(SyntaxKind.StringLiteralExpression, SyntaxFactory.Literal(str));
         }
+
+        public static LiteralExpressionSyntax NullLiteral()
+        {
+            return SyntaxFactory.LiteralExpression(SyntaxKind.NullLiteralExpression);
+        }
+
+        #endregion
 
         public static MemberAccessExpressionSyntax EnumValue(string enumType, string valueName)
         {

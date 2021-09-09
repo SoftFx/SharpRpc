@@ -64,7 +64,7 @@ namespace SharpRpc.Builder
             {
                 messageBundleNode.AddNestedClass(message);
                 sRegistry.RegisterSerializableClass(message);
-                message.AddBaseClass(baseMsgNode);
+                message.RegisterBaseClass(baseMsgNode);
             }
 
             return messageBundleNode;
@@ -298,10 +298,12 @@ namespace SharpRpc.Builder
             {
                 properties.Add(GenerateMessageProperty("string", "Text"));
                 properties.Add(GenerateMessageProperty("SharpRpc.RequestFaultCode", "Code"));
-                properties.Add(GenerateMessageProperty(RpcInfo.FaultAdapterInterfaceName, "CustomFaultBinding"));
 
-                nestedClasses.Add(GenerateCustomFaultAdapterInterface());
-                nestedClasses.AddRange(GenerateCustomFaultAdapters(serializerRegistry));
+                if (RpcInfo.CustomFaults.Count > 0)
+                {
+                    nestedClasses.AddRange(GenerateCustomFaultFixtureClasses(serializerRegistry));
+                    properties.Add(GenerateMessageProperty(RpcInfo.FaultAdapterInterfaceName, "CustomFaultBinding"));
+                }
 
                 messageClassDeclaration = messageClassDeclaration.AddMembers(GenerateGetCustomFaultMethod());
             }
@@ -353,14 +355,37 @@ namespace SharpRpc.Builder
 
         private MethodDeclarationSyntax GenerateGetCustomFaultMethod()
         {
-            var retBindingPropStatement = SyntaxFactory.ReturnStatement(
-                SyntaxFactory.IdentifierName("CustomFaultBinding"));
+            var hasCustomFaults = RpcInfo.CustomFaults.Count > 0;
+            var faultDataRef = hasCustomFaults
+                ? SyntaxFactory.IdentifierName("CustomFaultBinding")
+                : (ExpressionSyntax)SyntaxHelper.NullLiteral();
+
+            var retBindingPropStatement = SyntaxFactory.ReturnStatement(faultDataRef);
 
             var retType = SyntaxHelper.FullTypeName(Names.CustomFaultBindingInterface);
 
             return SyntaxFactory.MethodDeclaration(retType, "GetCustomFaultBinding")
                 .AddModifiers(SyntaxHelper.PublicToken())
                 .AddBodyStatements(retBindingPropStatement);
+        }
+
+        private IEnumerable<ClassBuildNode> GenerateCustomFaultFixtureClasses(SerializerFixture serializerRegistry)
+        {
+            var classes = new List<ClassBuildNode>();
+            var adapterInterface = GenerateCustomFaultAdapterInterface();
+
+            classes.Add(adapterInterface);
+            serializerRegistry.RegisterSerializableClass(adapterInterface);
+
+            yield return adapterInterface;
+
+            foreach (var adapter in GenerateCustomFaultAdapters())
+            {
+                serializerRegistry.RegisterSerializableClass(adapter);
+                adapter.RegisterBaseClass(adapterInterface);
+
+                yield return adapter;
+            }
         }
 
         private ClassBuildNode GenerateCustomFaultAdapterInterface()
@@ -375,7 +400,7 @@ namespace SharpRpc.Builder
             return new ClassBuildNode(0, adapterInterfaceName, adapterInterfaceDeclaration);
         }
 
-        private IEnumerable<ClassBuildNode> GenerateCustomFaultAdapters(SerializerFixture serializerRegistry)
+        private IEnumerable<ClassBuildNode> GenerateCustomFaultAdapters()
         {
             foreach (var customFaultDeclaration in RpcInfo.CustomFaults)
             {
@@ -400,17 +425,14 @@ namespace SharpRpc.Builder
                     .AddBodyStatements(exceptionCreationStatemnt);
 
                 var adapterClass = SyntaxFactory.ClassDeclaration(adapterClassName.Short)
-                    .AddBaseListTypes(SyntaxFactory.SimpleBaseType(SyntaxFactory.IdentifierName(interfaceName)))
-                    .AddModifiers(SyntaxHelper.PublicToken());
+                    .AddModifiers(SyntaxHelper.PublicToken())
+                    .AddBaseListTypes(SyntaxFactory.SimpleBaseType(SyntaxFactory.IdentifierName(interfaceName)));
 
                 var dataProp = GenerateMessageProperty(dataType, "Data");
 
-                var node = new ClassBuildNode(key, adapterClassName, adapterClass)
+                yield return new ClassBuildNode(key, adapterClassName, adapterClass)
                     .AddProperties(dataProp)
                     .AddMethods(getFaultMethod, createExceprtionMethod);
-
-                serializerRegistry.RegisterSerializableClass(node);
-                yield return node;
             }
         }
 

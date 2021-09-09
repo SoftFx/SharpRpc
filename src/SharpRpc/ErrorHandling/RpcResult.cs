@@ -83,32 +83,4 @@ namespace SharpRpc
                 throw new RpcException(FaultMessage, Code);
         }
     }
-
-    //public interface RpcFault
-    //{
-    //    string Message { get; }
-    //}
-
-    //public class RpcFaultStub : RpcFault
-    //{
-    //    public RpcFaultStub(string message)
-    //    {
-    //        Message = message;
-    //    }
-
-    //    public RpcFaultStub(RequestFaultCode code, string text)
-    //    {
-    //        Message = GetFaultMessage(code, text);
-    //    }
-
-    //    public string Message { get; }
-
-    //    internal static string GetFaultMessage(RequestFaultCode code, string text)
-    //    {
-    //        if (code != RequestFaultCode.Fault)
-    //            return text;
-    //        else
-    //            return "Request faulted due to unhandled exception in the request handler.";
-    //    }
-    //}
 }

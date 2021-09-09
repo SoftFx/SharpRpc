@@ -25,17 +25,30 @@ namespace SharpRpc
 
         public static RpcResult ToRpcResult(this IRequestFaultMessage msg)
         {
-            return new RpcResult(msg.Code.ToRetCode(), msg.Text, msg.GetCustomFaultData());
+            return new RpcResult(msg.Code.ToRetCode(), msg.GetFaultTextOrDefault(), msg.GetCustomFaultData());
         }
 
         public static RpcResult<T> ToRpcResult<T>(this IRequestFaultMessage msg)
         {
-            return new RpcResult<T>(msg.Code.ToRetCode(), msg.Text, msg.GetCustomFaultData());
+            return new RpcResult<T>(msg.Code.ToRetCode(), msg.GetFaultTextOrDefault(), msg.GetCustomFaultData());
         }
 
         public static object GetCustomFaultData(this IRequestFaultMessage faultMessage)
         {
             return faultMessage.GetCustomFaultBinding()?.GetFault();
+        }
+
+        public static string GetFaultTextOrDefault(this IRequestFaultMessage faultMessage)
+        {
+            if (string.IsNullOrEmpty(faultMessage.Text))
+            {
+                if (faultMessage.Code == RequestFaultCode.Fault)
+                    return "Request faulted. No text messages have been provided by the service side.";
+                else
+                    return "Request faulted due to unhandled exception in the request handler. No exception details are provided by the service side.";
+            }
+
+            return faultMessage.Text;
         }
 
         public static RpcException CreateException(this IRequestFaultMessage faultMessage)
@@ -46,7 +59,7 @@ namespace SharpRpc
             if (binding != null)
                 return binding.CreateException(text);
             else
-                return new RpcException(faultMessage.Text, faultMessage.Code.ToRetCode());
+                return new RpcFaultException(faultMessage.Code.ToRetCode(), faultMessage.GetFaultTextOrDefault());
         }
     }
 }
