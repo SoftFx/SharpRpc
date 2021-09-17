@@ -29,8 +29,6 @@ namespace SharpRpc
         private RpcResult _fault;
         private readonly int _bufferSizeThreshold;
         private readonly TxAsyncGate _asyncGate = new TxAsyncGate();
-        //private readonly Queue<IPendingItem> _asyncQueue = new Queue<IPendingItem>();
-        //private readonly Queue<IPendingItem> _systemQueue = new Queue<IPendingItem>();
         private readonly TaskCompletionSource<object> _completedEvent = new TaskCompletionSource<object>();
         private DateTime _lastTxTime = DateTime.MinValue;
         private readonly TimeSpan _idleThreshold;
@@ -46,6 +44,7 @@ namespace SharpRpc
             _connectionRequestHandler = connectionRequestHandler;
 
             TaskQueue = config.TaskQueue;
+            MessageFactory = descriptor.SystemMessages;
 
             _buffer = new TxBuffer(_lockObj, config.TxBufferSegmentSize, descriptor.SerializationAdapter);
             _bufferSizeThreshold = config.TxBufferSegmentSize * 2;
@@ -67,6 +66,7 @@ namespace SharpRpc
         private bool HasRoomForNextMessage => _buffer.DataSize < _bufferSizeThreshold;
 
         public TaskFactory TaskQueue { get; }
+        public IMessageFactory MessageFactory { get; }
         public bool ImmidiateSerialization => true;
 
         public RpcResult TrySend(IMessage message)
@@ -224,6 +224,13 @@ namespace SharpRpc
         public void Send(IMessage message)
         {
             TrySend(message).ThrowIfNotOk();
+        }
+
+        // note: system messages cannot be canceled by this method!
+        public bool TryCancelSend(IMessage message)
+        {
+            lock (_lockObj)
+                return _asyncGate.TryCancelUserMessage(message);
         }
 
         private void CheckConnectionFlags()

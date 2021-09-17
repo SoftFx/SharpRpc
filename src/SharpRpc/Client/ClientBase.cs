@@ -8,6 +8,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace SharpRpc
@@ -65,28 +66,28 @@ namespace SharpRpc
 
         #region Calls
 
-        protected Task CallAsync<TResp>(IRequestMessage requestMessage)
+        protected Task CallAsync<TResp>(IRequestMessage requestMessage, CancellationToken cToken)
             where TResp : IResponseMessage
         {
-            return Channel.Dispatcher.Call<TResp>(requestMessage);
+            return Channel.Dispatcher.Call<TResp>(requestMessage, cToken);
         }
 
-        protected Task<T> CallAsync<T, TResp>(IRequestMessage requestMessage)
+        protected Task<T> CallAsync<T, TResp>(IRequestMessage requestMessage, CancellationToken cToken)
             where TResp : IResponseMessage
         {
-            return Channel.Dispatcher.Call<TResp, T>(requestMessage);
+            return Channel.Dispatcher.Call<TResp, T>(requestMessage, cToken);
         }
 
-        protected Task<RpcResult> TryCallAsync<TResp>(IRequestMessage requestMsg)
+        protected Task<RpcResult> TryCallAsync<TResp>(IRequestMessage requestMsg, CancellationToken cToken)
             where TResp : IResponseMessage
         {
-            return Channel.Dispatcher.TryCall<TResp>(requestMsg);
+            return Channel.Dispatcher.TryCall<TResp>(requestMsg, cToken);
         }
 
-        protected Task<RpcResult<T>> TryCallAsync<T, TResp>(IRequestMessage requestMsg)
+        protected Task<RpcResult<T>> TryCallAsync<T, TResp>(IRequestMessage requestMsg, CancellationToken cToken)
             where TResp : IResponseMessage
         {
-            return Channel.Dispatcher.TryCall<TResp, T>(requestMsg);
+            return Channel.Dispatcher.TryCall<TResp, T>(requestMsg, cToken);
         }
 
         #endregion
@@ -95,57 +96,54 @@ namespace SharpRpc
 
         protected OutputStreamCall<TOut> OpenOutputStream<TOut>(IOpenStreamRequest request, IStreamMessageFactory<TOut> factory)
         {
-            return new StreamCall<object, TOut, object>(request, Channel, null, factory, false);
+            return new StreamCall<object, TOut, object>(request, Channel, null, factory, false, CancellationToken.None);
         }
 
         protected OutputStreamCall<TOut, TResult> OpenOutputStream<TOut, TResult>(IOpenStreamRequest request, IStreamMessageFactory<TOut> factory)
         {
-            return new StreamCall<object, TOut, TResult>(request, Channel, null, factory, true);
+            return new StreamCall<object, TOut, TResult>(request, Channel, null, factory, true, CancellationToken.None);
         }
 
         protected InputStreamCall<TIn> OpenInputStream<TIn>(IOpenStreamRequest request, IStreamMessageFactory<TIn> factory)
         {
-            return new StreamCall<TIn, object, object>(request, Channel, factory, null, false);
+            return new StreamCall<TIn, object, object>(request, Channel, factory, null, false, CancellationToken.None);
         }
 
         protected InputStreamCall<TIn, TResult> OpenInputStream<TIn, TResult>(IOpenStreamRequest request, IStreamMessageFactory<TIn> factory)
         {
-            return new StreamCall<TIn, object, TResult>(request, Channel, factory, null, true);
+            return new StreamCall<TIn, object, TResult>(request, Channel, factory, null, true, CancellationToken.None);
         }
 
         protected DuplexStreamCall<TIn, TOut, object> OpenDuplexStream<TIn, TOut>(IOpenStreamRequest request,
             IStreamMessageFactory<TIn> inFactory, IStreamMessageFactory<TOut> outFactory)
         {
-            return new StreamCall<TIn, TOut, object>(request, Channel, inFactory, outFactory, false);
+            return new StreamCall<TIn, TOut, object>(request, Channel, inFactory, outFactory, false, CancellationToken.None);
         }
 
         protected DuplexStreamCall<TIn, TOut, TResult> OpenDuplexStream<TIn, TOut, TResult>(IOpenStreamRequest request,
             IStreamMessageFactory<TIn> inFactory, IStreamMessageFactory<TOut> outFactory)
         {
-            return new StreamCall<TIn, TOut, TResult>(request, Channel, inFactory, outFactory, true);
+            return new StreamCall<TIn, TOut, TResult>(request, Channel, inFactory, outFactory, true, CancellationToken.None);
         }
 
         #endregion
 
-        private class NullHandler : IUserMessageHandler
+        private class NullHandler : RpcCallHandler
         {
-            public void Init(Channel ch)
-            {
-            }
 
 #if NET5_0_OR_GREATER
-            public ValueTask ProcessMessage(IMessage message)
+            protected override ValueTask OnMessage(IMessage message)
 #else
-            public Task ProcessMessage(IMessage message)
+            protected override Task OnMessage(IMessage message)
 #endif
             {
                 throw new RpcException("No message handler for " + message.GetType().Name, RpcRetCode.UnexpectedMessage);
             }
 
 #if NET5_0_OR_GREATER
-            public ValueTask<IResponseMessage> ProcessRequest(IRequestMessage message)
+            protected override ValueTask<IResponseMessage> OnRequest(IRequestMessage message)
 #else
-            public Task<IResponseMessage> ProcessRequest(IRequestMessage message)
+            protected override Task<IResponseMessage> OnRequest(IRequestMessage message)
 #endif
             {
                 throw new RpcException("No message handler for " + message.GetType().Name, RpcRetCode.UnexpectedMessage);

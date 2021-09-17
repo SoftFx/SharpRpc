@@ -23,21 +23,36 @@ namespace SharpRpc
 
     public interface IInteropMessage : IMessage
     {
+        string CallId { get; set; }
     }
 
     public interface IRequestMessage : IInteropMessage
     {
-        string CallId { get; set; }
+        RequestOptions Options { get; set; }
+    }
+
+    [Flags]
+    public enum RequestOptions : byte
+    {
+        None = 0,
+        CancellationEnabled = 1
     }
 
     public interface IResponseMessage : IInteropMessage
     {
-        string CallId { get; set; }
     }
 
     public interface IResponseMessage<T> : IResponseMessage
     {
         T Result { get; }
+    }
+
+    public interface ICancelRequestMessage : IInteropMessage
+    {
+    }
+
+    public interface ICancelStreamingMessage : IInteropMessage
+    {
     }
 
     public interface IRequestFaultMessage : IResponseMessage

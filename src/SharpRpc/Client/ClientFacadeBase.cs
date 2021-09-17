@@ -9,6 +9,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace SharpRpc
@@ -50,28 +51,28 @@ namespace SharpRpc
             return Channel.Tx.SendAsync(message);
         }
 
-        protected Task CallAsync<TResp>(IRequestMessage requestMessage)
+        protected Task CallAsync<TResp>(IRequestMessage requestMessage, CancellationToken cToken)
             where TResp : IResponseMessage
         {
-            return Channel.Dispatcher.Call<TResp>(requestMessage);
+            return Channel.Dispatcher.Call<TResp>(requestMessage, cToken);
         }
 
-        protected Task<T> CallAsync<T, TResp>(IRequestMessage requestMessage)
+        protected Task<T> CallAsync<T, TResp>(IRequestMessage requestMessage, CancellationToken cToken)
             where TResp : IResponseMessage
         {
-            return Channel.Dispatcher.Call<TResp, T>(requestMessage);
+            return Channel.Dispatcher.Call<TResp, T>(requestMessage, cToken);
         }
 
-        protected Task<RpcResult> TryCallAsync<TResp>(IRequestMessage requestMsg)
+        protected Task<RpcResult> TryCallAsync<TResp>(IRequestMessage requestMsg, CancellationToken cToken)
             where TResp : IResponseMessage
         {
-            return Channel.Dispatcher.TryCall<TResp>(requestMsg);
+            return Channel.Dispatcher.TryCall<TResp>(requestMsg, cToken);
         }
 
-        protected Task<RpcResult<T>> TryCallAsync<T, TResp>(IRequestMessage requestMsg)
+        protected Task<RpcResult<T>> TryCallAsync<T, TResp>(IRequestMessage requestMsg, CancellationToken cToken)
             where TResp : IResponseMessage
         {
-            return Channel.Dispatcher.TryCall<TResp, T>(requestMsg);
+            return Channel.Dispatcher.TryCall<TResp, T>(requestMsg, cToken);
         }
     }
 }

@@ -18,11 +18,13 @@ namespace SharpRpc
     internal interface TxPipeline
     {
         TaskFactory TaskQueue { get; }
+        IMessageFactory MessageFactory { get; }
         bool ImmidiateSerialization { get; }
 
         RpcResult TrySend(IMessage message);
         void Send(IMessage message);
         void TrySendAsync(IMessage message, Action<RpcResult> onSendCompletedCallback);
+        bool TryCancelSend(IMessage message);
 #if NET5_0_OR_GREATER
         ValueTask<RpcResult> TrySendAsync(IMessage message);
         ValueTask<RpcResult> SendSystemMessage(ISystemMessage message);

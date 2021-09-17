@@ -15,13 +15,13 @@ namespace SharpRpc
 {
     public class ContractDescriptor
     {
-        public ContractDescriptor(IRpcSerializer serializer, ISystemMessageFactory factory)
+        public ContractDescriptor(IRpcSerializer serializer, IMessageFactory factory)
         {
             SerializationAdapter = serializer;
             SystemMessages = factory;
         }
 
         public IRpcSerializer SerializationAdapter { get; }
-        public ISystemMessageFactory SystemMessages { get; }
+        public IMessageFactory SystemMessages { get; }
     }
 }

@@ -8,6 +8,7 @@
 using SharpRpc;
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using TestCommon;
 
@@ -34,6 +35,8 @@ namespace TestClient
                 TestOutputStream(client, false);
                 TestDuplexStream(client, true);
                 TestDuplexStream(client, false);
+
+                TestCallCancellation(client);
 
                 Console.WriteLine("Done testing.");
             }
@@ -360,6 +363,25 @@ namespace TestClient
 #endif
         }
 
+        private static void TestCallCancellation(FunctionTestContract_Gen.Client client)
+        {
+            Console.WriteLine("TestCallCancellation.WaitThenCancel");
+
+            var cancelSrc = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+
+            var result = client.CancellableCall(TimeSpan.FromMinutes(5), cancelSrc.Token);
+
+            if (!result)
+                throw new Exception("CancellableCall() returned an unexpected result!");
+
+            Console.WriteLine("TestCallCancellation.PreCancel");
+
+            var result2 = client.CancellableCall(TimeSpan.FromMinutes(2), cancelSrc.Token);
+
+            if (!result2)
+                throw new Exception("CancellableCall() returned an unexpected result!");
+        }
+
         private class CallbackHandler : FunctionTestContract_Gen.CallbackServiceBase
         {
 #if NET5_0_OR_GREATER
@@ -371,7 +393,7 @@ namespace TestClient
                 return new ValueTask();
             }
 
-            public override ValueTask TestCallback1(int p1, string p2)
+            public override ValueTask TestCallback1(CallContext context, int p1, string p2)
             {
                 if (p1 != 10 || p2 != "11")
                     throw new Exception("Invalid input!");
@@ -379,7 +401,7 @@ namespace TestClient
                 return new ValueTask();
             }
 
-            public override ValueTask<int> TestCallback2(int p1, string p2)
+            public override ValueTask<int> TestCallback2(CallContext context, int p1, string p2)
             {
                 if (p1 != 10 || p2 != "11")
                     throw new Exception("Invalid input!");
@@ -387,7 +409,7 @@ namespace TestClient
                 return ValueTask.FromResult(21);
             }
 
-            public override ValueTask<string> TestCallback3(int p1, string p2)
+            public override ValueTask<string> TestCallback3(CallContext context, int p1, string p2)
             {
                 throw new Exception("Test Exception");
             }
@@ -400,7 +422,7 @@ namespace TestClient
                 return Task.CompletedTask;
             }
 
-            public override Task TestCallback1(int p1, string p2)
+            public override Task TestCallback1(CallContext context, int p1, string p2)
             {
                 if (p1 != 10 || p2 != "11")
                     throw new Exception("Invalid input!");
@@ -408,7 +430,7 @@ namespace TestClient
                 return Task.CompletedTask;
             }
 
-            public override Task<int> TestCallback2(int p1, string p2)
+            public override Task<int> TestCallback2(CallContext context, int p1, string p2)
             {
                 if (p1 != 10 || p2 != "11")
                     throw new Exception("Invalid input!");
@@ -416,7 +438,7 @@ namespace TestClient
                 return Task.FromResult(21);
             }
 
-            public override Task<string> TestCallback3(int p1, string p2)
+            public override Task<string> TestCallback3(CallContext context, int p1, string p2)
             {
                 throw new Exception("Test Exception");
             }

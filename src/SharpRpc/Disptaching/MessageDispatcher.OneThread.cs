@@ -21,18 +21,13 @@ namespace SharpRpc
         private class OneThread : MessageDispatcher
         {
             private readonly object _lockObj = new object();
-            //private readonly CircularList<MessageTaskPair> _queue = new CircularList<MessageTaskPair>();
-            //private List<MessageTaskPair> _batch = new List<MessageTaskPair>();
-            //private List<MessageTaskPair> _queue = new List<MessageTaskPair>();
             private List<IMessage> _batch = new List<IMessage>();
             private List<IMessage> _queue = new List<IMessage>();
             private bool _isProcessing;
-            //private TaskCompletionSource<bool> _dataAvaialableEvent;
             private bool _allowFlag;
             private bool _completed;
             private readonly int _maxBatchSize = 1000;
             private Task _workerTask;
-            //private RpcResult _fault;
 
             public override void Start()
             {
@@ -46,16 +41,6 @@ namespace SharpRpc
 
                 if (!fireResult.IsOk)
                     return fireResult;
-
-                //try
-                //{
-                //    ((RpcCallHandler)MessageHandler).Session.FireOpened(new SessionOpenedEventArgs());
-                //}
-                //catch (Exception)
-                //{
-                //    // TO DO : log or pass some more information about expcetion (stack trace)
-                //    return new RpcResult(RpcRetCode.RequestCrashed, "An exception has been occured in ");
-                //}
 
                 lock (_lockObj)
                     _allowFlag = true;
@@ -77,26 +62,7 @@ namespace SharpRpc
                     if (!_allowFlag)
                         OnError(RpcRetCode.ProtocolViolation, "A violation of handshake protocol has been detected!");
 
-                    //Debug.Assert(_queue.Count == 0);
-
-                    //var freeMessageBatch = _queue;
-                    //_queue = IncomingMessagesContainer;
-                    //IncomingMessagesContainer = freeMessageBatch;
-
-                    //foreach (var msg in IncomingMessagesContainer)
-                    //    MatchAndEnqueue(msg);
-
                     _queue.AddRange(IncomingMessages);
-                    //_queue.Add(IncomingMessages[0]);
-
-                    //if (_isProcessing)
-                    //    return FwAdapter.WrappResult(_workerTask);
-                    //else
-                    //{
-                    //    EnqueueNextBatch();
-                    //    return FwAdapter.AsyncVoid;
-                    //}
-
 
                     if (!_isProcessing)
                         EnqueueNextBatch();
@@ -132,11 +98,14 @@ namespace SharpRpc
                 return stopTask;
             }
 
-            protected override async void DoCall(IRequestMessage requestMsg, MessageDispatcherCore.IInteropOperation callTask)
+            protected override async void DoCall(IRequestMessage requestMsg, MessageDispatcherCore.IInteropOperation callTask, CancellationToken cToken)
             {
                 var callId = GenerateOperationId(); // Guid.NewGuid().ToString();
 
                 requestMsg.CallId = callId;
+
+                if (cToken.CanBeCanceled)
+                    requestMsg.Options |= RequestOptions.CancellationEnabled;
 
                 var result = Core.TryRegisterOperation(callId, callTask);
 
@@ -153,6 +122,11 @@ namespace SharpRpc
 
                 if (result.Code != RpcRetCode.Ok)
                     callTask.Fail(result);
+            }
+
+            protected override void CancelOperation(MessageDispatcherCore.IInteropOperation opObject)
+            {
+                throw new NotImplementedException();
             }
 
             public override RpcResult RegisterCallObject(string callId, MessageDispatcherCore.IInteropOperation callTask)

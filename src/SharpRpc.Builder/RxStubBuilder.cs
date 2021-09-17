@@ -36,7 +36,7 @@ namespace SharpRpc.Builder
 
             var stubClass = SF.ClassDeclaration(serverStubType.Short)
                 .AddModifiers(SF.Token(SyntaxKind.PublicKeyword), SF.Token(SyntaxKind.AbstractKeyword))
-                .AddMembers(GenerateStubMethods(serverStubType));
+                .AddMembers(GenerateStubMethods());
 
             if (!_isCallbackStub)
             {
@@ -72,7 +72,7 @@ namespace SharpRpc.Builder
                 .AddModifiers(SF.Token(SyntaxKind.PrivateKeyword))
                 .AddBaseListTypes(SF.SimpleBaseType(SF.ParseTypeName(Names.RpcCallHandlerClass.Full)))
                 .AddMembers(serviceImplField, constructor)
-                .AddMembers(GenerateWrapMethods(handlerClassName))
+                .AddMembers(GenerateWrapMethods())
                 .AddMembers(GenerateOnMessageOverride(), GenerateOnRequestOverride());
 
             if (!_isCallbackStub)
@@ -116,7 +116,7 @@ namespace SharpRpc.Builder
                 .WithBody(SF.Block(serializerVarStatement, msgFactoryVarStatement, retStatement));
         }
 
-        private MethodDeclarationSyntax[] GenerateStubMethods(TypeString clientStubTypeName)
+        private MethodDeclarationSyntax[] GenerateStubMethods()
         {
             var methods = new List<MethodDeclarationSyntax>();
 
@@ -126,7 +126,7 @@ namespace SharpRpc.Builder
             return methods.ToArray();
         }
 
-        private MethodDeclarationSyntax[] GenerateWrapMethods(TypeString clientStubTypeName)
+        private MethodDeclarationSyntax[] GenerateWrapMethods()
         {
             var methods = new List<MethodDeclarationSyntax>();
 
@@ -145,6 +145,12 @@ namespace SharpRpc.Builder
         private MethodDeclarationSyntax GenerateStubMethod(OperationDeclaration callDec)
         {
             var methodParams = new List<ParameterSyntax>();
+
+            if (callDec.IsRequestResponceCall)
+            {
+                methodParams.Add(SF.Parameter(SF.Identifier(FindSafeParamName("context", callDec)))
+                    .WithType(SH.FullTypeName(Names.RpcCallContextClass)));
+            }
 
             if (callDec.HasInStream)
             {
@@ -185,31 +191,29 @@ namespace SharpRpc.Builder
         private MethodDeclarationSyntax GenerateRequestWrapMethod(OperationDeclaration callDec)
         {
             var methodName = "Invoke" + callDec.MethodName;
-            var addStreamHandler = callDec.HasStreams;
+            var hasStreams = callDec.HasStreams;
             var requetsMessageType = _contract.GetRequestClassName(callDec);
-            var statements = new List<StatementSyntax>();
 
             var handlerInvocationExp = SF.AwaitExpression(GenerateRpcInvocation(callDec, "request"));
 
-            var catchBody = new List<StatementSyntax>();
+            var tryBody = new List<StatementSyntax>();
 
             if (callDec.ReturnsData)
-                catchBody.Add(SH.LocalVarDeclaration("result", handlerInvocationExp));
+                tryBody.Add(SH.LocalVarDeclaration("result", handlerInvocationExp));
             else
-                catchBody.Add(SF.ExpressionStatement(handlerInvocationExp));
+                tryBody.Add(SF.ExpressionStatement(handlerInvocationExp));
 
-            if (addStreamHandler)
-                catchBody.Add(GenerateStreamHandlerCloseStatement());
+            tryBody.Add(GenerateContextCloseStatement(hasStreams));
+            tryBody.AddRange(GenerateResponseCreationStatements(callDec));
 
-            catchBody.AddRange(GenerateResponseCreationStatements(callDec));
+            var statements = new List<StatementSyntax>();
 
-            if (addStreamHandler)
-                statements.Add(SH.LocalVarDeclaration("streamHandler", GenerateStreamHandlerCreationExp(callDec)));
+            statements.Add(SH.LocalVarDeclaration("context", GenerateContextCreationExp(callDec)));
 
             statements.Add(SF.TryStatement()
-                .AddCatches(GenerateCustomCatches(callDec, addStreamHandler).ToArray())
-                .AddCatches(GenerateRegularCatch(callDec, addStreamHandler), GenerateUnexpectedCatch(callDec, addStreamHandler))
-                .AddBlockStatements(catchBody.ToArray()));
+                .AddCatches(GenerateCustomCatches(callDec, hasStreams).ToArray())
+                .AddCatches(GenerateRegularCatch(callDec, hasStreams), GenerateUnexpectedCatch(callDec, hasStreams))
+                .AddBlockStatements(tryBody.ToArray()));
 
             var retType = SH.GenericType(_contract.Compatibility.GetAsyncWrapper(), Names.ResponseInterface.Full);
 
@@ -219,13 +223,22 @@ namespace SharpRpc.Builder
                .WithBody(SF.Block(statements));
         }
 
-        private InvocationExpressionSyntax GenerateStreamHandlerCreationExp(OperationDeclaration callDec)
+        private InvocationExpressionSyntax GenerateContextCreationExp(OperationDeclaration callDec)
+        {
+            if (callDec.HasStreams)
+                return GenerateStreamContextCreationExp(callDec);
+            else
+                return SF.InvocationExpression(SF.IdentifierName("CreateCallContext"))
+                        .AddArgumentListArguments(SH.IdentifierArgument("request"));
+        }
+
+        private InvocationExpressionSyntax GenerateStreamContextCreationExp(OperationDeclaration callDec)
         {
             if (callDec.HasInStream)
             {
                 if (callDec.HasOutStream)
                 {
-                    var streamHandlerMethod = SH.GenericName("CreateDuplexStreamHandler", callDec.InStreamItemType, callDec.OutStreamItemType);
+                    var streamHandlerMethod = SH.GenericName("CreateDuplexStreamContext", callDec.InStreamItemType, callDec.OutStreamItemType);
                     var inFactory = TxStubBuilder.GenerateStreamFactoryCreationExp(_contract.GetInputStreamFactoryClassName(callDec));
                     var outFactory = TxStubBuilder.GenerateStreamFactoryCreationExp(_contract.GetOutputStreamFactoryClassName(callDec));
                     return SF.InvocationExpression(streamHandlerMethod)
@@ -233,7 +246,7 @@ namespace SharpRpc.Builder
                 }
                 else
                 {
-                    var streamHandlerMethod = SH.GenericName("CreateInputStreamHandler", callDec.InStreamItemType);
+                    var streamHandlerMethod = SH.GenericName("CreateInputStreamContext", callDec.InStreamItemType);
                     var factory = TxStubBuilder.GenerateStreamFactoryCreationExp(_contract.GetInputStreamFactoryClassName(callDec));
                     return SF.InvocationExpression(streamHandlerMethod)
                         .AddArgumentListArguments(SH.IdentifierArgument("request"), SF.Argument(factory));
@@ -241,19 +254,24 @@ namespace SharpRpc.Builder
             }
             else
             {
-                var streamHandlerMethod = SH.GenericName("CreateOutputStreamHandler", callDec.OutStreamItemType);
+                var streamHandlerMethod = SH.GenericName("CreateOutputStreamContext", callDec.OutStreamItemType);
                 var factory = TxStubBuilder.GenerateStreamFactoryCreationExp(_contract.GetOutputStreamFactoryClassName(callDec));
                 return SF.InvocationExpression(streamHandlerMethod)
                     .AddArgumentListArguments(SH.IdentifierArgument("request"), SF.Argument(factory));
             }
         }
 
-        private StatementSyntax GenerateStreamHandlerCloseStatement()
+        private StatementSyntax GenerateContextCloseStatement(bool hasStreams)
         {
-            var closeInvcation = SF.InvocationExpression(SF.IdentifierName("CloseStreamHandler"))
-                .AddArgumentListArguments(SH.IdentifierArgument("streamHandler"));
+            var methodToInvoke = hasStreams ? "CloseStreamContext" : "CloseContext";
 
-            return SF.ExpressionStatement(SF.AwaitExpression(closeInvcation));
+            var closeInvocation = SF.InvocationExpression(SF.IdentifierName(methodToInvoke))
+                    .AddArgumentListArguments(SH.IdentifierArgument("context"));
+
+            if (hasStreams)
+                return SF.ExpressionStatement(SF.AwaitExpression(closeInvocation));
+            else
+                return SF.ExpressionStatement(closeInvocation);
         }
 
         private MethodDeclarationSyntax GenerateOnMessageOverride()
@@ -360,14 +378,17 @@ namespace SharpRpc.Builder
         {
             var args = new List<ArgumentSyntax>();
 
+            if (callDec.IsRequestResponceCall)
+                args.Add(SH.IdentifierArgument("context"));
+
             if (callDec.HasInStream)
-                args.Add(SF.Argument(SH.MemeberOfIdentifier("streamHandler", "InputStream")));
+                args.Add(SF.Argument(SH.MemberOfIdentifier("context", "InputStream")));
 
             if (callDec.HasOutStream)
-                args.Add(SF.Argument(SH.MemeberOfIdentifier("streamHandler", "OutputStream")));
+                args.Add(SF.Argument(SH.MemberOfIdentifier("context", "OutputStream")));
 
             foreach (var param in callDec.Params)
-                args.Add(SF.Argument(SH.MemeberOfIdentifier(typedMessageVarName, param.MessagePropertyName)));
+                args.Add(SF.Argument(SH.MemberOfIdentifier(typedMessageVarName, param.MessagePropertyName)));
 
             var methodName = callDec.MethodName;
 
@@ -385,7 +406,7 @@ namespace SharpRpc.Builder
             {
                 yield return SF.ExpressionStatement(
                     SF.AssignmentExpression(SyntaxKind.SimpleAssignmentExpression,
-                        SH.MemeberOfIdentifier("response", Names.ResponseResultProperty),
+                        SH.MemberOfIdentifier("response", Names.ResponseResultProperty),
                         SF.IdentifierName("result")));
             }
 
@@ -410,7 +431,7 @@ namespace SharpRpc.Builder
 
         private MemberDeclarationSyntax GenerateHandlerOnInitOverride()
         {
-            var stubInitInvoke = SF.InvocationExpression(SH.MemeberOfIdentifier("_stub", "InitServiceStub"))
+            var stubInitInvoke = SF.InvocationExpression(SH.MemberOfIdentifier("_stub", "InitServiceStub"))
                 .AddArgumentListArguments(SH.IdentifierArgument("Session"));
 
             if (!_isCallbackStub && _contract.HasCallbacks)
@@ -481,24 +502,20 @@ namespace SharpRpc.Builder
                 : _contract.Operations.Where(c => !c.IsCallback)).ToList();
         }
 
-        private IEnumerable<CatchClauseSyntax> GenerateCustomCatches(OperationDeclaration call, bool genHandlerClose)
+        private IEnumerable<CatchClauseSyntax> GenerateCustomCatches(OperationDeclaration call, bool hasStream)
         {
             foreach (var record in call.CustomFaults)
-                yield return GenerateCustomFaultCatch(record.Item1, record.Item2, call, genHandlerClose);
+                yield return GenerateCustomFaultCatch(record.Item1, record.Item2, call, hasStream);
         }
 
-        private CatchClauseSyntax GenerateRegularCatch(OperationDeclaration opContract, bool genHandlerClose)
+        private CatchClauseSyntax GenerateRegularCatch(OperationDeclaration opContract, bool hasStreams)
         {
-            var textArgument = SF.Argument(SH.MemeberOfIdentifier("ex", "Message"));
+            var textArgument = SF.Argument(SH.MemberOfIdentifier("ex", "Message"));
             var msgArgument = SH.IdentifierArgument("faultMsg");
 
             var catchBody = new List<StatementSyntax>();
-
-            if (genHandlerClose)
-                catchBody.Add(GenerateStreamHandlerCloseStatement());
-
+            catchBody.Add(GenerateContextCloseStatement(hasStreams));
             catchBody.Add(GenerateFaultMessageCrationStatement(opContract));
-
             catchBody.Add(SF.ReturnStatement(
                     SH.InvocationExpression(Names.ServiceOnRegularFaultMethod, msgArgument, textArgument)));
 
@@ -506,15 +523,11 @@ namespace SharpRpc.Builder
                 null, SF.Block(catchBody));
         }
 
-        private CatchClauseSyntax GenerateUnexpectedCatch(OperationDeclaration opContract, bool genHandlerClose)
+        private CatchClauseSyntax GenerateUnexpectedCatch(OperationDeclaration opContract, bool hasStreams)
         {
             var catchBody = new List<StatementSyntax>();
-
-            if (genHandlerClose)
-                catchBody.Add(GenerateStreamHandlerCloseStatement());
-
+            catchBody.Add(GenerateContextCloseStatement(hasStreams));
             catchBody.Add(GenerateFaultMessageCrationStatement(opContract));
-
             catchBody.Add(SF.ReturnStatement(
                     SH.InvocationExpression(Names.ServiceOnUnexpectedFaultMethod, SH.IdentifierArgument("faultMsg"), SH.IdentifierArgument("ex"))));
 
@@ -522,24 +535,21 @@ namespace SharpRpc.Builder
                 null, SF.Block(catchBody));
         }
 
-        private CatchClauseSyntax GenerateCustomFaultCatch(ushort faultKey, string faultType, OperationDeclaration opDec, bool genHandlerClose)
+        private CatchClauseSyntax GenerateCustomFaultCatch(ushort faultKey, string faultType, OperationDeclaration opDec, bool hasStreams)
         {
             var messageArgument = SH.IdentifierArgument("faultMsg");
-            var textArgument = SF.Argument(SH.MemeberOfIdentifier("ex", "Message"));
+            var textArgument = SF.Argument(SH.MemberOfIdentifier("ex", "Message"));
 
             var catchBody = new List<StatementSyntax>();
-
-            if (genHandlerClose)
-                catchBody.Add(GenerateStreamHandlerCloseStatement());
-
+            catchBody.Add(GenerateContextCloseStatement(hasStreams));
             catchBody.Add(GenerateFaultMessageCrationStatement(opDec));
 
             var adapterClassName = _contract.GetFaultAdapterClassName(faultKey, opDec);
             var adapterCreationExp = SF.ObjectCreationExpression(SH.FullTypeName(adapterClassName))
-                .AddInitializer(SH.AssignmentExpression(SF.IdentifierName("Data"), SH.MemeberOfIdentifier("ex", "Fault")));
+                .AddInitializer(SH.AssignmentExpression(SF.IdentifierName("Data"), SH.MemberOfIdentifier("ex", "Fault")));
 
             catchBody.Add(SH.AssignmentStatement(
-                SH.MemeberOfIdentifier("faultMsg", "CustomFaultBinding"),
+                SH.MemberOfIdentifier("faultMsg", "CustomFaultBinding"),
                 adapterCreationExp));
 
             catchBody.Add(SF.ReturnStatement(

@@ -11,6 +11,7 @@ using System.Globalization;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace SharpRpc
@@ -66,8 +67,13 @@ namespace SharpRpc
         private readonly PagingStreamWriter<TInItem> _inputStub;
         private readonly PagingStreamReader<TOutItem> _outputStub;
 
-        public StreamCall(IOpenStreamRequest request, Channel ch, IStreamMessageFactory<TInItem> inFactory, IStreamMessageFactory<TOutItem> outFactory, bool hasRetParam)
+        private readonly IOpenStreamRequest _requestMessage;
+
+        public StreamCall(IOpenStreamRequest request, Channel ch, IStreamMessageFactory<TInItem> inFactory, IStreamMessageFactory<TOutItem> outFactory,
+            bool hasRetParam, CancellationToken cToken)
         {
+            _requestMessage = request;
+
             CallId = ch.Dispatcher.GenerateOperationId(); // Guid.NewGuid().ToString();
 
             if (inFactory != null)
@@ -85,7 +91,10 @@ namespace SharpRpc
 
             var regResult = ch.Dispatcher.RegisterCallObject(CallId, this);
             if (regResult.IsOk)
+            {
                 ch.Tx.TrySendAsync(request, RequestSendCompleted);
+                cToken.Register(ch.Dispatcher.CancelOperation, this);
+            }
             else
                 EndCall(regResult, default(TReturn));
         }
@@ -97,6 +106,7 @@ namespace SharpRpc
 
         public Task<RpcResult> Completion => _voidCompletion.Task;
         public Task<RpcResult<TReturn>> AsyncResult => _typedCompletion.Task;
+        public IRequestMessage RequestMessage => _requestMessage;
 
         private bool ReturnsResult => _typedCompletion != null;
 
@@ -158,7 +168,7 @@ namespace SharpRpc
                 _voidCompletion.TrySetResult(faultMessage.ToRpcResult());
         }
 
-        RpcResult MessageDispatcherCore.IInteropOperation.Update(IStreamAuxMessage auxMessage)
+        RpcResult MessageDispatcherCore.IInteropOperation.Update(IInteropMessage auxMessage)
         {
             //System.Diagnostics.Debug.WriteLine("RX " + CallId + " A.MSG " + auxMessage.GetType().Name);
 
@@ -179,6 +189,11 @@ namespace SharpRpc
             }
 
             return new RpcResult(RpcRetCode.ProtocolViolation, "");
+        }
+
+        void MessageDispatcherCore.IInteropOperation.StartCancellation()
+        {
+            
         }
 
         #endregion

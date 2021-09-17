@@ -17,9 +17,9 @@ namespace TestCommon
     public class FunctionTestService : FunctionTestContract_Gen.ServiceBase
     {
 #if NET5_0_OR_GREATER
-        public override ValueTask TestCall1(int p1, string p2)
+        public override ValueTask TestCall1(CallContext context, int p1, string p2)
 #else
-        public override Task TestCall1(int p1, string p2)
+        public override Task TestCall1(CallContext context, int p1, string p2)
 #endif
         {
             if (p1 != 10 || p2 != "11")
@@ -29,9 +29,9 @@ namespace TestCommon
         }
 
 #if NET5_0_OR_GREATER
-        public override ValueTask<string> TestCall2(int p1, string p2)
+        public override ValueTask<string> TestCall2(CallContext context, int p1, string p2)
 #else
-        public override Task<string> TestCall2(int p1, string p2)
+        public override Task<string> TestCall2(CallContext context, int p1, string p2)
 #endif
         {
             if (p1 != 10 || p2 != "11")
@@ -41,18 +41,18 @@ namespace TestCommon
         }
 
 #if NET5_0_OR_GREATER
-        public override ValueTask<string> TestCrash(int p1, string p2)
+        public override ValueTask<string> TestCrash(CallContext context, int p1, string p2)
 #else
-        public override Task<string> TestCrash(int p1, string p2)
+        public override Task<string> TestCrash(CallContext context, int p1, string p2)
 #endif
         {
             throw new Exception("This is test unexpected expcetion.");
         }
 
 #if NET5_0_OR_GREATER
-        public override ValueTask<string> TestRpcException(int p1, string p2)
+        public override ValueTask<string> TestRpcException(CallContext context, int p1, string p2)
 #else
-        public override Task<string> TestRpcException(int p1, string p2)
+        public override Task<string> TestRpcException(CallContext context, int p1, string p2)
 #endif
         {
             throw new RpcFaultException("Test exception");
@@ -71,9 +71,9 @@ namespace TestCommon
         }
 
 #if NET5_0_OR_GREATER
-        public override ValueTask TestCallFault(int faultNo)
+        public override ValueTask TestCallFault(CallContext context, int faultNo)
 #else
-        public override Task TestCallFault(int faultNo)
+        public override Task TestCallFault(CallContext context, int faultNo)
 #endif
         {
             if (faultNo == 1)
@@ -83,9 +83,9 @@ namespace TestCommon
         }
 
 #if NET5_0_OR_GREATER
-        public async override ValueTask<string> InvokeCallback(int callbackNo, int p1, string p2)
+        public async override ValueTask<string> InvokeCallback(CallContext context, int callbackNo, int p1, string p2)
 #else
-        public async override Task<string> InvokeCallback(int callbackNo, int p1, string p2)
+        public async override Task<string> InvokeCallback(CallContext context, int callbackNo, int p1, string p2)
 #endif
         {
             if (callbackNo == 1)
@@ -99,9 +99,9 @@ namespace TestCommon
         }
 
 #if NET5_0_OR_GREATER
-        public override ValueTask<List<Tuple<int>>> ComplexTypesCall(List<DateTime> list, List<List<DateTime>> listOfLists, Dictionary<int, int> dictionary)
+        public override ValueTask<List<Tuple<int>>> ComplexTypesCall(CallContext context, List<DateTime> list, List<List<DateTime>> listOfLists, Dictionary<int, int> dictionary)
 #else
-        public override Task<List<Tuple<int>>> ComplexTypesCall(List<DateTime> list, List<List<DateTime>> listOfLists, Dictionary<int, int> dictionary)
+        public override Task<List<Tuple<int>>> ComplexTypesCall(CallContext context, List<DateTime> list, List<List<DateTime>> listOfLists, Dictionary<int, int> dictionary)
 #endif
         {
             var t1 = list.Sum(d => d.Year);
@@ -117,7 +117,7 @@ namespace TestCommon
         }
 
 #if NET5_0_OR_GREATER
-        public override async ValueTask<int> TestInStream(StreamReader<int> inputStream, int p1, string p2, StreamTestOptions options)
+        public override async ValueTask<int> TestInStream(CallContext context, StreamReader<int> inputStream, int p1, string p2, StreamTestOptions options)
         {
             var sum = 0;
 
@@ -127,16 +127,16 @@ namespace TestCommon
             return sum + p1 + int.Parse(p2);
         }
 #else
-        public override Task<int> TestInStream(StreamReader<int> inputStream, int p1, string p2, StreamTestOptions options)
+        public override Task<int> TestInStream(CallContext context, StreamReader<int> inputStream, int p1, string p2, StreamTestOptions options)
         {
             return FwAdapter.WrappResult(p1);
         }
 #endif
 
 #if NET5_0_OR_GREATER
-        public override async ValueTask<int> TestOutStream(StreamWriter<int> outputStream, int p1, string p2, StreamTestOptions options)
+        public override async ValueTask<int> TestOutStream(CallContext context, StreamWriter<int> outputStream, int p1, string p2, StreamTestOptions options)
 #else
-        public override async Task<int> TestOutStream(StreamWriter<int> outputStream, int p1, string p2, StreamTestOptions options)
+        public override async Task<int> TestOutStream(CallContext context, StreamWriter<int> outputStream, int p1, string p2, StreamTestOptions options)
 #endif
         {
             for (int i = 1; i <= p1; i++)
@@ -149,7 +149,7 @@ namespace TestCommon
         }
 
 #if NET5_0_OR_GREATER
-        public override async ValueTask<int> TestDuplexStream(StreamReader<int> inputStream, StreamWriter<int> outputStream, int p1, string p2, StreamTestOptions options)
+        public override async ValueTask<int> TestDuplexStream(CallContext context, StreamReader<int> inputStream, StreamWriter<int> outputStream, int p1, string p2, StreamTestOptions options)
         {
             await foreach (var item in inputStream)
                 await outputStream.WriteAsync(item);
@@ -160,10 +160,27 @@ namespace TestCommon
             return p1 + int.Parse(p2);
         }
 #else
-        public override Task<int> TestDuplexStream(StreamReader<int> inputStream, StreamWriter<int> outputStream, int p1, string p2, StreamTestOptions options)
+        public override Task<int> TestDuplexStream(CallContext context, StreamReader<int> inputStream, StreamWriter<int> outputStream, int p1, string p2, StreamTestOptions options)
         {
             throw new NotImplementedException();
         }
 #endif
+
+#if NET5_0_OR_GREATER
+        public override async ValueTask<bool> CancellableCall(CallContext context, TimeSpan delay)
+#else
+        public override async Task<bool> CancellableCall(CallContext context, TimeSpan delay)
+#endif
+        {
+            try
+            {
+                await Task.Delay(delay, context.CancellationToken);
+                return false;
+            }
+            catch (TaskCanceledException)
+            {
+                return true;
+            }
+        }
     }
 }

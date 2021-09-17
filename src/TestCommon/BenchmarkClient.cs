@@ -34,9 +34,9 @@ namespace TestCommon
             private int _msgCounter;
 
 #if NET5_0_OR_GREATER
-            public override ValueTask ApplyUpdateOnClient(FooEntity entity)
+            public override ValueTask ApplyUpdateOnClient(CallContext context, FooEntity entity)
 #else
-            public override Task ApplyUpdateOnClient(FooEntity entity)
+            public override Task ApplyUpdateOnClient(CallContext context, FooEntity entity)
 #endif
             {
                 _msgCounter++;

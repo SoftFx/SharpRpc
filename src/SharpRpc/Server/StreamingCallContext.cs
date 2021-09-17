@@ -10,39 +10,35 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace SharpRpc
 {
-    //public interface OutputStreamHandler<TItem>
-    //{
-    //    PagingTxStream<TItem> OutputStream { get; }
-    //}
-
-    //public interface InputStreamHandler<TItem>
-    //{
-    //    PagingRxStream<TItem> InputStream { get; }
-    //}
-
-    //public interface DuplexStreamHandler<TInItem, TOutItem>
-    //{
-    //    PagingRxStream<TInItem> InputStream { get; }
-    //    PagingTxStream<TOutItem> OutputStream { get; }
-    //}
-
-    public interface IStreamHandler
+    public interface IStreamContext : CallContext
     {
-        string CallId { get; }
+        //string CallId { get; }
         Task Close(Channel ch);
     }
 
-    public class StreamHandler<TInItem, TOutItem> : IStreamHandler, MessageDispatcherCore.IInteropOperation //: InputStreamHandler<TInItem>, OutputStreamHandler<TOutItem>
+    public class ServiceStreamingCallContext<TInItem, TOutItem> : IStreamContext, MessageDispatcherCore.IInteropOperation
     {
-        public StreamHandler(IOpenStreamRequest request, Channel ch, IStreamMessageFactory<TInItem> inFactory, IStreamMessageFactory<TOutItem> outFactory)
+        private readonly CancellationTokenSource _cancelSrc;
+
+        public ServiceStreamingCallContext(IOpenStreamRequest request, Channel ch, IStreamMessageFactory<TInItem> inFactory, IStreamMessageFactory<TOutItem> outFactory)
         {
+            RequestMessage = request;
             CallId = request.CallId;
 
-            System.Diagnostics.Debug.WriteLine("RX " + CallId + " RQ " + request.GetType().Name);
+            //System.Diagnostics.Debug.WriteLine("RX " + CallId + " RQ " + request.GetType().Name);
+
+            if ((request.Options & RequestOptions.CancellationEnabled) != 0)
+            {
+                _cancelSrc = new CancellationTokenSource();
+                CancellationToken = _cancelSrc.Token;
+            }
+            else
+                CancellationToken = CancellationToken.None;
 
             if (inFactory != null)
                 InputStream = new PagingStreamReader<TInItem>(CallId, ch.Tx, inFactory);
@@ -56,6 +52,10 @@ namespace SharpRpc
         public string CallId { get; }
         public PagingStreamReader<TInItem> InputStream { get; }
         public PagingStreamWriter<TOutItem> OutputStream { get; }
+        public IRequestMessage RequestMessage { get; }
+        public CancellationToken CancellationToken { get; }
+
+        public void StartCancellation() { }
 
         public async Task Close(Channel ch)
         {
@@ -82,7 +82,7 @@ namespace SharpRpc
         {
         }
 
-        RpcResult MessageDispatcherCore.IInteropOperation.Update(IStreamAuxMessage auxMessage)
+        RpcResult MessageDispatcherCore.IInteropOperation.Update(IInteropMessage auxMessage)
         {
             //System.Diagnostics.Debug.WriteLine("RX " + CallId + " A.MSG " + auxMessage.GetType().Name);
 
@@ -100,6 +100,11 @@ namespace SharpRpc
             {
                 OutputStream.OnRx(ack);
                 return RpcResult.Ok;
+            }
+            else if (auxMessage is ICancelRequestMessage)
+            {
+                
+                _cancelSrc?.Cancel();
             }
 
             return new RpcResult(RpcRetCode.ProtocolViolation, "");

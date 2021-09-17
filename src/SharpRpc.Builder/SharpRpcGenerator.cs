@@ -96,61 +96,9 @@ namespace SharpRpc.Builder
 
             var messageBuindleClass = messageBundleNode.CompleteBuilding();
 
-            //var baseMsgNode = MessageBuilder.GenerateMessageBase(contractInfo);
-
-            //var systemMessageNodes = MessageBuilder
-            //    .GenerateSystemMessages(contractInfo)
-            //    .ToList();
-
-            //var userMessageNodes = MessageBuilder
-            //    .GenerateMessages(contractInfo, diagnostics)
-            //    .ToList();
-
-            //foreach (var msgNode in systemMessageNodes)
-            //    baseMsgNode.Successors.Add(msgNode);
-
-            //foreach (var msgNode in userMessageNodes)
-            //    baseMsgNode.Successors.Add(msgNode);
-
-            //var streamMessageNodes = (List<ClassBuildNode>)null;
-
-            //if (contractInfo.HasStreams)
-            //{
-            //    streamMessageNodes = MessageBuilder
-            //        .GenerateStreamMessages(contractInfo)
-            //        .ToList();
-
-            //    foreach (var msgNode in streamMessageNodes)
-            //        baseMsgNode.Successors.Add(msgNode);
-            //}
-
             var sAdapterClasses = sFixture
                 .GenerateSerializationAdapters(contractInfo, context)
                 .ToArray();
-
-            //var systemMessageClasses = systemMessageNodes
-            //    .Select(n => n.CompleteBuilding())
-            //    .ToArray();
-
-            //var userMessageClasses = userMessageNodes
-            //    .Select(n => n.CompleteBuilding())
-            //    .ToArray();
-
-            //var systemBundleClass = SF.ClassDeclaration(contractInfo.SystemBundleClassName.Short)
-            //    .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
-            //    .AddMembers(systemMessageClasses);
-
-            //var streamFactoryClasses = MessageBuilder
-            //        .GenerateStreamFactories(contractInfo)
-            //        .ToArray();
-
-            //var messageBundleClass = SF.ClassDeclaration(contractInfo.MessageBundleClassName.Short)
-            //    .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
-            //    .AddMembers(baseMessageClass)
-            //    .AddMembers(userMessageClasses)
-            //    .AddMembers(streamFactoryClasses);
-
-            var messageFactoryClass = MessageBuilder.GenerateFactory(contractInfo);
 
             var clientFactoryMethod = clientBuilder.GenerateFactoryMethod();
             var sAdapterFactoryMethod = SerializerFixture.GenerateSerializerFactory(contractInfo);
@@ -162,7 +110,7 @@ namespace SharpRpc.Builder
                .AddMembers(clientFactoryMethod, serviceFactoryMethod, sAdapterFactoryMethod, descriptorFactoryMethod)
                .AddMembers(clientBuilder.GenerateCode(diagnostics), serverBuilder.GenerateServiceBase(), serverBuilder.GenerateHandler())
                .AddMembers(sAdapterClasses)
-               .AddMembers(messageBuindleClass, messageFactoryClass);
+               .AddMembers(messageBuindleClass);
 
             if (hasCallbacks)
             {
@@ -174,9 +122,6 @@ namespace SharpRpc.Builder
 
                 contractGenClass = contractGenClass.AddMembers(callbackClientClass, callbackServiceClass, handlerClass);
             }
-
-            //if (streamBundleClass != null)
-            //    contractGenClass = contractGenClass.AddMembers(streamBundleClass);
 
             if (hasPrebuilder)
             {

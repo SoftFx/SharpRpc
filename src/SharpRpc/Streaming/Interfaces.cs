@@ -29,7 +29,7 @@ namespace SharpRpc
 
     public interface IStreamAuxMessage : IInteropMessage
     {
-        string StreamId { get; }
+        //string StreamId { get; }
     }
 
     public interface IStreamPage : IStreamAuxMessage

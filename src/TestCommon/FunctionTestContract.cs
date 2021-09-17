@@ -69,6 +69,9 @@ namespace TestCommon
         [RpcStreamInput(typeof(int))]
         [RpcStreamOutput(typeof(int))]
         int TestDuplexStream(int p1, string p2, StreamTestOptions options);
+
+        [RpcContract(15, RpcType.Call)]
+        bool CancellableCall(TimeSpan delay);
     }
 
     public enum StreamTestOptions

@@ -33,6 +33,8 @@ namespace SharpRpc
         DeserializationError = 23,
         
         UnexpectedMessage = 25,
+
+        OperationCanceled = 26,
         
         RequestFault = 50,
 

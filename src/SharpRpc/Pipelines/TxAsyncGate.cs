@@ -22,7 +22,7 @@ namespace SharpRpc
 
         public Task<RpcResult> Enqueue(IMessage message, bool throwing, bool system)
         {
-            Item waitItem = throwing ? (Item)new AsyncThrowItem(message) :  (Item)new AsyncTryItem(message);
+            Item waitItem = throwing ? (Item)new AsyncThrowItem(message) :  new AsyncTryItem(message);
 
             if (system)
                 _systemQueue.Enqueue(waitItem);
@@ -37,6 +37,20 @@ namespace SharpRpc
             _userQueue.Enqueue(new CallbackItem(message, onSendCompletedCallback));
         }
 
+        public bool TryCancelUserMessage(IMessage message)
+        {
+            foreach (var item in _userQueue)
+            {
+                if (item.Message == message)
+                {
+                    item.Canceled = true;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+        
         public void CancelUserItems(RpcResult fault)
         {
             while (_userQueue.Count > 0)
@@ -53,15 +67,25 @@ namespace SharpRpc
         {
             if (_systemQueue.Count > 0)
                 return _systemQueue.Dequeue();
-            else if (userMessagesEnabled && _userQueue.Count > 0)
-                return _userQueue.Dequeue();
-            else
-                return null;
+
+            if (userMessagesEnabled)
+            {
+                while (_userQueue.Count > 0)
+                {
+                    var item = _userQueue.Dequeue();
+
+                    if (!item.Canceled)
+                        return item;
+                }
+            }
+
+            return null;
         }
 
         public interface Item
         {
             IMessage Message { get; }
+            bool Canceled { get; set; }
             void OnResult(RpcResult result);
             Task<RpcResult> Task { get; }
         }
@@ -74,6 +98,7 @@ namespace SharpRpc
             }
 
             public IMessage Message { get; }
+            public bool Canceled { get; set; }
 
             public void OnResult(RpcResult result)
             {
@@ -92,6 +117,7 @@ namespace SharpRpc
             }
 
             public IMessage Message { get; }
+            public bool Canceled { get; set; }
 
             public void OnResult(RpcResult result)
             {
@@ -111,6 +137,7 @@ namespace SharpRpc
 
             public IMessage Message { get; }
             public Task<RpcResult> Task => null;
+            public bool Canceled { get; set; }
 
             public void OnResult(RpcResult result)
             {

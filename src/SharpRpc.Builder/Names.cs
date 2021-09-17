@@ -26,6 +26,7 @@ namespace SharpRpc.Builder
         public static readonly TypeString RpcClientEndpointBaseClass = new TypeString("SharpRpc.ClientEndpoint");
         public static readonly TypeString RpcChannelClass = new TypeString("SharpRpc.Channel");
         public static readonly TypeString RpcSessionInfoClass = new TypeString("SharpRpc.SessionInfo");
+        public static readonly TypeString RpcCallContextClass = new TypeString("SharpRpc.CallContext");
 
         public static readonly TypeString ContractDescriptorClass = new TypeString("SharpRpc.ContractDescriptor");
         public static readonly TypeString ServiceBindingClass = new TypeString("SharpRpc.ServiceBinding");
@@ -52,7 +53,10 @@ namespace SharpRpc.Builder
         public static readonly TypeString LoginResultEnum = new TypeString("SharpRpc.LoginResult");
         public static readonly TypeString LogoutMessageInterface = new TypeString("SharpRpc.ILogoutMessage");
         public static readonly TypeString HeartbeatMessageInterface = new TypeString("SharpRpc.IHeartbeatMessage");
-        public static readonly TypeString MessageFactoryInterface = new TypeString("SharpRpc.ISystemMessageFactory");
+        public static readonly TypeString CancelRequestMessageInterface = new TypeString("SharpRpc.ICancelRequestMessage");
+        public static readonly TypeString CancelStreamingMessageInterface = new TypeString("SharpRpc.ICancelStreamingMessage");
+       
+        public static readonly TypeString MessageFactoryInterface = new TypeString("SharpRpc.IMessageFactory");
         public static readonly TypeString RpcPrebuiltMessage = new TypeString("SharpRpc.PrebuiltMessage");
         public static readonly TypeString RpcMultiPrebuiltMessage = new TypeString("SharpRpc.MultiPrebuiltMessage");
 

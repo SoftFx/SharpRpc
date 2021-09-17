@@ -7,6 +7,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -21,7 +22,6 @@ namespace SharpRpc
             private readonly object _lockObj = new object();
             private bool _isProcessing;
             private bool _closed;
-            //private RpcResult _fault;
             private TaskCompletionSource<bool> _closeCompletion = new TaskCompletionSource<bool>();
 
             public override void Start()
@@ -33,10 +33,6 @@ namespace SharpRpc
                 lock (_lockObj)
                 {
                     _closed = true;
-                    //_fault = fault;
-
-                    //tasksToCanel = _callTasks.Values.ToList();
-                    //_callTasks.Clear();
 
                     Core.OnStop(fault);
 
@@ -52,21 +48,6 @@ namespace SharpRpc
             public override RpcResult OnSessionEstablished()
             {
                 return Core.FireOpened();
-
-                //try
-                //{
-                //    ((RpcCallHandler)MessageHandler).Session.FireOpened(new SessionOpenedEventArgs());
-                //}
-                //catch (Exception)
-                //{
-                //    TO DO : log or pass some more information about expcetion(stack trace)
-                //    return new RpcResult(RpcRetCode.RequestCrashed, "An exception has been occured in ");
-                //}
-
-                //lock (_lockObj)
-                //    _allowFlag = true;
-
-                //return RpcResult.Ok;
             }
 
 #if NET5_0_OR_GREATER
@@ -97,17 +78,24 @@ namespace SharpRpc
                 return FwAdapter.AsyncVoid;
             }
 
-            protected override async void DoCall(IRequestMessage requestMsg, MessageDispatcherCore.IInteropOperation callTask)
+            protected override async void DoCall(IRequestMessage requestMsg, MessageDispatcherCore.IInteropOperation callTask, CancellationToken cToken)
             {
                 var callId = GenerateOperationId(); // Guid.NewGuid().ToString();
 
                 requestMsg.CallId = callId;
 
+                if (cToken.CanBeCanceled)
+                    requestMsg.Options |= RequestOptions.CancellationEnabled;
+
                 var result = Core.TryRegisterOperation(callId, callTask);
 
                 if (result.Code == RpcRetCode.Ok)
                 {
-                    result = await Tx.TrySendAsync(requestMsg);
+                    var sendTask = Tx.TrySendAsync(requestMsg);
+
+                    cToken.Register(CancelOperation, callTask);
+
+                    result = await sendTask;
 
                     if (result.Code != RpcRetCode.Ok)
                     {
@@ -122,12 +110,36 @@ namespace SharpRpc
 
             public override RpcResult RegisterCallObject(string callId, MessageDispatcherCore.IInteropOperation callTask)
             {
-                return Core.TryRegisterOperation(callId, callTask);
+                lock (_lockObj)
+                    return Core.TryRegisterOperation(callId, callTask);
             }
 
             public override void UnregisterCallObject(string callId)
             {
-                Core.UnregisterOperation(callId);
+                lock (_lockObj)
+                    Core.UnregisterOperation(callId);
+            }
+
+            protected override void CancelOperation(MessageDispatcherCore.IInteropOperation opObject)
+            {
+                var sendWasCanceled = true;
+
+                lock (_lockObj)
+                {
+                    sendWasCanceled = Core.Tx.TryCancelSend(opObject.RequestMessage);
+                }
+
+                if (sendWasCanceled)
+                    opObject.Fail(new RpcResult(RpcRetCode.OperationCanceled, "Canceled by user."));
+                else
+                {
+                    var cancelMessage = Tx.MessageFactory.CreateCancelRequestMessage();
+                    cancelMessage.CallId = opObject.RequestMessage.CallId;
+
+                    opObject.StartCancellation();
+
+                    Tx.TrySendAsync(cancelMessage);
+                }
             }
 
             private void InvokeOnStop()

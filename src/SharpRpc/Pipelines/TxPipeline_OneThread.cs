@@ -28,8 +28,6 @@ namespace SharpRpc
         private RpcResult _fault;
         private readonly int _bufferSizeThreshold;
         private readonly TxAsyncGate _asyncGate = new TxAsyncGate();
-        //private readonly Queue<IPendingItem> _asyncQueue = new Queue<IPendingItem>();
-        //private readonly Queue<IPendingItem> _systemQueue = new Queue<IPendingItem>();
         private readonly TaskCompletionSource<object> _closeCompletedEvent = new TaskCompletionSource<object>();
         private DateTime _lastTxTime = DateTime.MinValue;
         private readonly Action<RpcResult> _commErrorHandler;
@@ -43,6 +41,7 @@ namespace SharpRpc
             _connectionRequestHandler = connectionRequestHandler;
 
             TaskQueue = config.TaskQueue;
+            MessageFactory = descriptor.SystemMessages;
 
             _buffer = new TxBuffer(_bufferLock, config.TxBufferSegmentSize, descriptor.SerializationAdapter);
             _bufferSizeThreshold = config.TxBufferSegmentSize * 2;
@@ -172,6 +171,10 @@ namespace SharpRpc
                     {
                         _isProcessingBatch = false;
                         _batch.Clear();
+
+                        //  TO DO : Stop all processing!
+                        OnBatchCompleted();
+                        return;
                     }
                 }
             }
@@ -215,6 +218,7 @@ namespace SharpRpc
         #region TxPipeline impl
 
         public TaskFactory TaskQueue { get; }
+        public IMessageFactory MessageFactory { get; }
         public bool ImmidiateSerialization => false;
 
         public void Start(ByteTransport transport)
@@ -411,6 +415,11 @@ namespace SharpRpc
                 else
                     _asyncGate.Enqueue(message, onSendCompletedCallback);
             }
+        }
+
+        public bool TryCancelSend(IMessage message)
+        {
+            return false;
         }
 
         #endregion

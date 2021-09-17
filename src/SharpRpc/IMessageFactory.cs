@@ -13,11 +13,13 @@ using System.Threading.Tasks;
 
 namespace SharpRpc
 {
-    public interface ISystemMessageFactory
+    public interface IMessageFactory
     {
         ILoginMessage CreateLoginMessage();
         ILogoutMessage CreateLogoutMessage();
         IHeartbeatMessage CreateHeartBeatMessage();
+        ICancelRequestMessage CreateCancelRequestMessage();
+        ICancelStreamingMessage CreateCancelStreamMessage();
     }
 
     public interface ILoginMessage : ISystemMessage

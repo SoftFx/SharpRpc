@@ -24,7 +24,7 @@ namespace SharpRpc.Builder
             FacadeClassName = new TypeString(InterfaceName.Namespace, InterfaceName.Short + "_Gen");
             MessageBundleClassName = new TypeString(FacadeClassName.Full, "Messages");
             PrebuiltBundleClassName = new TypeString(FacadeClassName.Full, "PrebuiltMessages");
-            MessageFactoryClassName = new TypeString(FacadeClassName.Full, "SystemMessagesFactory");
+
             BaseMessageClassName = new TypeString(MessageBundleClassName.Full, "MessageBase");
             LoginMessageClassName = new TypeString(MessageBundleClassName.Short, "Login");
             LogoutMessageClassName = new TypeString(MessageBundleClassName.Short, "Logout");
@@ -32,8 +32,9 @@ namespace SharpRpc.Builder
             StreamPageAckMessageClassName = new TypeString(MessageBundleClassName.Short, "PageAcknowledgement");
             StreamCompletionMessageClassName = new TypeString(MessageBundleClassName.Short, "StreamCompletion");
             HeartbeatMessageClassName = new TypeString(MessageBundleClassName.Short, "Heartbeat");
-            //AuthDataClassName = new TypeString(SystemBundleClassName.Short, "AuthData");
-            //BasicAuthDataClassName = new TypeString(SystemBundleClassName.Short, "BasicAuthData");
+            CancelRequestMessageClassName = new TypeString(MessageBundleClassName.Short, "CancelRequest");
+            CancelStreamingMessageClassName = new TypeString(MessageBundleClassName.Short, "CancelStreaming");
+
             ClientStubClassName = new TypeString(FacadeClassName.Full, "Client");
             ServiceStubClassName = new TypeString(FacadeClassName.Full, "ServiceBase");
             ServiceHandlerClassName = new TypeString(FacadeClassName.Full, "ServiceHandler");
@@ -46,7 +47,7 @@ namespace SharpRpc.Builder
         public TypeString FacadeClassName { get; }
         public TypeString MessageBundleClassName { get; }
         public TypeString PrebuiltBundleClassName { get; }
-        public TypeString MessageFactoryClassName { get; }
+        public TypeString MessageFactoryClassName => MessageBundleClassName;
         public TypeString ClientStubClassName { get; }
         public TypeString CallbackClientStubClassName { get; }
         public TypeString ServiceStubClassName { get; }
@@ -54,6 +55,7 @@ namespace SharpRpc.Builder
         public TypeString CallbackServiceStubClassName { get; }
         public TypeString CallbackHandlerClassName { get; }
         public string Namespace => InterfaceName.Namespace;
+
         public TypeString BaseMessageClassName { get; }
         public TypeString LoginMessageClassName { get; }
         public TypeString LogoutMessageClassName { get; }
@@ -61,6 +63,10 @@ namespace SharpRpc.Builder
         public TypeString StreamPageAckMessageClassName { get; }
         public TypeString StreamCompletionMessageClassName { get; }
         public TypeString HeartbeatMessageClassName { get; }
+
+        public TypeString CancelRequestMessageClassName { get; }
+        public TypeString CancelStreamingMessageClassName { get; }
+
         public List<OperationDeclaration> Operations { get; } = new List<OperationDeclaration>();
         public ContractCompatibility Compatibility { get; }
         public bool EnablePrebuild { get; set; }

@@ -23,6 +23,7 @@ namespace SharpRpc
         //private readonly List<EnqueueAwaiter> _awaitersToRelease = new List<EnqueueAwaiter>();
         private readonly TaskCompletionSource<RpcResult> _completionEventSrc = new TaskCompletionSource<RpcResult>();
         private bool _isClosed;
+        private bool _isAbroted;
         private bool _isSendingEnabled;
         private RpcResult _closeFault;
         private bool _isSedning;
@@ -53,7 +54,12 @@ namespace SharpRpc
         private bool HasSpaceInQueue => _queue.Items.Count < _maxPageSize;
 
         public string CallId { get; }
-        public int QueueSize { get; private set; }
+
+        public Task<RpcResult> CompleteAsync()
+        {
+            MarkAsCompleted();
+            return _completionEventSrc.Task;
+        }
 
 #if NET5_0_OR_GREATER
         public ValueTask<RpcResult> WriteAsync(T item)
@@ -92,20 +98,8 @@ namespace SharpRpc
             lock (_lockObj)
             {
                 if (!_isClosed)
-                {
-                    _isClosed = true;
-                    _closeFault = new RpcResult(RpcRetCode.StreamCompleted, "Stream is completed and does not accept additions.");
-
-                    if (!_isSedning && !DataIsAvailable)
-                        CompleteStream();
-                }
+                    CloseStream(false, new RpcResult(RpcRetCode.StreamCompleted, "The stream is completed and does not accept additions."));
             }
-        }
-
-        public Task<RpcResult> CompleteAsync()
-        {
-            MarkAsCompleted();
-            return _completionEventSrc.Task;
         }
 
         #region Control methods
@@ -132,7 +126,17 @@ namespace SharpRpc
         {
             lock (_lockObj)
             {
-                AbortStream(fault);
+                if (!_isClosed)
+                    CloseStream(false, fault);
+            }
+        }
+
+        internal void Cancel()
+        {
+            lock (_lockObj)
+            {
+                if (!_isClosed)
+                    CloseStream(true, new RpcResult(RpcRetCode.OperationCanceled, "The operation was canceled by the user!"));
             }
         }
 
@@ -215,7 +219,7 @@ namespace SharpRpc
                     }
                 }
                 else
-                    AbortStream(sendResult);
+                    CloseStream(true, sendResult);
             }
 
             if (sendNextPage)
@@ -246,23 +250,42 @@ namespace SharpRpc
             }
         }
 
-        private void AbortStream(RpcResult fault)
+        private void CloseStream(bool abortMode, RpcResult fault)
         {
             _closeFault = fault;
             _isClosed = true;
 
             AbortAwaiters(_closeFault);
+
+            if (abortMode)
+            {
+                _queue.Items.Clear();
+                _isAbroted = true;
+            }
+
+            if (!_isSedning && !DataIsAvailable)
+                CompleteStream();
         }
 
         private void CompleteStream()
         {
-            var complMessage = _factory.CreateCompletionMessage(CallId);
-            _ch.Tx.TrySendAsync(complMessage, OnCompletionMessageSent);
+            if (!_isAbroted)
+            {
+                var complMessage = _factory.CreateCompletionMessage(CallId);
+                _ch.Tx.TrySendAsync(complMessage, OnCompletionMessageSent);
+            }
+            else
+                Task.Factory.StartNew(FireCompletion);
         }
 
         private void OnCompletionMessageSent(RpcResult result)
         {
-            _completionEventSrc.TrySetResult(result);
+            FireCompletion();
+        }
+
+        private void FireCompletion()
+        {
+            _completionEventSrc.TrySetResult(RpcResult.Ok);
         }
 
         private IStreamPage<T> CreatePage()

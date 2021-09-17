@@ -6,8 +6,6 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 using System;
-using System.Collections.Generic;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace SharpRpc
@@ -75,25 +73,35 @@ namespace SharpRpc
             OnInit(channel);
         }
 
-        protected StreamHandler<object, T> CreateOutputStreamHandler<T>(IOpenStreamRequest request, IStreamMessageFactory<T> factory)
+        protected ServiceCallContext CreateCallContext(IRequestMessage requestMessage)
         {
-            return new StreamHandler<object, T>(request, _ch, null, factory);
+            return new ServiceCallContext(requestMessage, _ch.Dispatcher);
         }
 
-        protected StreamHandler<T, object> CreateInputStreamHandler<T>(IOpenStreamRequest request, IStreamMessageFactory<T> factory)
+        protected ServiceStreamingCallContext<object, T> CreateOutputStreamContext<T>(IOpenStreamRequest request, IStreamMessageFactory<T> factory)
         {
-            return new StreamHandler<T, object>(request, _ch, factory, null);
+            return new ServiceStreamingCallContext<object, T>(request, _ch, null, factory);
         }
 
-        protected StreamHandler<TIn, TOut> CreateDuplexStreamHandler<TIn, TOut>(IOpenStreamRequest request,
+        protected ServiceStreamingCallContext<T, object> CreateInputStreamContext<T>(IOpenStreamRequest request, IStreamMessageFactory<T> factory)
+        {
+            return new ServiceStreamingCallContext<T, object>(request, _ch, factory, null);
+        }
+
+        protected ServiceStreamingCallContext<TIn, TOut> CreateDuplexStreamContext<TIn, TOut>(IOpenStreamRequest request,
             IStreamMessageFactory<TIn> inFactory, IStreamMessageFactory<TOut> outFactory)
         {
-            return new StreamHandler<TIn, TOut>(request, _ch, inFactory, outFactory);
+            return new ServiceStreamingCallContext<TIn, TOut>(request, _ch, inFactory, outFactory);
         }
 
-        protected Task CloseStreamHandler(IStreamHandler handler)
+        protected Task CloseStreamContext(IStreamContext context)
         {
-            return handler.Close(_ch);
+            return context.Close(_ch);
+        }
+
+        protected void CloseContext(ServiceCallContext context)
+        {
+            context.Close(_ch);
         }
 
 #if NET5_0_OR_GREATER

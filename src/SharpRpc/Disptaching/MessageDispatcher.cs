@@ -35,7 +35,7 @@ namespace SharpRpc
             _opIdPrefix = serverSide ? "S" : "C";
             //MessageHandler = handler;
             TaskQueue = tx.TaskQueue;
-            Core = new MessageDispatcherCore(tx, handler, OnError);
+            Core = new MessageDispatcherCore(tx, this, handler, OnError);
             return this;
         }
 
@@ -63,43 +63,48 @@ namespace SharpRpc
         public abstract Task Stop(RpcResult fault);
         public abstract RpcResult RegisterCallObject(string callId, MessageDispatcherCore.IInteropOperation callObject);
         public abstract void UnregisterCallObject(string callId);
-        protected abstract void DoCall(IRequestMessage requestMsg, MessageDispatcherCore.IInteropOperation callOp);
-
+        protected abstract void CancelOperation(MessageDispatcherCore.IInteropOperation opObject);
+        protected abstract void DoCall(IRequestMessage requestMsg, MessageDispatcherCore.IInteropOperation callOp, CancellationToken cToken);
 
         public string GenerateOperationId()
         {
             return _opIdPrefix + Interlocked.Increment(ref _opIdSeed);
         }
 
-        public Task Call<TResp>(IRequestMessage requestMsg)
+        public void CancelOperation(object state)
+        {
+            CancelOperation((MessageDispatcherCore.IInteropOperation)state);
+        }
+
+        public Task Call<TResp>(IRequestMessage requestMsg, CancellationToken cToken)
             where TResp : IResponseMessage
         {
-            var task = new MessageDispatcherCore.CallTask<TResp>();
-            DoCall(requestMsg, task);
+            var task = new MessageDispatcherCore.CallTask<TResp>(requestMsg);
+            DoCall(requestMsg, task, cToken);
             return task.Task;
         }
 
-        public Task<TReturn> Call<TResp, TReturn>(IRequestMessage requestMsg)
+        public Task<TReturn> Call<TResp, TReturn>(IRequestMessage requestMsg, CancellationToken cToken)
             where TResp : IResponseMessage
         {
-            var task = new MessageDispatcherCore.CallTask<TResp, TReturn>();
-            DoCall(requestMsg, task);
+            var task = new MessageDispatcherCore.CallTask<TResp, TReturn>(requestMsg);
+            DoCall(requestMsg, task, cToken);
             return task.Task;
         }
 
-        public Task<RpcResult> TryCall<TResp>(IRequestMessage requestMsg)
+        public Task<RpcResult> TryCall<TResp>(IRequestMessage requestMsg, CancellationToken cToken)
             where TResp : IResponseMessage
         {
-            var task = new MessageDispatcherCore.TryCallTask<TResp>();
-            DoCall(requestMsg, task);
+            var task = new MessageDispatcherCore.TryCallTask<TResp>(requestMsg);
+            DoCall(requestMsg, task, cToken);
             return task.Task;
         }
 
-        public Task<RpcResult<TReturn>> TryCall<TResp, TReturn>(IRequestMessage requestMsg)
+        public Task<RpcResult<TReturn>> TryCall<TResp, TReturn>(IRequestMessage requestMsg, CancellationToken cToken)
             where TResp : IResponseMessage
         {
-            var task = new MessageDispatcherCore.TryCallTask<TResp, TReturn>();
-            DoCall(requestMsg, task);
+            var task = new MessageDispatcherCore.TryCallTask<TResp, TReturn>(requestMsg);
+            DoCall(requestMsg, task, cToken);
             return task.Task;
         }
     }

@@ -32,8 +32,11 @@ namespace SharpRpc.Builder
         public const int LoginMessageKey = 1;
         public const int LogoutMessageKey = 2;
         public const int HeartbeatMessageKey = 3;
-        public const int StreamAckMessageKey = 4;
-        public const int StreamCompletionMessageKey = 5;
+        public const int CancelRequestMessageKey = 4;
+        public const int CancelStreamMessageKey = 5;
+        public const int ConfirmResponseMessageKey = 6;
+        public const int StreamAckMessageKey = 7;
+        public const int StreamCompletionMessageKey = 8;
 
         internal MessageBuilder(ContractDeclaration contract, OperationDeclaration callDec, MessageType type)
         {
@@ -49,12 +52,16 @@ namespace SharpRpc.Builder
         public static ClassBuildNode GenerateMessageBundle(ContractDeclaration contractInfo,
             SerializerFixture sRegistry, MetadataDiagnostics diagnostics)
         {
+            var factoryInterface = SyntaxFactory.SimpleBaseType(SyntaxHelper.FullTypeName(Names.MessageFactoryInterface));
+
             var baseMsgNode = GenerateMessageBase(contractInfo);
 
             var messageBundleClass = SyntaxFactory.ClassDeclaration(contractInfo.MessageBundleClassName.Short)
+                .AddBaseListTypes(factoryInterface)
                 .AddModifiers(SyntaxHelper.PublicToken());
 
             var messageBundleNode = new ClassBuildNode(0, contractInfo.MessageBundleClassName, messageBundleClass)
+                .AddMethods(GenerateFactoryMethods(contractInfo))
                 .AddNestedClass(baseMsgNode)
                 .AddNestedClasses(GenerateStreamFactories(contractInfo));
 
@@ -104,6 +111,8 @@ namespace SharpRpc.Builder
             yield return GenerateHeartbeatMessage(contract);
             yield return GenerateStreamAcknowledgementMessage(contract);
             yield return GenerateStreamCompletionMessage(contract);
+            yield return GenerateCancelRequestMessage(contract);
+            yield return GenerateCancelStreamingMessage(contract);
         }
 
         private static IEnumerable<ClassBuildNode> GenerateUserMessages(ContractDeclaration contract, SerializerFixture sRegistry, MetadataDiagnostics diagnostics)
@@ -138,21 +147,13 @@ namespace SharpRpc.Builder
             }
         }
 
-        public static ClassDeclarationSyntax GenerateFactory(ContractDeclaration contractInfo)
+        public static IEnumerable<MethodDeclarationSyntax> GenerateFactoryMethods(ContractDeclaration contractInfo)
         {
-            var factoryInterface = SyntaxFactory.SimpleBaseType(SyntaxHelper.FullTypeName(Names.MessageFactoryInterface));
-
-            var loginMsgMethod = GenerateFactoryMethod("CreateLoginMessage", Names.LoginMessageInterface, contractInfo.LoginMessageClassName);
-            var logoutMsgMethod = GenerateFactoryMethod("CreateLogoutMessage", Names.LogoutMessageInterface, contractInfo.LogoutMessageClassName);
-            var heartbeatMsgMethod = GenerateFactoryMethod("CreateHeartBeatMessage", Names.HeartbeatMessageInterface, contractInfo.HeartbeatMessageClassName);
-            //var faultFactoryMethod = GenerateFaultFactory(contractInfo);
-            //var customFaultsMethod = GenerateCustomFaultFactory(contractInfo);
-            //var basicAuthMethod = GenerateFactoryMethod("CreateBasicAuthData", Names.BasicAuthDataInterface, contractInfo.BasicAuthDataClassName);
-
-            return SyntaxFactory.ClassDeclaration(contractInfo.MessageFactoryClassName.Short)
-                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PrivateKeyword))
-                .AddBaseListTypes(factoryInterface)
-                .AddMembers(loginMsgMethod, logoutMsgMethod, heartbeatMsgMethod);
+            yield return GenerateFactoryMethod("CreateLoginMessage", Names.LoginMessageInterface, contractInfo.LoginMessageClassName);
+            yield return GenerateFactoryMethod("CreateLogoutMessage", Names.LogoutMessageInterface, contractInfo.LogoutMessageClassName);
+            yield return GenerateFactoryMethod("CreateHeartBeatMessage", Names.HeartbeatMessageInterface, contractInfo.HeartbeatMessageClassName);
+            yield return GenerateFactoryMethod("CreateCancelRequestMessage", Names.CancelRequestMessageInterface, contractInfo.CancelRequestMessageClassName);
+            yield return GenerateFactoryMethod("CreateCancelStreamMessage", Names.CancelStreamingMessageInterface, contractInfo.CancelStreamingMessageClassName);
         }
 
         private static MethodDeclarationSyntax GenerateFactoryMethod(string methodName, TypeString retType, TypeString messageType)
@@ -245,6 +246,40 @@ namespace SharpRpc.Builder
             return new ClassBuildNode(HeartbeatMessageKey, messageClassName, messageClassDeclaration);
         }
 
+        private static ClassBuildNode GenerateCancelRequestMessage(ContractDeclaration contractInfo)
+        {
+            var messageClassName = contractInfo.CancelRequestMessageClassName;
+
+            var msgBase = SyntaxFactory.SimpleBaseType(SyntaxHelper.FullTypeName(contractInfo.BaseMessageClassName));
+            var iCancelRequestBase = SyntaxFactory.SimpleBaseType(SyntaxHelper.FullTypeName(Names.CancelRequestMessageInterface));
+
+            var callIdProperty = GenerateMessageProperty("string", "CallId");
+
+            var messageClassDeclaration = SyntaxFactory.ClassDeclaration(messageClassName.Short)
+                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+                .AddBaseListTypes(msgBase, iCancelRequestBase);
+
+            return new ClassBuildNode(CancelRequestMessageKey, messageClassName, messageClassDeclaration)
+                .AddProperties(callIdProperty);
+        }
+
+        private static ClassBuildNode GenerateCancelStreamingMessage(ContractDeclaration contractInfo)
+        {
+            var messageClassName = contractInfo.CancelStreamingMessageClassName;
+
+            var msgBase = SyntaxFactory.SimpleBaseType(SyntaxHelper.FullTypeName(contractInfo.BaseMessageClassName));
+            var iCancelStreamBase = SyntaxFactory.SimpleBaseType(SyntaxHelper.FullTypeName(Names.CancelStreamingMessageInterface));
+
+            var callIdProperty = GenerateMessageProperty("string", "CallId");
+
+            var messageClassDeclaration = SyntaxFactory.ClassDeclaration(messageClassName.Short)
+                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+                .AddBaseListTypes(msgBase, iCancelStreamBase);
+
+            return new ClassBuildNode(CancelStreamMessageKey, messageClassName, messageClassDeclaration)
+                .AddProperties(callIdProperty);
+        }
+
         internal ClassBuildNode GenerateMessage(SerializerFixture serializerRegistry)
         {
             var messageClassName = GetMessageClassName(out var messageKey);
@@ -281,6 +316,9 @@ namespace SharpRpc.Builder
             {
                 properties.Add(GenerateMessageProperty("string", "CallId"));
             }
+
+            if (MessageType == MessageType.Request)
+                properties.Add(GenerateMessageProperty("SharpRpc.RequestOptions", "Options"));
 
             if (MessageType == MessageType.Request || MessageType == MessageType.OneWay)
             {
@@ -337,7 +375,7 @@ namespace SharpRpc.Builder
             }
         }
 
-        private PropertyDeclarationSyntax GenerateMessageProperty(string type, string name)
+        private static PropertyDeclarationSyntax GenerateMessageProperty(string type, string name)
         {
             return SyntaxFactory.PropertyDeclaration(SyntaxFactory.ParseTypeName(type), name)
                 .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
@@ -442,14 +480,14 @@ namespace SharpRpc.Builder
             var genericListType = SyntaxHelper.GenericType("System.Collections.Generic.List", streamType);
 
             var streamIdParam = SyntaxHelper.Parameter("streamId", "string");
-            var streamIdInitStatement = SyntaxHelper.AssignmentStatement(SyntaxFactory.IdentifierName("StreamId"), SyntaxFactory.IdentifierName("streamId"));
+            var streamIdInitStatement = SyntaxHelper.AssignmentStatement(SyntaxFactory.IdentifierName("CallId"), SyntaxFactory.IdentifierName("streamId"));
             var constructor = SyntaxFactory.ConstructorDeclaration(messageClassName.Short)
                 .AddModifiers(SyntaxHelper.PublicToken())
                 .AddParameterListParameters(streamIdParam)
                 .AddBodyStatements(streamIdInitStatement);
 
             var streamIdProperty = SyntaxFactory
-                .PropertyDeclaration(SyntaxFactory.ParseTypeName("string"), "StreamId")
+                .PropertyDeclaration(SyntaxFactory.ParseTypeName("string"), "CallId")
                 .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
                 .AddAutoGetter()
                 .AddAutoSetter();
@@ -477,14 +515,14 @@ namespace SharpRpc.Builder
             var messageClassName = contractInfo.StreamPageAckMessageClassName;
 
             var streamIdParam = SyntaxHelper.Parameter("streamId", "string");
-            var streamIdInitStatement = SyntaxHelper.AssignmentStatement(SyntaxFactory.IdentifierName("StreamId"), SyntaxFactory.IdentifierName("streamId"));
+            var streamIdInitStatement = SyntaxHelper.AssignmentStatement(SyntaxFactory.IdentifierName("CallId"), SyntaxFactory.IdentifierName("streamId"));
             var constructor = SyntaxFactory.ConstructorDeclaration(messageClassName.Short)
                 .AddModifiers(SyntaxHelper.PublicToken())
                 .AddParameterListParameters(streamIdParam)
                 .AddBodyStatements(streamIdInitStatement);
 
             var streamIdProperty = SyntaxFactory
-                .PropertyDeclaration(SyntaxFactory.ParseTypeName("string"), "StreamId")
+                .PropertyDeclaration(SyntaxFactory.ParseTypeName("string"), "CallId")
                 .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
                 .AddAutoGetter()
                 .AddAutoSetter();
@@ -512,14 +550,14 @@ namespace SharpRpc.Builder
             var messageClassName = contractInfo.StreamCompletionMessageClassName;
 
             var streamIdParam = SyntaxHelper.Parameter("streamId", "string");
-            var streamIdInitStatement = SyntaxHelper.AssignmentStatement(SyntaxFactory.IdentifierName("StreamId"), SyntaxFactory.IdentifierName("streamId"));
+            var streamIdInitStatement = SyntaxHelper.AssignmentStatement(SyntaxFactory.IdentifierName("CallId"), SyntaxFactory.IdentifierName("streamId"));
             var constructor = SyntaxFactory.ConstructorDeclaration(messageClassName.Short)
                 .AddModifiers(SyntaxHelper.PublicToken())
                 .AddParameterListParameters(streamIdParam)
                 .AddBodyStatements(streamIdInitStatement);
 
             var streamIdProperty = SyntaxFactory
-                .PropertyDeclaration(SyntaxFactory.ParseTypeName("string"), "StreamId")
+                .PropertyDeclaration(SyntaxFactory.ParseTypeName("string"), "CallId")
                 .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
                 .AddAutoGetter()
                 .AddAutoSetter();

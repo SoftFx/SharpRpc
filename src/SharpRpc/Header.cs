@@ -80,7 +80,7 @@ namespace SharpRpc
         public bool IsChunk { get; private set; }
         public ushort ChunkSize { get; private set; }
         public bool IsEoM { get; private set; }
-        public int StreamId { get; private set; }
+        //public int StreamId { get; private set; }
 
         public ParserRetCode ParseNextByte(byte b)
         {
