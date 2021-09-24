@@ -19,6 +19,16 @@ using System.Xml.XPath;
 
 namespace SharpRpc
 {
+    public interface IStreamEnumerator<T>
+    {
+        T Current { get; }
+#if NET5_0_OR_GREATER
+        ValueTask<bool> MoveNextAsync();
+#else
+        Task<bool> MoveNextAsync();
+#endif
+    }
+
 #if NET5_0_OR_GREATER
     public class PagingStreamReader<T> : StreamReader<T>, IAsyncEnumerable<T>
 #else
@@ -29,7 +39,7 @@ namespace SharpRpc
         private readonly Queue<IList<T>> _pages = new Queue<IList<T>>();
         private IList<T> _currentPage;
         private int _currentPageIndex;
-        private IStreamEnumerator _enumerator;
+        private INestedEnumerator _enumerator;
         private bool _completed;
         private readonly StreamReadCoordinator _coordinator;
         private readonly TxPipeline _tx;
@@ -173,15 +183,20 @@ namespace SharpRpc
                 SendAck(nextAck);
         }
 
+        public IStreamEnumerator<T> GetEnumerator()
+        {
+            lock (_lockObj) return SetEnumerator(new AsyncEnumerator(this));
+        }
+
 #if NET5_0_OR_GREATER
-        public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default)
+        public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken)
         {
             lock (_lockObj) return SetEnumerator(new AsyncEnumerator(this));
         }
 #endif
 
         private TEnum SetEnumerator<TEnum>(TEnum enumerator)
-            where TEnum : IStreamEnumerator
+            where TEnum : INestedEnumerator
         {
             if (_enumerator != null)
                 throw new InvalidOperationException("Multiple enumerators are not allowed!");
@@ -198,14 +213,17 @@ namespace SharpRpc
             Completed
         }
 
-        private interface IStreamEnumerator
+        private interface INestedEnumerator
         {
             bool OnDataArrived(out IStreamPageAck ack);
             void WakeUpListener();
         }
 
 #if NET5_0_OR_GREATER
-        private class AsyncEnumerator : IAsyncEnumerator<T>, IStreamEnumerator
+        private class AsyncEnumerator : IAsyncEnumerator<T>, IStreamEnumerator<T>, INestedEnumerator
+#else
+        private class AsyncEnumerator : IStreamEnumerator<T>, INestedEnumerator
+#endif
         {
             private readonly PagingStreamReader<T> _stream;
             private TaskCompletionSource<bool> _itemWaitSrc;
@@ -219,15 +237,25 @@ namespace SharpRpc
 
             public T Current { get; private set; }
 
+#if NET5_0_OR_GREATER
             public ValueTask DisposeAsync()
             {
                 return new ValueTask();
             }
+#endif
 
+#if NET5_0_OR_GREATER
             public ValueTask<bool> MoveNextAsync()
+#else
+            public Task<bool> MoveNextAsync()
+#endif
             {
                 IStreamPageAck ack = null;
+#if NET5_0_OR_GREATER
                 ValueTask<bool> result;
+#else
+                Task<bool> result;
+#endif
 
                 lock (_stream._lockObj)
                 {
@@ -239,7 +267,7 @@ namespace SharpRpc
                     else if (code == NextItemCode.NoItems)
                     {
                         _itemWaitSrc = new TaskCompletionSource<bool>();
-                        result = new ValueTask<bool>(_itemWaitSrc.Task);
+                        result = FwAdapter.WrappResult(_itemWaitSrc.Task);
                     }
                     else //NextItemCode.Completed
                         result = FwAdapter.AsyncFalse;
@@ -275,6 +303,5 @@ namespace SharpRpc
                 eventCpy.SetResult(!_completed);
             }
         }
-#endif
     }
 }

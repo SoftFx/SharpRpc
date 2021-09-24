@@ -50,11 +50,13 @@ namespace SharpRpc
         ushort Consumed { get; set; }
     }
 
-    public interface StreamReader<T>
-    {
 #if NET5_0_OR_GREATER
-        public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default);
+    public interface StreamReader<T> : IAsyncEnumerable<T>
+#else
+    public interface StreamReader<T>
 #endif
+    {
+        IStreamEnumerator<T> GetEnumerator();
     }
 
     public interface StreamWriter<T>
