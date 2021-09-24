@@ -20,23 +20,24 @@ namespace SharpRpc.Builder
 {
     public class SerializerFixture
     {
-        private List<ClassBuildNode> _roots = new List<ClassBuildNode>();
+        private List<ClassBuildNode> _nodes = new List<ClassBuildNode>();
 
-        public SerializerFixture AddHierachy(ClassBuildNode rootNode)
+        public SerializerFixture RegisterSerializableClass(ClassBuildNode rootNode)
         {
-            _roots.Add(rootNode);
+            _nodes.Add(rootNode);
             return this;
+        }
+
+        internal void BuildUpSerializableClasses(ContractDeclaration contract)
+        {
+            foreach (var serializerDec in contract.Serializers)
+                serializerDec.Builder.BuildUpClasses(_nodes);
         }
 
         internal IEnumerable<ClassDeclarationSyntax> GenerateSerializationAdapters(ContractDeclaration contract, GeneratorExecutionContext context)
         {
             foreach (var serializerDec in contract.Serializers)
-            {
-                foreach (var root in _roots)
-                    serializerDec.Builder.BuildUpClassHierachy(root);
-
                 yield return serializerDec.Builder.GenerateSerializerAdapter(serializerDec.AdapterClassName, contract.BaseMessageClassName, context);
-            }
         }
 
         public static MethodDeclarationSyntax GenerateSerializerFactory(ContractDeclaration contractInfo)
@@ -73,9 +74,9 @@ namespace SharpRpc.Builder
         {
             bool singleAdapter = contract.Serializers.Count == 1;
 
-            foreach (var callDef in contract.Calls)
+            foreach (var callDef in contract.Operations)
             {
-                if (callDef.IsOneWay && callDef.EnablePrebuild)
+                if (callDef.IsOneWay && contract.EnablePrebuild)
                 {
                     var msgName = contract.GetPrebuiltMessageClassName(callDef.MethodName);
                     var baseType = singleAdapter ? Names.RpcPrebuiltMessage : Names.RpcMultiPrebuiltMessage;
@@ -123,9 +124,9 @@ namespace SharpRpc.Builder
 
             var prebuildMethods = new List<MethodDeclarationSyntax>();
 
-            foreach (var callDef in contract.Calls)
+            foreach (var callDef in contract.Operations)
             {
-                if (callDef.IsOneWay && callDef.EnablePrebuild)
+                if (callDef.IsOneWay)
                     prebuildMethods.Add(GenPrebuildMethod(callDef, contract, singleAdapter));
             }
             
@@ -135,10 +136,10 @@ namespace SharpRpc.Builder
                 .AddMembers(prebuildMethods.ToArray());
         }
 
-        private static MethodDeclarationSyntax GenPrebuildMethod(CallDeclaration callDef, ContractDeclaration contract, bool singleAdapter)
+        private static MethodDeclarationSyntax GenPrebuildMethod(OperationDeclaration callDef, ContractDeclaration contract, bool singleAdapter)
         {
             var bodyStatements = new List<StatementSyntax>();
-            var msgClassName = contract.GetOnWayMessageClassName(callDef.MethodName);
+            var msgClassName = contract.GetOnWayMessageClassName(callDef);
             var pMessageClassName = contract.GetPrebuiltMessageClassName(callDef.MethodName);
 
             var pMsgCreationStatement = SF.ObjectCreationExpression(SH.FullTypeName(pMessageClassName))
@@ -158,13 +159,13 @@ namespace SharpRpc.Builder
 
         private static StatementSyntax GenSerializerInvoke(bool singleAdapter)
         {
-            var methodToCall = SH.MemeberOfIdentifier("_preserializer",
+            var methodToCall = SH.MemberOfIdentifier("_preserializer",
                 singleAdapter ? "SerializeOnSingleAdapter" : "SerializeOnAllAdapters");
 
             var invokeExpression = SF.InvocationExpression(methodToCall)
                 .WithArguments(SH.IdentifierArgument("message"));
 
-            return SH.VarDeclaration("bytes", invokeExpression);
+            return SH.LocalVarDeclaration("bytes", invokeExpression);
         }
     }
 }

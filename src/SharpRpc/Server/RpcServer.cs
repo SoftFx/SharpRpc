@@ -151,7 +151,6 @@ namespace SharpRpc
                 {
                     var serviceImpl = _binding.CreateServiceImpl();
                     var session = new Channel(true, sender, _binding.Descriptor, serviceImpl);
-                    serviceImpl.InvokeInit(session);
                     session.Closed += Session_Closed;
                     session.StartIncomingSession(transport);
                     _sessions.Add(session.Id, session);
@@ -178,7 +177,7 @@ namespace SharpRpc
             if (!IsFaultClose(fault.Code))
                 Logger.Verbose(Name, "Session " + channel.Id + " was closed.");
             else
-                Logger.Verbose(Name, "Session " + channel.Id + " was faulted. Code: " + fault.Code + " Message: " + fault.Fault.Message);
+                Logger.Verbose(Name, "Session " + channel.Id + " was faulted. Code: " + fault.Code + " Message: " + fault.FaultMessage);
         }
 
         private void ThrowIfConfigProhibited()

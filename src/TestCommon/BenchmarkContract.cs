@@ -13,29 +13,37 @@ using System.Text;
 
 namespace TestCommon
 {
-    [RpcContract]
+    [RpcServiceContract(EnablePrebuilder = true)]
     [RpcSerializer(SerializerChoice.MessagePack)]
     public interface BenchmarkContract
     {
-        [Rpc(RpcType.Message, EnablePrebuild = true)]
+        [RpcContract(0, RpcType.Message)]
         void SendUpdate(FooEntity entity);
 
-        [Rpc(RpcType.Call)]
+        [RpcContract(1, RpcType.Call)]
         void ApplyUpdate(FooEntity entity);
 
-        [Rpc(RpcType.Call)]
+        [RpcContract(2, RpcType.Call)]
+        [RpcStreamInput(typeof(FooEntity))]
+        void UpstreamUpdates();
+
+        [RpcContract(3, RpcType.Call)]
+        [RpcStreamOutput(typeof(FooEntity))]
+        void DownstreamUpdates();
+
+        [RpcContract(4, RpcType.Call)]
         void Flush();
 
-        [Rpc(RpcType.Call)]
+        [RpcContract(5, RpcType.Call)]
         MulticastReport MulticastUpdateToClients(int msgCount, bool usePrebuiltMessages);
 
-        [Rpc(RpcType.CallbackMessage, EnablePrebuild = true)]
+        [RpcContract(6, RpcType.CallbackMessage)]
         void SendUpdateToClient(FooEntity entity);
 
-        [Rpc(RpcType.Callback)]
+        [RpcContract(7, RpcType.Callback)]
         void ApplyUpdateOnClient(FooEntity entity);
 
-        [Rpc(RpcType.Call)]
+        [RpcContract(8, RpcType.Call)]
         PerfReport GetPerfCounters();
     }
 

@@ -22,7 +22,11 @@ namespace SharpRpc
         private TaskCompletionSource<ILogoutMessage> _logoutWaitHandle;
         private Credentials _creds;
 
+#if DEBUG
+        public override TimeSpan LoginTimeout => TimeSpan.FromMinutes(2);
+#else
         public override TimeSpan LoginTimeout => TimeSpan.FromSeconds(5);
+#endif
 
         protected override void OnInit()
         {

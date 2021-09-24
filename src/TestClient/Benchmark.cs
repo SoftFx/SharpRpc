@@ -17,6 +17,7 @@ using System.Threading.Tasks;
 using System.Dynamic;
 using System.IO;
 using ProtoBuf.Serializers;
+using SharpRpc.Lib;
 
 namespace TestClient
 {
@@ -33,16 +34,16 @@ namespace TestClient
 
         public void LaunchTestSeries(int multiplier)
         {
-            //LaunchTestSeriesOndeSide(_address, multiplier, TestOptions.None);
-            LaunchTestSeriesOndeSide(_address, multiplier, TestOptions.Backwards);
+            LaunchTestSeriesOndeSide(_address, multiplier, TestOptions.None);
+            //LaunchTestSeriesOndeSide(_address, multiplier, TestOptions.Backwards);
         }
 
         private void LaunchTestSeriesOndeSide(string address, int multiplier, TestOptions options)
         {
             // one way
 
-            DoOneWayTestSeries(address, 500000, 1,  multiplier, options);
-            DoOneWayTestSeries(address, 50000, 10, multiplier, options);
+            //DoOneWayTestSeries(address, 500000, 1,  multiplier, options);
+            //DoOneWayTestSeries(address, 50000, 10, multiplier, options);
             DoOneWayTestSeries(address, 20000, 30, multiplier, options);
             //DoOneWayTestSeries(address, 10000, 50, multiplier, options);
 
@@ -51,6 +52,15 @@ namespace TestClient
             //DoOneWayTestSeries(address, 500000, 1, multiplier, options | TestOptions.SSL);
             //DoOneWayTestSeries(address, 50000, 10, multiplier, options | TestOptions.SSL);
             //DoOneWayTestSeries(address, 10000, 50, multiplier, options | TestOptions.SSL);
+
+            // streams
+
+            if (!options.HasFlag(TestOptions.Backwards))
+            {
+                //DoTest(address, 500000 * multiplier, 1, options | TestOptions.Stream);
+                //DoTest(address, 50000 * multiplier, 10, options | TestOptions.Stream);
+                //DoTest(address, 20000 * multiplier, 30, options | TestOptions.Stream);
+            }
 
             // request-response
 
@@ -66,7 +76,7 @@ namespace TestClient
         private void DoOneWayTestSeries(string address, int msgCount, int clientCount, int multiplier, TestOptions baseOptions)
         {
             //DoTest(address, msgCount * multiplier, clientCount, baseOptions | TestOptions.OneWay);
-            DoTest(address, msgCount * multiplier, clientCount, baseOptions | TestOptions.OneWay | TestOptions.Async);
+            //DoTest(address, msgCount * multiplier, clientCount, baseOptions | TestOptions.OneWay | TestOptions.Async);
             //DoTest(address, msgCount * multiplier, clientCount, baseOptions | TestOptions.OneWay | TestOptions.Prebuild);
             DoTest(address, msgCount * multiplier, clientCount, baseOptions | TestOptions.OneWay | TestOptions.Async | TestOptions.Prebuild);
         }
@@ -106,9 +116,9 @@ namespace TestClient
             repBuilder.AppendLine("Server: " + _address);
             repBuilder.AppendLine();
 
-            var tblFormat = "{0,6} {1,5} {2,5} {3,6} {4,5} {5,6} {6,10} {7,12}";
+            var tblFormat = "{0,6} {1,5} {2,5} {3,6} {4,5} {5,5} {6,6} {7,10} {8,12}";
 
-            repBuilder.AppendFormat(tblFormat, " Side ", "  X  ", " SSL ", "Async", " 1Way ", "PreBlt", "Elapsed", "MsgPerSec");
+            repBuilder.AppendFormat(tblFormat, " Side ", "  X  ", " SSL ", "Stream", "Async", " 1Way ", "PreBlt", "Elapsed", "MsgPerSec");
             repBuilder.AppendLine();
             repBuilder.AppendLine();
 
@@ -118,7 +128,7 @@ namespace TestClient
                 var msgPreSec = testCase.Failed ? "FAILED" : testCase.MessagePerSecond.ToString("n0");
                 var elapsed = testCase.Elapsed.TotalSeconds.ToString("n1") + "s";
 
-                repBuilder.AppendFormat(tblFormat, side, "X"+testCase.ClientCount, ToCheckSymbol(testCase.Ssl),
+                repBuilder.AppendFormat(tblFormat, side, "X"+testCase.ClientCount, ToCheckSymbol(testCase.Ssl), ToCheckSymbol(testCase.Stream),
                     ToCheckSymbol(testCase.Async), ToCheckSymbol(testCase.OneWay), ToCheckSymbol(testCase.Prebuilt),
                     elapsed, msgPreSec);
                 repBuilder.AppendLine();
@@ -141,6 +151,8 @@ namespace TestClient
             nameBuilder.Append("X").Append(testCase.ClientCount);
             nameBuilder.Append(" ").Append(testCase.Backwards ? "ToClient" : "ToServer");
 
+            if (testCase.Stream)
+                nameBuilder.Append(" | Stream");
             if (testCase.OneWay)
                 nameBuilder.Append(" | OneWay");
             if (testCase.Async)
@@ -254,7 +266,9 @@ namespace TestClient
                     {
                         var client = clients[i];
 
-                        if (testCase.OneWay)
+                        if (testCase.Stream)
+                            sendLoops[i] = StreamEntitiesAsync(client.Stub, testCase.MessageCount, gens[i]);
+                        else if (testCase.OneWay)
                             sendLoops[i] = SendMessages(client.Stub, testCase.MessageCount, gens[i], prebuildGens[i], testCase.Async, testCase.Prebuilt);
                         else
                             sendLoops[i] = DoCalls(client.Stub, testCase.MessageCount, gens[i], testCase.Async);
@@ -303,6 +317,39 @@ namespace TestClient
                 return Task.Factory.StartNew(() => SyncCallLoop(client, msgCount, set));
         }
 
+        //private static Task StreamEntities(BenchmarkContract_Gen.Client client, int msgCount, EntitySet<FooEntity> set)
+        //{
+        //    return Task.Factory.StartNew(() =>
+        //    {
+        //        var call = client.UpstreamUpdates();
+
+        //        for (int i = 0; i < msgCount; i++)
+        //        {
+        //            var msg = set.Next();
+        //            var sendResult = call.InputStream.WriteAsync(msg).Result;
+        //            sendResult.ThrowIfNotOk();
+        //        }
+
+        //        call.InputStream.CompleteAsync().Wait();
+        //    });
+        //}
+
+        private static async Task StreamEntitiesAsync(BenchmarkContract_Gen.Client client, int msgCount, EntitySet<FooEntity> set)
+        {
+            await Task.Factory.Dive();
+
+            var call = client.UpstreamUpdates(new StreamOptions() { WindowSize = 10 });
+
+            for (int i = 0; i < msgCount; i++)
+            {
+                var msg = set.Next();
+                var sendResult = await call.InputStream.WriteAsync(msg);
+                sendResult.ThrowIfNotOk();
+            }
+
+            await call.InputStream.CompleteAsync();
+        }
+
         private static void SendMessageLoop(BenchmarkContract_Gen.Client client, int msgCount, EntitySet<FooEntity> set,
             EntitySet<BenchmarkContract_Gen.PrebuiltMessages.SendUpdate> prebultSet, bool userPrebuild)
         {
@@ -323,7 +370,7 @@ namespace TestClient
         private static async Task SendMsgAsyncLoop(BenchmarkContract_Gen.Client client, int msgCount, EntitySet<FooEntity> set,
             EntitySet<BenchmarkContract_Gen.PrebuiltMessages.SendUpdate> prebultSet, bool usePrebuild)
         {
-            await Task.Yield();
+            await Task.Factory.Dive();
 
             if (usePrebuild)
             {
@@ -419,6 +466,7 @@ namespace TestClient
             SSL = 4,
             Prebuild = 8,
             Backwards = 16,
+            Stream = 32
         }
 
         public class TestCase
@@ -433,6 +481,7 @@ namespace TestClient
                 Ssl = options.HasFlag(TestOptions.SSL);
                 Prebuilt = options.HasFlag(TestOptions.Prebuild);
                 Backwards = options.HasFlag(TestOptions.Backwards);
+                Stream = options.HasFlag(TestOptions.Stream);
             }
 
             public int MessageCount { get; }
@@ -443,6 +492,7 @@ namespace TestClient
             public bool Ssl { get; }
             public bool Prebuilt { get; }
             public bool Backwards { get; }
+            public bool Stream { get; }
 
             // Results
 

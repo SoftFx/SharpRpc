@@ -44,7 +44,7 @@ namespace SharpRpc
 
         internal event Action<Channel, RpcResult> Closed;
 
-        internal Channel(bool serverSide, Endpoint endpoint, ContractDescriptor descriptor, IUserMessageHandler msgHandler)
+        internal Channel(bool serverSide, Endpoint endpoint, ContractDescriptor descriptor, RpcCallHandler msgHandler)
         {
             _isServerSide = serverSide;
 
@@ -57,9 +57,11 @@ namespace SharpRpc
             Logger = endpoint.LoggerAdapter;
             Id = nameof(Channel) + Interlocked.Increment(ref idSeed);
 
-            //_tx = new TxPipeline_NoQueue(descriptor, endpoint, OnCommunicationError, OnConnectionRequested);
-            _tx = new TxPipeline_OneThread(descriptor, endpoint, OnCommunicationError, OnConnectionRequested);
-            _dispatcher = MessageDispatcher.Create(endpoint.Dispatcher, _tx, msgHandler);
+            msgHandler.InvokeInit(this);
+
+            _tx = new TxPipeline_NoQueue(descriptor, endpoint, OnCommunicationError, OnConnectionRequested);
+            //_tx = new TxPipeline_OneThread(descriptor, endpoint, OnCommunicationError, OnConnectionRequested);
+            _dispatcher = MessageDispatcher.Create(endpoint.Dispatcher, _tx, msgHandler, serverSide);
 
             Logger.Verbose(Id, "Created. Endpoint '{0}'.", endpoint.Name);
         }
@@ -186,7 +188,7 @@ namespace SharpRpc
                 {
                     var connectResult = await ((ClientEndpoint)_endpoint).ConnectAsync();
                     if (connectResult.Code == RpcRetCode.Ok)
-                        _transport = connectResult.Result;
+                        _transport = connectResult.Value;
                     else
                         UpdateFault(connectResult.GetResultInfo());
                 }

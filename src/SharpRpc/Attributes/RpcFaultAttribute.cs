@@ -16,11 +16,13 @@ namespace SharpRpc
     [AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
     public class RpcFaultAttribute : Attribute
     {
-        public RpcFaultAttribute(params Type[] type)
+        public RpcFaultAttribute(ushort key, Type type)
         {
-            FaultTypes = type;
+            Key = key;
+            FaultType = type;
         }
 
-        public Type[] FaultTypes { get; }
+        public ushort Key { get; }
+        public Type FaultType { get; }
     }
 }

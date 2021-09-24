@@ -7,6 +7,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -19,10 +20,8 @@ namespace SharpRpc
         private class NoThreading : MessageDispatcher
         {
             private readonly object _lockObj = new object();
-            private readonly Dictionary<string, ITask> _callTasks = new Dictionary<string, ITask>();
             private bool _isProcessing;
             private bool _closed;
-            private RpcResult _fault;
             private TaskCompletionSource<bool> _closeCompletion = new TaskCompletionSource<bool>();
 
             public override void Start()
@@ -31,42 +30,24 @@ namespace SharpRpc
 
             public override Task Stop(RpcResult fault)
             {
-                List<ITask> tasksToCanel;
-
-                lock (_callTasks)
+                lock (_lockObj)
                 {
                     _closed = true;
-                    _fault = fault;
 
-                    tasksToCanel = _callTasks.Values.ToList();
-                    _callTasks.Clear();
+                    Core.OnStop(fault);
 
                     if (!_isProcessing)
                         CompleteClose();
                 }
 
-                foreach (var task in tasksToCanel)
-                    task.Fail(_fault);
+                Core.CompleteStop();
 
                 return _closeCompletion.Task;
             }
 
             public override RpcResult OnSessionEstablished()
             {
-                try
-                {
-                    ((RpcCallHandler)MessageHandler).Session.FireOpened(new SessionOpenedEventArgs());
-                }
-                catch (Exception)
-                {
-                    // TO DO : log or pass some more information about expcetion (stack trace)
-                    return new RpcResult(RpcRetCode.RequestCrashed, "An exception has been occured in ");
-                }
-
-                //lock (_lockObj)
-                //    _allowFlag = true;
-
-                return RpcResult.Ok;
+                return Core.FireOpened();
             }
 
 #if NET5_0_OR_GREATER
@@ -84,17 +65,7 @@ namespace SharpRpc
                 }
 
                 foreach (var msg in IncomingMessages)
-                {
-                    if (msg is IReqRespMessage)
-                    {
-                        if (msg is IResponse resp)
-                            ProcessResponse(resp);
-                        else if (msg is IRequest req)
-                            ProcessRequest(req);
-                    }
-                    else
-                        ProcessOneWayMessage(msg);
-                }
+                    Core.ProcessMessage(msg);
 
                 lock (_lockObj)
                 {
@@ -107,33 +78,29 @@ namespace SharpRpc
                 return FwAdapter.AsyncVoid;
             }
 
-            protected override async void DoCall(IRequest requestMsg, ITask callTask)
+            protected override async void DoCall(IRequestMessage requestMsg, MessageDispatcherCore.IInteropOperation callTask, CancellationToken cToken)
             {
-                var callId = Guid.NewGuid().ToString();
+                var callId = GenerateOperationId(); // Guid.NewGuid().ToString();
 
                 requestMsg.CallId = callId;
 
-                var result = RpcResult.Ok;
+                if (cToken.CanBeCanceled)
+                    requestMsg.Options |= RequestOptions.CancellationEnabled;
 
-                lock (_lockObj)
-                {
-                    if (_closed)
-                        result = _fault;
-                    else
-                        _callTasks.Add(callId, callTask);
-                }
+                var result = Core.TryRegisterOperation(callId, callTask);
 
                 if (result.Code == RpcRetCode.Ok)
                 {
-                    result = await Tx.TrySendAsync(requestMsg);
+                    var sendTask = Tx.TrySendAsync(requestMsg);
+
+                    cToken.Register(CancelOperation, callTask);
+
+                    result = await sendTask;
 
                     if (result.Code != RpcRetCode.Ok)
                     {
-                        lock (_callTasks)
-                        {
-                            if (!_callTasks.Remove(callId))
-                                return; // do not need to call Task.Fail() in this case, because it was called in Close() method
-                        }
+                        if (!Core.UnregisterOperation(callId))
+                            return; // do not need to call Task.Fail() in this case, because it was called in Close() method
                     }
                 }
 
@@ -141,70 +108,43 @@ namespace SharpRpc
                     callTask.Fail(result);
             }
 
-            private void ProcessResponse(IResponse resp)
+            public override RpcResult RegisterCallObject(string callId, MessageDispatcherCore.IInteropOperation callTask)
             {
-                ITask taskToComplete = null;
+                lock (_lockObj)
+                    return Core.TryRegisterOperation(callId, callTask);
+            }
+
+            public override void UnregisterCallObject(string callId)
+            {
+                lock (_lockObj)
+                    Core.UnregisterOperation(callId);
+            }
+
+            protected override void CancelOperation(MessageDispatcherCore.IInteropOperation opObject)
+            {
+                var sendWasCanceled = true;
 
                 lock (_lockObj)
                 {
-                    if (_callTasks.TryGetValue(resp.CallId, out taskToComplete))
-                        _callTasks.Remove(resp.CallId);
-                    else
-                    {
-                        // TO DO : signal protocol violation
-                        return;
-                    }
+                    sendWasCanceled = Core.Tx.TryCancelSend(opObject.RequestMessage);
                 }
 
-                if (resp is IRequestFault faultMsg)
-                    taskToComplete.Fail(faultMsg);
+                if (sendWasCanceled)
+                    opObject.Fail(new RpcResult(RpcRetCode.OperationCanceled, "Canceled by user."));
                 else
-                    taskToComplete.Complete(resp);
-            }
-
-            private async void ProcessRequest(IRequest request)
-            {
-                var respToSend = await MessageHandler.ProcessRequest(request);
-                respToSend.CallId = request.CallId;
-                await Tx.TrySendAsync(respToSend);
-            }
-
-            private void ProcessOneWayMessage(IMessage message)
-            {
-                try
                 {
-                    var result = MessageHandler.ProcessMessage(message);
-                    if (result.IsCompleted)
-                    {
-                        if (result.IsFaulted)
-                            OnError(RpcRetCode.MessageHandlerFailure, "Message handler threw an exception: " + result.ToTask().Exception.Message);
-                    }
-                    else
-                    {
-                        result.ToTask().ContinueWith(t =>
-                        {
-                            if (t.IsFaulted)
-                                OnError(RpcRetCode.MessageHandlerFailure, "Message handler threw an exception: " + t.Exception.Message);
-                        });
-                    }
-                }
-                catch (Exception ex)
-                {
-                    // TO DO : stop processing here ???
-                    OnError(RpcRetCode.MessageHandlerFailure, "Message handler threw an exception: " + ex.Message);
+                    var cancelMessage = Tx.MessageFactory.CreateCancelRequestMessage();
+                    cancelMessage.CallId = opObject.RequestMessage.CallId;
+
+                    opObject.StartCancellation();
+
+                    Tx.TrySendAsync(cancelMessage);
                 }
             }
 
             private void InvokeOnStop()
             {
-                try
-                {
-                    ((RpcCallHandler)MessageHandler).Session.FireClosed(new SessionClosedEventArgs());
-                }
-                catch (Exception)
-                {
-                    // TO DO : log or pass some more information about expcetion (stack trace)
-                }
+                Core.FireClosed();
 
                 _closeCompletion.SetResult(true);
             }

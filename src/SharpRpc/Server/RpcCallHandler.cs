@@ -6,8 +6,6 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 using System;
-using System.Collections.Generic;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace SharpRpc
@@ -20,10 +18,10 @@ namespace SharpRpc
 
 #if NET5_0_OR_GREATER
         protected abstract ValueTask OnMessage(IMessage message);
-        protected abstract ValueTask<IResponse> OnRequest(IRequest message);
+        protected abstract ValueTask<IResponseMessage> OnRequest(IRequestMessage message);
 #else
         protected abstract Task OnMessage(IMessage message);
-        protected abstract Task<IResponse> OnRequest(IRequest message);
+        protected abstract Task<IResponseMessage> OnRequest(IRequestMessage message);
 #endif
 
 #if NET5_0_OR_GREATER
@@ -36,40 +34,34 @@ namespace SharpRpc
         }
 
 #if NET5_0_OR_GREATER
-        protected ValueTask<IResponse> OnUnknownRequest(IRequest message)
+        protected ValueTask<IResponseMessage> OnUnknownRequest(IRequestMessage message)
 #else
-        protected Task<IResponse> OnUnknownRequest(IRequest message)
+        protected Task<IResponseMessage> OnUnknownRequest(IRequestMessage message)
 #endif
         {
             throw new NotImplementedException();
         }
 
-        protected IResponse OnCustomFault<T>(string callId, T fault)
-            where T : RpcFault
+        protected IResponseMessage OnRegularFault(IRequestFaultMessage faultMessage, string exceptionMessage)
         {
-            var resp = _ch.Contract.SystemMessages.CreateFaultMessage<T>(fault);
-            resp.CallId = callId;
-            resp.FaultData = fault;
-            return resp;
+            faultMessage.Code = RequestFaultCode.Fault;
+            faultMessage.Text = exceptionMessage;
+            return faultMessage;
         }
 
-        protected IResponse OnRegularFault(string callId, string exceptionMessage)
+        protected IResponseMessage OnCustomFault(IRequestFaultMessage faultMessage, string exceptionMessage)
+        {
+            faultMessage.Code = RequestFaultCode.Fault;
+            faultMessage.Text = exceptionMessage;
+            return faultMessage;
+        }
+        
+        protected IResponseMessage OnUnexpectedFault(IRequestFaultMessage faultMessage, Exception ex)
         {
             // TO DO : log!
 
-            var faultMsg = _ch.Contract.SystemMessages.CreateFaultMessage();
-            faultMsg.CallId = callId;
-            faultMsg.Code = RequestFaultCode.RegularFault;
-            faultMsg.Text = exceptionMessage;
-            return faultMsg;
-        }
-
-        protected IResponse OnUnexpectedFault(string callId, Exception ex)
-        {
-            var faultMsg = _ch.Contract.SystemMessages.CreateFaultMessage();
-            faultMsg.CallId = callId;
-            faultMsg.Code = RequestFaultCode.UnexpectedFault;
-            return faultMsg;
+            faultMessage.Code = RequestFaultCode.Crash;
+            return faultMessage;
         }
 
         protected virtual void OnInit(Channel channel) { }
@@ -79,6 +71,37 @@ namespace SharpRpc
             _ch = channel;
             Session.Init(channel);
             OnInit(channel);
+        }
+
+        protected ServiceCallContext CreateCallContext(IRequestMessage requestMessage)
+        {
+            return new ServiceCallContext(requestMessage, _ch.Dispatcher);
+        }
+
+        protected ServiceStreamingCallContext<object, T> CreateOutputStreamContext<T>(IOpenStreamRequest request, IStreamMessageFactory<T> factory)
+        {
+            return new ServiceStreamingCallContext<object, T>(request, _ch, null, factory);
+        }
+
+        protected ServiceStreamingCallContext<T, object> CreateInputStreamContext<T>(IOpenStreamRequest request, IStreamMessageFactory<T> factory)
+        {
+            return new ServiceStreamingCallContext<T, object>(request, _ch, factory, null);
+        }
+
+        protected ServiceStreamingCallContext<TIn, TOut> CreateDuplexStreamContext<TIn, TOut>(IOpenStreamRequest request,
+            IStreamMessageFactory<TIn> inFactory, IStreamMessageFactory<TOut> outFactory)
+        {
+            return new ServiceStreamingCallContext<TIn, TOut>(request, _ch, inFactory, outFactory);
+        }
+
+        protected Task CloseStreamContext(IStreamContext context)
+        {
+            return context.Close(_ch);
+        }
+
+        protected void CloseContext(ServiceCallContext context)
+        {
+            context.Close(_ch);
         }
 
 #if NET5_0_OR_GREATER
@@ -91,9 +114,9 @@ namespace SharpRpc
         }
 
 #if NET5_0_OR_GREATER
-        ValueTask<IResponse> IUserMessageHandler.ProcessRequest(IRequest message)
+        ValueTask<IResponseMessage> IUserMessageHandler.ProcessRequest(IRequestMessage message)
 #else
-        Task<IResponse> IUserMessageHandler.ProcessRequest(IRequest message)
+        Task<IResponseMessage> IUserMessageHandler.ProcessRequest(IRequestMessage message)
 #endif
         {
             return OnRequest(message);

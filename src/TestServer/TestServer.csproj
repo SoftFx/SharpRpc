@@ -6,6 +6,11 @@
     <Configurations>Debug;Release;ReleasePfCounters</Configurations>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net5.0|AnyCPU'">
+    <DebugType>full</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="protobuf-net" Version="3.0.73" />
   </ItemGroup>

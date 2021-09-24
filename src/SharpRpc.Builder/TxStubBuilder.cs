@@ -9,6 +9,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
+using SharpRpc.Builder.Metadata;
 using System.Collections.Generic;
 using System.Text;
 using SF = Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
@@ -27,15 +28,15 @@ namespace SharpRpc.Builder
             _isCallback = isCallbackClient;
         }
 
-        public ClassDeclarationSyntax GenerateCode()
+        public ClassDeclarationSyntax GenerateCode(MetadataDiagnostics diagnostics)
         {
             if (_isCallback)
-                return GenerateServerSideStub();
+                return GenerateServerSideStub(diagnostics);
             else
-                return GenerateClientSideStub();
+                return GenerateClientSideStub(diagnostics);
         }
 
-        private ClassDeclarationSyntax GenerateClientSideStub()
+        private ClassDeclarationSyntax GenerateClientSideStub(MetadataDiagnostics diagnostics)
         {
             var clientStubType = _contract.ClientStubClassName;
             var addHandlerParam = !_isCallback && _contract.HasCallbacks;
@@ -64,9 +65,9 @@ namespace SharpRpc.Builder
                 .WithInitializer(constructorInitializer)
                 .WithBody(constructorBody);
 
-            var asyncFacade = GenerateDedicatedFacade(true, false);
-            var tryFacade = GenerateDedicatedFacade(false, true);
-            var asyncTryFacade = GenerateDedicatedFacade(true, true);
+            var asyncFacade = GenerateDedicatedFacade(true, false, diagnostics);
+            var tryFacade = GenerateDedicatedFacade(false, true, diagnostics);
+            var asyncTryFacade = GenerateDedicatedFacade(true, true, diagnostics);
 
             var asyncFacadeProperty = GenerateFacadeProperty(true, false);
             var tryFacadeProperty = GenerateFacadeProperty(false, true);
@@ -83,7 +84,7 @@ namespace SharpRpc.Builder
                 .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
                 .AddBaseListTypes(SF.SimpleBaseType(SF.ParseTypeName(Names.RpcClientBaseClass.Full)))
                 .AddMembers(constructor, asyncFacadeProperty, tryFacadeProperty, asyncTryFacadeProperty)
-                .AddMembers(GenerateCallMethods(clientStubType, false, false))
+                .AddMembers(GenerateCallMethods(clientStubType, false, false, false, diagnostics))
                 .AddMembers(asyncFacade, tryFacade, asyncTryFacade);
         }
 
@@ -108,7 +109,7 @@ namespace SharpRpc.Builder
                 facadeCreationExp);
         }
 
-        private ClassDeclarationSyntax GenerateDedicatedFacade(bool isAsync, bool isTry)
+        private ClassDeclarationSyntax GenerateDedicatedFacade(bool isAsync, bool isTry, MetadataDiagnostics diagnostics)
         {
             var className = GetFacadeClassName(isAsync, isTry);
 
@@ -127,10 +128,10 @@ namespace SharpRpc.Builder
                 .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
                 .AddMembers(constructor)
                 .AddBaseListTypes(SF.SimpleBaseType(SF.ParseTypeName(Names.RpcClientFacadeBaseClass.Full)))
-                .AddMembers(GenerateCallMethods(_contract.ClientStubClassName, isAsync, isTry));
+                .AddMembers(GenerateCallMethods(_contract.ClientStubClassName, isAsync, isTry, true, diagnostics));
         }
 
-        private ClassDeclarationSyntax GenerateServerSideStub()
+        private ClassDeclarationSyntax GenerateServerSideStub(MetadataDiagnostics diagnostics)
         {
             var clientStubType = _contract.CallbackClientStubClassName;
 
@@ -150,9 +151,9 @@ namespace SharpRpc.Builder
                 .WithInitializer(constructorInitializer)
                 .WithBody(constructorBody);
 
-            var asyncFacade = GenerateDedicatedFacade(true, false);
-            var tryFacade = GenerateDedicatedFacade(false, true);
-            var asyncTryFacade = GenerateDedicatedFacade(true, true);
+            var asyncFacade = GenerateDedicatedFacade(true, false, diagnostics);
+            var tryFacade = GenerateDedicatedFacade(false, true, diagnostics);
+            var asyncTryFacade = GenerateDedicatedFacade(true, true, diagnostics);
 
             var asyncFacadeProperty = GenerateFacadeProperty(true, false);
             var tryFacadeProperty = GenerateFacadeProperty(false, true);
@@ -163,7 +164,7 @@ namespace SharpRpc.Builder
                 .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
                 .AddBaseListTypes(SF.SimpleBaseType(SF.ParseTypeName(Names.RpcClientBaseClass.Full)))
                 .AddMembers(constructor, asyncFacadeProperty, tryFacadeProperty, asyncTryFacadeProperty)
-                .AddMembers(GenerateCallMethods(clientStubType, false, false))
+                .AddMembers(GenerateCallMethods(clientStubType, false, false, false, diagnostics))
                 .AddMembers(asyncFacade, tryFacade, asyncTryFacade);
         }
 
@@ -172,9 +173,9 @@ namespace SharpRpc.Builder
             var addHandlerParam = !_isCallback && _contract.HasCallbacks;
 
             var serializerCreateClause = SH.InvocationExpression(Names.FacadeSerializerAdapterFactoryMethod, SF.Argument(SF.IdentifierName("serializer")));
-            var serializerVarStatement = SH.VarDeclaration("adapter", serializerCreateClause);
+            var serializerVarStatement = SH.LocalVarDeclaration("adapter", serializerCreateClause);
 
-            var descriptorVarStatement = SH.VarDeclaration("descriptor",
+            var descriptorVarStatement = SH.LocalVarDeclaration("descriptor",
                 SH.InvocationExpression(Names.FacadeCreateDescriptorMethod, SH.IdentifierArgument("adapter")));
 
             var clientCreateExpression = SF.ObjectCreationExpression(SH.ShortTypeName(_contract.ClientStubClassName))
@@ -208,35 +209,50 @@ namespace SharpRpc.Builder
                 .WithBody(SF.Block(serializerVarStatement, descriptorVarStatement, returnStatement));
         }
 
-        private MethodDeclarationSyntax[] GenerateCallMethods(TypeString clientStubTypeName, bool isAsync, bool isTry)
+        private MethodDeclarationSyntax[] GenerateCallMethods(TypeString clientStubTypeName, bool isAsync, bool isTry, bool skipStreamCalls, MetadataDiagnostics diagnostics)
         {
             var methods = new List<MethodDeclarationSyntax>();
 
-            foreach (var callDec in _contract.Calls)
+            foreach (var callDec in _contract.Operations)
             {
-                bool addMessage = _isCallback ? (callDec.CallType == ContractCallType.MessageToClient) : (callDec.CallType == ContractCallType.MessageToServer);
-                bool addCall = _isCallback ? (callDec.CallType == ContractCallType.CallToClient) : (callDec.CallType == ContractCallType.CallToServer);
-
-                if (addMessage)
+                if (callDec.HasStreams)
                 {
-                    methods.Add(GenerateOneWayCall(callDec, clientStubTypeName, isAsync, isTry));
+                    if (!skipStreamCalls && (_isCallback && callDec.IsCallback || !_isCallback && !callDec.IsCallback))
+                    {
+                        if (callDec.IsOneWay)
+                        {
+                            // TO DO: emit warning
+                        }
 
-                    if (callDec.EnablePrebuild)
-                        methods.Add(GeneratePrebuiltMessageSender(callDec, clientStubTypeName, isAsync, isTry));
+                        methods.Add(GenerateStreamCall(callDec));
+                    }
                 }
-                else if (addCall)
-                    methods.Add(GenerateCall(callDec, clientStubTypeName, isAsync, isTry));
+                else
+                {
+                    bool addMessage = _isCallback ? (callDec.CallType == ContractCallType.MessageToClient) : (callDec.CallType == ContractCallType.MessageToServer);
+                    bool addCall = _isCallback ? (callDec.CallType == ContractCallType.CallToClient) : (callDec.CallType == ContractCallType.CallToServer);
+
+                    if (addMessage)
+                    {
+                        methods.Add(GenerateOneWayCall(callDec, isAsync, isTry));
+
+                        if (_contract.EnablePrebuild)
+                            methods.Add(GeneratePrebuiltMessageSender(callDec, isAsync, isTry));
+                    }
+                    else if (addCall)
+                        methods.Add(GenerateCall(callDec, isAsync, isTry));
+                }                
             }
 
             return methods.ToArray();
         }
 
-        private MethodDeclarationSyntax GenerateOneWayCall(CallDeclaration callDec, TypeString clientStubTypeName, bool isAsync, bool isTry)
+        private MethodDeclarationSyntax GenerateOneWayCall(OperationDeclaration callDec, bool isAsync, bool isTry)
         {
             var bodyStatements = new List<StatementSyntax>();
             var methodParams = GenerateMethodParams(callDec);
 
-            var msgClassName = _contract.GetOnWayMessageClassName(callDec.MethodName);
+            var msgClassName = _contract.GetOnWayMessageClassName(callDec);
 
             bodyStatements.AddRange(GenerateCreateAndFillMessageStatements(callDec, msgClassName));
             bodyStatements.Add(GenerateSendMessageStatement(isAsync, isTry, out var retType));
@@ -251,7 +267,7 @@ namespace SharpRpc.Builder
             return method;
         }
 
-        private MethodDeclarationSyntax GeneratePrebuiltMessageSender(CallDeclaration callDec, TypeString clientStubTypeName, bool isAsync, bool isTry)
+        private MethodDeclarationSyntax GeneratePrebuiltMessageSender(OperationDeclaration callDec, bool isAsync, bool isTry)
         {
             var bodyStatements = new List<StatementSyntax>();
             var msgClassName = _contract.GetPrebuiltMessageClassName(callDec.MethodName);
@@ -269,13 +285,16 @@ namespace SharpRpc.Builder
             return method;
         }
 
-        private MethodDeclarationSyntax GenerateCall(CallDeclaration callDec, TypeString clientStubTypeName, bool isAsync, bool isTry)
+        private MethodDeclarationSyntax GenerateCall(OperationDeclaration callDec, bool isAsync, bool isTry)
         {
             var bodyStatements = new List<StatementSyntax>();
             var methodParams = GenerateMethodParams(callDec);
 
-            var requestMsgClassName = _contract.GetRequestClassName(callDec.MethodName);
-            var responseMsgClassName = _contract.GetResponseClassName(callDec.MethodName);
+            methodParams.Add(SH.Parameter("cancelToken", "System.Threading.CancellationToken")
+                .WithDefault(SF.EqualsValueClause(SF.DefaultExpression(SF.IdentifierName("System.Threading.CancellationToken")))));
+
+            var requestMsgClassName = _contract.GetRequestClassName(callDec);
+            var responseMsgClassName = _contract.GetResponseClassName(callDec);
 
             bodyStatements.AddRange(GenerateCreateAndFillMessageStatements(callDec, requestMsgClassName));
 
@@ -294,7 +313,100 @@ namespace SharpRpc.Builder
             return method;
         }
 
-        internal static List<ParameterSyntax> GenerateMethodParams(CallDeclaration callDec)
+        private MethodDeclarationSyntax GenerateStreamCall(OperationDeclaration callDec)
+        {
+            NameSyntax callProxyClass;
+            NameSyntax methodToInvoke;
+
+            if (callDec.HasInStream)
+            {
+                if (callDec.HasOutStream)
+                {
+                    if (callDec.ReturnsData)
+                    {
+                        callProxyClass = SH.GenericName(Names.RpcDuplexStreamCallClass.Full, callDec.InStreamItemType, callDec.OutStreamItemType, callDec.ReturnParam.ParamType);
+                        methodToInvoke = SH.GenericName("OpenDuplexStream", callDec.InStreamItemType, callDec.OutStreamItemType, callDec.ReturnParam.ParamType);
+                    }
+                    else
+                    {
+                        callProxyClass = SH.GenericName(Names.RpcDuplexStreamCallClass.Full, callDec.InStreamItemType, callDec.OutStreamItemType);
+                        methodToInvoke = SH.GenericName("OpenDuplexStream", callDec.InStreamItemType, callDec.OutStreamItemType);
+                    }
+                }
+                else
+                {
+                    if (callDec.ReturnsData)
+                    {
+                        callProxyClass = SH.GenericName(Names.RpcInputStreamCallClass.Full, callDec.InStreamItemType, callDec.ReturnParam.ParamType);
+                        methodToInvoke = SH.GenericName("OpenInputStream", callDec.InStreamItemType, callDec.ReturnParam.ParamType);
+                    }
+                    else
+                    {
+                        callProxyClass = SH.GenericName(Names.RpcInputStreamCallClass.Full, callDec.InStreamItemType);
+                        methodToInvoke = SH.GenericName("OpenInputStream", callDec.InStreamItemType);
+                    }
+                }
+            }
+            else
+            {
+                if (callDec.ReturnsData)
+                {
+                    callProxyClass = SH.GenericName(Names.RpcOutputStreamCallClass.Full, callDec.OutStreamItemType, callDec.ReturnParam.ParamType);
+                    methodToInvoke = SH.GenericName("OpenOutputStream", callDec.OutStreamItemType, callDec.ReturnParam.ParamType);
+                }
+                else
+                {
+                    callProxyClass = SH.GenericName(Names.RpcOutputStreamCallClass.Full, callDec.OutStreamItemType);
+                    methodToInvoke = SH.GenericName("OpenOutputStream", callDec.OutStreamItemType);
+                }
+            }
+
+            var bodyStatements = new List<StatementSyntax>();
+            var methodParams = new List<ParameterSyntax>();
+
+            if (callDec.HasInStream && callDec.HasOutStream)
+                methodParams.Add(SH.Parameter("streamOptions", "SharpRpc.DuplexStreamOptions"));
+            else
+                methodParams.Add(SH.Parameter("streamOptions", "SharpRpc.StreamOptions"));
+
+            methodParams.AddRange(GenerateMethodParams(callDec));
+
+            methodParams.Add(SH.Parameter("cancelToken", "System.Threading.CancellationToken")
+                .WithDefault(SF.EqualsValueClause(SF.DefaultExpression(SF.IdentifierName("System.Threading.CancellationToken")))));
+
+            var msgClassName = _contract.GetRequestClassName(callDec);
+
+            var openStreamInvoke = SF.InvocationExpression(methodToInvoke)
+                .AddArgumentListArguments(SH.IdentifierArgument("message"), SH.IdentifierArgument("streamOptions"));
+
+            if (callDec.HasInStream)
+            {
+                openStreamInvoke = openStreamInvoke.AddArgumentListArguments(
+                    SF.Argument(GenerateStreamFactoryCreationExp(_contract.GetInputStreamFactoryClassName(callDec))));
+            }
+
+            if (callDec.HasOutStream)
+            {
+                openStreamInvoke = openStreamInvoke.AddArgumentListArguments(
+                    SF.Argument(GenerateStreamFactoryCreationExp(_contract.GetOutputStreamFactoryClassName(callDec))));
+            }
+
+            openStreamInvoke = openStreamInvoke.AddArgumentListArguments(SH.IdentifierArgument("cancelToken"));
+
+            bodyStatements.AddRange(GenerateCreateAndFillMessageStatements(callDec, msgClassName));
+            bodyStatements.Add(SF.ReturnStatement(openStreamInvoke));
+
+            var methodName = callDec.MethodName; // AtttributeMethodName(callDec, isAsync, isTry);
+
+            var method = SF.MethodDeclaration(callProxyClass, methodName)
+                .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
+                .AddParameterListParameters(methodParams.ToArray())
+                .WithBody(SF.Block(bodyStatements));
+
+            return method;
+        }
+
+        internal static List<ParameterSyntax> GenerateMethodParams(OperationDeclaration callDec)
         {
             var methodParams = new List<ParameterSyntax>();
 
@@ -310,18 +422,18 @@ namespace SharpRpc.Builder
             return methodParams;
         }
 
-        internal static IEnumerable<StatementSyntax> GenerateCreateAndFillMessageStatements(CallDeclaration callDec, TypeString msgClassName)
+        internal static IEnumerable<StatementSyntax> GenerateCreateAndFillMessageStatements(OperationDeclaration callDec, TypeString msgClassName)
         {
             var msgCreateClause = SF.EqualsValueClause(
                 SF.ObjectCreationExpression(SF.ParseTypeName(msgClassName.Full))
                 .WithArgumentList(SF.ArgumentList()));
 
-            yield return SH.VariableDeclaration(msgClassName.Full, "message", msgCreateClause);
+            yield return SH.LocalVariableDeclaration(msgClassName.Full, "message", msgCreateClause);
 
             foreach (var paramDec in callDec.Params)
             {
                 yield return SH.AssignmentStatement(
-                    SH.MemeberOfIdentifier("message", paramDec.MessagePropertyName),
+                    SH.MemberOfIdentifier("message", paramDec.MessagePropertyName),
                     SF.IdentifierName(paramDec.ParamName));
             }
         }
@@ -368,6 +480,7 @@ namespace SharpRpc.Builder
         private StatementSyntax GenerateRemoteCallStatement(TypeString respMessageType, bool isAsync, bool isTry, out TypeSyntax retType)
         {
             var msgArgument = SF.Argument(SF.IdentifierName("message"));
+            var tokenArgument = SF.Argument(SF.IdentifierName("cancelToken"));
 
             var methodName = isTry ? "TryCallAsync" : "CallAsync";
             var methodToInvoke = SH.GenericName(methodName, respMessageType.Full);
@@ -379,14 +492,14 @@ namespace SharpRpc.Builder
                     retType = SH.GenericType(Names.SystemTask, Names.RpcResultStruct.Full);
 
                     return SF.ReturnStatement(
-                        SF.InvocationExpression(methodToInvoke, SH.CallArguments(msgArgument)));
+                        SF.InvocationExpression(methodToInvoke, SH.CallArguments(msgArgument, tokenArgument)));
                 }
                 else
                 {
                     retType = SF.ParseTypeName(Names.SystemTask);
 
                     return SF.ReturnStatement(
-                        SF.InvocationExpression(methodToInvoke, SH.CallArguments(msgArgument)));
+                        SF.InvocationExpression(methodToInvoke, SH.CallArguments(msgArgument, tokenArgument)));
                 }
             }
             else
@@ -395,14 +508,14 @@ namespace SharpRpc.Builder
                 {
                     retType = SF.ParseTypeName(Names.RpcResultStruct.Full);
 
-                    var baseMethodInvokeExp = SF.InvocationExpression(methodToInvoke, SH.CallArguments(msgArgument));
+                    var baseMethodInvokeExp = SF.InvocationExpression(methodToInvoke, SH.CallArguments(msgArgument, tokenArgument));
                     return SF.ReturnStatement(SH.MemberOf(baseMethodInvokeExp, "Result"));
                 }
                 else
                 {
                     retType = SF.PredefinedType(SF.Token(SyntaxKind.VoidKeyword));
 
-                    var baseMethodInvokeExp = SF.InvocationExpression(methodToInvoke, SH.CallArguments(msgArgument));
+                    var baseMethodInvokeExp = SF.InvocationExpression(methodToInvoke, SH.CallArguments(msgArgument, tokenArgument));
                     return SF.ExpressionStatement(SF.InvocationExpression(SH.MemberOf(baseMethodInvokeExp, "Wait")));
                 }
             }
@@ -414,6 +527,7 @@ namespace SharpRpc.Builder
 
             var methodName = isTry ? "TryCallAsync" : "CallAsync";
             var methodToInvoke = SH.GenericName(methodName, returnDataType, respMessageType.Full);
+            var tokenArgument = SF.Argument(SF.IdentifierName("cancelToken"));
 
             if (isAsync)
             {
@@ -422,14 +536,14 @@ namespace SharpRpc.Builder
                     retType = SH.GenericType(Names.SystemTask, SH.GenericType(Names.RpcResultStruct.Full, returnDataType));
 
                     return SF.ReturnStatement(
-                        SF.InvocationExpression(methodToInvoke, SH.CallArguments(msgArgument)));
+                        SF.InvocationExpression(methodToInvoke, SH.CallArguments(msgArgument, tokenArgument)));
                 }
                 else
                 {
                     retType = SH.GenericType(Names.SystemTask, returnDataType);
 
                     return SF.ReturnStatement(
-                        SF.InvocationExpression(methodToInvoke, SH.CallArguments(msgArgument)));
+                        SF.InvocationExpression(methodToInvoke, SH.CallArguments(msgArgument, tokenArgument)));
                 }
             }
             else
@@ -438,14 +552,14 @@ namespace SharpRpc.Builder
                 {
                     retType = SH.GenericName(Names.RpcResultStruct.Full, returnDataType);
 
-                    var baseMethodInvokeExp = SF.InvocationExpression(methodToInvoke, SH.CallArguments(msgArgument));
+                    var baseMethodInvokeExp = SF.InvocationExpression(methodToInvoke, SH.CallArguments(msgArgument, tokenArgument));
                     return SF.ReturnStatement(SH.MemberOf(baseMethodInvokeExp, "Result"));
                 }
                 else
                 {
                     retType = SF.ParseTypeName(returnDataType);
 
-                    var baseMethodInvokeExp = SF.InvocationExpression(methodToInvoke, SH.CallArguments(msgArgument));
+                    var baseMethodInvokeExp = SF.InvocationExpression(methodToInvoke, SH.CallArguments(msgArgument, tokenArgument));
                     return SF.ReturnStatement(SH.MemberOf(baseMethodInvokeExp, "Result"));
                 }
             }
@@ -478,6 +592,12 @@ namespace SharpRpc.Builder
                 name = "Try" + name;
 
             return name;
+        }
+
+        internal static ExpressionSyntax GenerateStreamFactoryCreationExp(TypeString factoryClassName)
+        {
+            return SF.ObjectCreationExpression(SH.FullTypeName(factoryClassName))
+                .WithoutArguments();
         }
     }
 }

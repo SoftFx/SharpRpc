@@ -20,13 +20,15 @@ namespace SharpRpc.MsTest
         [TestMethod]
         public void TxBuffer_NoOverflow()
         {
-            var buffer = new TxBuffer(new object(), 200, new BufferBasedMockSerializer());
+            var syncObj = new object();
+            var buffer = new TxBuffer(syncObj, 200, new BufferBasedMockSerializer());
             var msg = MockMessage.Generate(100);
 
             var expectedHeader = new byte[] { 1, 0, 103 };
             var expectedBody = msg.RawBytes;
             var expectedBytes = expectedHeader.Add(expectedBody);
 
+            lock (syncObj) buffer.Lock();
             buffer.WriteMessage(msg);
             var segment = buffer.DequeueNext().GetAwaiter().GetResult();
 
@@ -42,7 +44,8 @@ namespace SharpRpc.MsTest
             var bodySize1 = segmentSize - 3;
             var bodySize2 = messageSize - bodySize1;
 
-            var buffer = new TxBuffer(new object(), segmentSize, new BufferBasedMockSerializer());
+            var syncObj = new object();
+            var buffer = new TxBuffer(syncObj, segmentSize, new BufferBasedMockSerializer());
             var msg = MockMessage.Generate(messageSize);
 
             var expectedHeader1 = new byte[] { (byte)MessageFlags.None, 0, (byte)segmentSize };
@@ -53,6 +56,7 @@ namespace SharpRpc.MsTest
             var expectedBody2 = msg.RawBytes.Slice(bodySize1, bodySize2);
             var expectedSegment2 = expectedHeader2.Add(expectedBody2);
 
+            lock (syncObj) buffer.Lock();
             buffer.WriteMessage(msg);
 
             var resultingSegments = new List<ArraySegment<byte>>();
@@ -73,7 +77,8 @@ namespace SharpRpc.MsTest
             var bodySize1 = segmentSize - 3;
             var bodySize2 = messageSize - bodySize1;
 
-            var buffer = new TxBuffer(new object(), segmentSize, new BufferBasedMockSerializer());
+            var syncObj = new object();
+            var buffer = new TxBuffer(syncObj, segmentSize, new BufferBasedMockSerializer());
             var msg = MockPrebuiltMessage.Generate(messageSize);
 
             var expectedHeader1 = new byte[] { (byte)MessageFlags.None, 0, (byte)segmentSize };
@@ -84,6 +89,7 @@ namespace SharpRpc.MsTest
             var expectedBody2 = msg.RawBytes.Slice(bodySize1, bodySize2);
             var expectedSegment2 = expectedHeader2.Add(expectedBody2);
 
+            lock (syncObj) buffer.Lock();
             buffer.WriteMessage(msg);
 
             var resultingSegments = new List<ArraySegment<byte>>();

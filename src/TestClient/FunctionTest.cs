@@ -5,13 +5,11 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+using SharpRpc;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Security.Cryptography;
-using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
-using SharpRpc;
 using TestCommon;
 
 namespace TestClient
@@ -24,6 +22,8 @@ namespace TestClient
             var callback = new CallbackHandler();
             var client = FunctionTestContract_Gen.CreateClient(endpoint, callback);
 
+            var rConnect = client.Channel.TryConnectAsync().Result;
+
             try
             {
                 TestCall1(client);
@@ -31,6 +31,20 @@ namespace TestClient
                 TestFaults(client);
                 TestCalbacks(client);
                 TestComplexData(client);
+
+                TestInputStream(client, 8);
+                TestInputStream(client, 32);
+                TestOutputStream(client, 8, true);
+                TestOutputStream(client, 8, false);
+                TestOutputStream(client, 32, true);
+                TestOutputStream(client, 32, false);
+                TestDuplexStream(client, 8, true);
+                TestDuplexStream(client, 8, false);
+                TestDuplexStream(client, 32, true);
+                TestDuplexStream(client, 32, false);
+
+                TestCallCancellation(client);
+                TestStreamCancellation(client);
 
                 Console.WriteLine("Done testing.");
             }
@@ -82,14 +96,14 @@ namespace TestClient
 
             var r2 = client.Try.TestCall2(10, "11");
             r2.ThrowIfNotOk();
-            if (r2.Result != "123")
+            if (r2.Value != "123")
                 throw new Exception("TryTestCall2 returned unexpected result!");
 
             Console.WriteLine("TestCall2.TryCallAsync");
 
             var r4 = client.TryAsync.TestCall2(10, "11").Result;
             r4.ThrowIfNotOk();
-            if (r4.Result != "123")
+            if (r4.Value != "123")
                 throw new Exception("TestCall2Async returned unexpected result!");
         }
 
@@ -97,7 +111,7 @@ namespace TestClient
         {
             Console.WriteLine("TestFaults.Regular");
 
-            AssertFault(RpcRetCode.RequestFaulted, "Test exception", () =>
+            AssertFault(RpcRetCode.RequestFault, "Test exception", () =>
             {
                 client.TestRpcException(10, "11");
                 return RpcResult.Ok;
@@ -105,11 +119,11 @@ namespace TestClient
 
             Console.WriteLine("TestFaults.Regular.Try");
 
-            AssertFault(RpcRetCode.RequestFaulted, "Test exception", () => client.Try.TestRpcException(10, "11").GetResultInfo());
+            AssertFault(RpcRetCode.RequestFault, "Test exception", () => client.Try.TestRpcException(10, "11").GetResultInfo());
 
             Console.WriteLine("TestFaults.Crash");
 
-            AssertFault(RpcRetCode.RequestCrashed, "Request faulted due to", () =>
+            AssertFault(RpcRetCode.RequestCrash, "Request faulted due to", () =>
             {
                 client.TestCrash(10, "11");
                 return RpcResult.Ok;
@@ -117,11 +131,11 @@ namespace TestClient
 
             Console.WriteLine("TestFaults.Crash.Try");
 
-            AssertFault(RpcRetCode.RequestCrashed, "Request faulted due to", () => client.Try.TestCrash(10, "11").GetResultInfo());
+            AssertFault(RpcRetCode.RequestCrash, "Request faulted due to", () => client.Try.TestCrash(10, "11").GetResultInfo());
 
             Console.WriteLine("TestFaults.Custom1");
 
-            AssertCustomFault(RpcRetCode.RequestCrashed, new TestFault1 { Message = "Fault Message 1" }, () =>
+            AssertCustomFault(RpcRetCode.RequestCrash, new TestFault1 { CustomCode = 11 }, () =>
             {
                 client.TestCallFault(1);
                 return RpcResult.Ok;
@@ -129,7 +143,7 @@ namespace TestClient
 
             Console.WriteLine("TestFaults.Custom1.Try");
 
-            AssertCustomFault(RpcRetCode.RequestCrashed, new TestFault1 { Message = "Fault Message 1" }, () => client.Try.TestCallFault(1));
+            AssertCustomFault(RpcRetCode.RequestCrash, new TestFault1 { CustomCode = 11 }, () => client.Try.TestCallFault(1));
         }
 
         private static void TestComplexData(FunctionTestContract_Gen.Client client)
@@ -181,7 +195,7 @@ namespace TestClient
             {
                 var result = call();
                 code = result.Code;
-                message = result.Fault.Message;
+                message = result.FaultMessage;
             }
             catch (AggregateException aex)
             {
@@ -201,22 +215,20 @@ namespace TestClient
             if (code != expectedCode)
                 throw new Exception("Invalid return code!");
 
-            if (!message.StartsWith(expectedMessageStart))
+            if (string.IsNullOrEmpty(message) || !message.StartsWith(expectedMessageStart))
                 throw new Exception("Invalid exception message!");
         }
 
-
         private static void AssertCustomFault<T>(RpcRetCode expectedCode, T expectedFault, Func<RpcResult> call)
-            where T : RpcFault
         {
-            RpcFault fault;
+            object fault;
             RpcRetCode? code;
 
             try
             {
                 var result = call();
                 code = result.Code;
-                fault = result.Fault;
+                fault = result.CustomFaultData;
             }
             catch (AggregateException aex)
             {
@@ -255,6 +267,159 @@ namespace TestClient
                 throw new Exception("InvokeCallback returned unexpected result!");
         }
 
+        private static void TestInputStream(FunctionTestContract_Gen.Client client, ushort windowSize)
+        {
+            Console.WriteLine("TestStreams.Input, windowSize=" + windowSize);
+
+            var options = new StreamOptions() { WindowSize = windowSize };
+            var call = client.TestInStream(options, TimeSpan.Zero, StreamTestOptions.DoNotInvokeCompletion);
+
+            var itemsCount = 100;
+            var expectedSumm = (1 + itemsCount) * itemsCount / 2;
+
+            for (int i = 1; i <= itemsCount; i++)
+            {
+                var rWrite = call.InputStream.WriteAsync(i).Result;
+                if (!rWrite.IsOk)
+                    throw new Exception("WriteAsync() returned " + rWrite.Code);
+            }
+
+            var rCompletion = call.InputStream.CompleteAsync().Result;
+
+            if (!rCompletion.IsOk)
+                throw new Exception("CompleteAsync() returned " + rCompletion.Code);
+
+            var result = call.AsyncResult.Result.Value;
+
+            if (result != expectedSumm)
+                throw new Exception("Stream call returned an unexpected result!");
+        }
+
+        private static void TestOutputStream(FunctionTestContract_Gen.Client client, ushort windowSize, bool withCompletion)
+        {
+            Console.WriteLine("TestStreams.Output, windowSize=" + windowSize + ", completion=" + withCompletion);
+
+            var itemsCount = 100;
+            var expectedSumm = (1 + itemsCount) * itemsCount / 2;
+
+            var options = withCompletion ? StreamTestOptions.InvokeCompletion : StreamTestOptions.DoNotInvokeCompletion;
+            var streamOptions = new StreamOptions() { WindowSize = windowSize };
+            var call = client.TestOutStream(streamOptions, TimeSpan.Zero, itemsCount, options);
+
+            var e = call.OutputStream.GetEnumerator();
+            var summ = 0;
+
+            while (e.MoveNextAsync().Result)
+                summ += e.Current;
+
+            if (summ != expectedSumm)
+                throw new Exception("Items summ does not match expected value!");
+
+            var ret = call.AsyncResult.Result;
+
+            if (ret.Value != 0)
+                throw new Exception("Returned value does not match expected!");
+        }
+
+        private static void TestDuplexStream(FunctionTestContract_Gen.Client client, ushort windowSize,  bool withCompletion)
+        {
+            Console.WriteLine("TestStreams.Duplex, windowSize=" + windowSize + ", completion=" + withCompletion);
+
+            var options = withCompletion ? StreamTestOptions.InvokeCompletion : StreamTestOptions.DoNotInvokeCompletion;
+            var streamOptions = new DuplexStreamOptions() { InputWindowSize = windowSize, OutputWindowSize = windowSize };
+            var call = client.TestDuplexStream(streamOptions, TimeSpan.Zero, options);
+
+            var itemsCount = 100;
+            var expectedSumm = (1 + itemsCount) * itemsCount / 2;
+
+            var readTask = Task.Factory.StartNew<int>(() =>
+            {
+                var e = call.OutputStream.GetEnumerator();
+                var sm = 0;
+
+                while (e.MoveNextAsync().Result)
+                    sm += e.Current;
+
+                return sm;
+            });
+
+            for (int i = 1; i <= itemsCount; i++)
+            {
+                var rWrite = call.InputStream.WriteAsync(i).Result;
+                if (!rWrite.IsOk)
+                    throw new Exception("WriteAsync() returned " + rWrite.Code);
+            }
+
+            var rCompletion = call.InputStream.CompleteAsync().Result;
+
+            if (!rCompletion.IsOk)
+                throw new Exception("CompleteAsync() returned " + rCompletion.Code);
+
+            var summ = readTask.Result;
+            
+            if (summ != expectedSumm)
+                throw new Exception("Items summ does not match expected value!");
+
+            var result = call.AsyncResult.Result.Value;
+
+            if (result != 0)
+                throw new Exception("Stream call returned an unexpected result!");
+        }
+
+        private static void TestCallCancellation(FunctionTestContract_Gen.Client client)
+        {
+            Console.WriteLine("TestCallCancellation.WaitThenCancel");
+
+            var cancelSrc = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+
+            var result = client.CancellableCall(TimeSpan.FromMinutes(5), cancelSrc.Token);
+
+            if (!result)
+                throw new Exception("CancellableCall() returned an unexpected result!");
+
+            Console.WriteLine("TestCallCancellation.PreCancel");
+
+            var result2 = client.CancellableCall(TimeSpan.FromMinutes(2), cancelSrc.Token);
+
+            if (!result2)
+                throw new Exception("CancellableCall() returned an unexpected result!");
+        }
+
+        private static void TestStreamCancellation(FunctionTestContract_Gen.Client client)
+        {
+            Console.WriteLine("TestStreamCancellation.OutputStream");
+
+            var cancelSrc = new CancellationTokenSource(500);
+            var options = new StreamOptions() { WindowSize = 10 };
+            var callObj = client.TestOutStream(options, TimeSpan.FromMilliseconds(100), 100, StreamTestOptions.InvokeCompletion, cancelSrc.Token);
+
+            var retVal = callObj.AsyncResult.Result.Value;
+
+            if (retVal != -1)
+                throw new Exception("Stream call returned an unexpected result!");
+
+            Console.WriteLine("TestStreamCancellation.InputStream");
+
+            var cancelSrc2 = new CancellationTokenSource(500);
+            var callObj2 = client.TestInStream(options, TimeSpan.FromMilliseconds(100), StreamTestOptions.InvokeCompletion, cancelSrc2.Token);
+
+            var retVal2 = callObj2.AsyncResult.Result.Value;
+
+            if (retVal2 != -1)
+                throw new Exception("Stream call returned an unexpected result!");
+
+            Console.WriteLine("TestStreamCancellation.DuplexStream");
+
+            var cancelSrc3 = new CancellationTokenSource(500);
+            var duplexOptions = new DuplexStreamOptions() { InputWindowSize = 10, OutputWindowSize = 10 };
+            var callObj3 = client.TestDuplexStream(duplexOptions, TimeSpan.FromMilliseconds(100), StreamTestOptions.InvokeCompletion, cancelSrc3.Token);
+
+            var retVal3 = callObj3.AsyncResult.Result.Value;
+
+            if (retVal3 != -1)
+                throw new Exception("Stream call returned an unexpected result!");
+        }
+
         private class CallbackHandler : FunctionTestContract_Gen.CallbackServiceBase
         {
 #if NET5_0_OR_GREATER
@@ -266,7 +431,7 @@ namespace TestClient
                 return new ValueTask();
             }
 
-            public override ValueTask TestCallback1(int p1, string p2)
+            public override ValueTask TestCallback1(CallContext context, int p1, string p2)
             {
                 if (p1 != 10 || p2 != "11")
                     throw new Exception("Invalid input!");
@@ -274,7 +439,7 @@ namespace TestClient
                 return new ValueTask();
             }
 
-            public override ValueTask<int> TestCallback2(int p1, string p2)
+            public override ValueTask<int> TestCallback2(CallContext context, int p1, string p2)
             {
                 if (p1 != 10 || p2 != "11")
                     throw new Exception("Invalid input!");
@@ -282,7 +447,7 @@ namespace TestClient
                 return ValueTask.FromResult(21);
             }
 
-            public override ValueTask<string> TestCallback3(int p1, string p2)
+            public override ValueTask<string> TestCallback3(CallContext context, int p1, string p2)
             {
                 throw new Exception("Test Exception");
             }
@@ -295,7 +460,7 @@ namespace TestClient
                 return Task.CompletedTask;
             }
 
-            public override Task TestCallback1(int p1, string p2)
+            public override Task TestCallback1(CallContext context, int p1, string p2)
             {
                 if (p1 != 10 || p2 != "11")
                     throw new Exception("Invalid input!");
@@ -303,7 +468,7 @@ namespace TestClient
                 return Task.CompletedTask;
             }
 
-            public override Task<int> TestCallback2(int p1, string p2)
+            public override Task<int> TestCallback2(CallContext context, int p1, string p2)
             {
                 if (p1 != 10 || p2 != "11")
                     throw new Exception("Invalid input!");
@@ -311,7 +476,7 @@ namespace TestClient
                 return Task.FromResult(21);
             }
 
-            public override Task<string> TestCallback3(int p1, string p2)
+            public override Task<string> TestCallback3(CallContext context, int p1, string p2)
             {
                 throw new Exception("Test Exception");
             }

@@ -11,30 +11,43 @@ using System.Text;
 
 namespace SharpRpc
 {
-    public enum RpcRetCode
+    public enum RpcRetCode : ushort
     {
-        Ok,
-        OtherError,
-        UnknownError,
-        ProtocolViolation,
-        InvalidChannelState,
-        InvalidCredentials,
-        ConfigurationError,
-        ChannelClosed,
-        LogoutRequest,
-        ConnectionShutdown,
-        ConnectionAbortedByPeer,
-        ConnectionTimeout,
-        LoginTimeout,
-        SecurityError,
-        OtherConnectionError,
-        SerializationError,
-        DeserializationError,
-        MessageHandlerFailure,
-        UnexpectedMessage,
-        EventHandlerCrashed,
-        RequestFaulted,
-        // Unexpected exception (not covered by fault contract)
-        RequestCrashed
+        Ok = 0,
+        OtherError = 1,
+        UnknownError = 2,
+
+        ProtocolViolation = 10,
+        InvalidChannelState = 11,
+        InvalidCredentials = 12,
+        ConfigurationError = 13,
+        ChannelClosed = 14,
+        LogoutRequest = 15,
+        ConnectionShutdown = 16,
+        ConnectionAbortedByPeer = 17,
+        ConnectionTimeout = 18,
+        LoginTimeout = 19,
+        SecurityError = 20,
+        OtherConnectionError = 21,
+        SerializationError = 22,
+        DeserializationError = 23,
+        
+        UnexpectedMessage = 25,
+
+        OperationCanceled = 26,
+        
+        RequestFault = 50,
+
+        // Unexpected exception in request handler (not covered by fault contract)
+        RequestCrash = 51,
+
+        // Exception in a message handler (one-way handlers should not throw exceptions)
+        MessageHandlerCrash = 52,
+
+        // The stream was completed for additions and does not accept new records
+        StreamCompleted = 53,
+
+        // Exception in an event handler (event handlers should not throw exceptions)
+        EventHandlerCrash = 54
     }
 }

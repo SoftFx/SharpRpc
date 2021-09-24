@@ -21,29 +21,55 @@ namespace SharpRpc
         void WriteTo(ushort serializedId, MessageWriter writer);
     }
 
-    public interface IReqRespMessage : IMessage
-    {
-    }
-
-    public interface IRequest : IReqRespMessage
+    public interface IInteropMessage : IMessage
     {
         string CallId { get; set; }
-        //int? FromRecipient { get; set; }
     }
 
-    public interface IResponse : IReqRespMessage
+    public interface IRequestMessage : IInteropMessage
     {
-        string CallId { get; set; }
-        //int? ToRecipient { get; }
+        RequestOptions Options { get; set; }
     }
 
-    public interface IResponse<T> : IResponse
+    [Flags]
+    public enum RequestOptions : byte
+    {
+        None = 0,
+        CancellationEnabled = 1
+    }
+
+    public interface IResponseMessage : IInteropMessage
+    {
+    }
+
+    public interface IResponseMessage<T> : IResponseMessage
     {
         T Result { get; }
     }
 
+    public interface ICancelRequestMessage : IInteropMessage
+    {
+    }
+
+    public interface ICancelStreamingMessage : IInteropMessage
+    {
+    }
+
+    public interface IRequestFaultMessage : IResponseMessage
+    {
+        string Text { get; set; }
+        RequestFaultCode Code { get; set; }
+        ICustomFaultBinding GetCustomFaultBinding();
+    }
+
     public interface ISystemMessage : IMessage
     {
+    }
+
+    public interface ICustomFaultBinding
+    {
+        object GetFault();
+        RpcFaultException CreateException(string message);
     }
 
     public interface MessageWriter

@@ -77,7 +77,7 @@ namespace SharpRpc
 
                     byteCount = await _transport.Receive(buffer, CancellationToken.None); // _rxCancelSrc.Token);
 
-                    await _taskQueue.Dive();
+                    //await _taskQueue.Dive();
 
                     if (byteCount == 0)
                     {
@@ -139,14 +139,19 @@ namespace SharpRpc
                     {
                         var msg = _serializer.Deserialize(_reader);
 
+                        //Debug.WriteLine("RX " + msg.GetType().Name);
+
                         if (msg is ISystemMessage sysMsg)
                         {
                             var sysMsgResult = OnSystemMessage(sysMsg);
                             if (sysMsgResult.Code != RpcRetCode.Ok)
                                 return sysMsgResult;
                         }
-                        else //if (msg is IRequest || msg is IResponse)
-                            container.Add(msg);
+                        else
+                        {
+                            //if (msg is ISystemMessage || (msg is IInteropMessage && !(msg is IStreamPage)))
+                                container.Add(msg);
+                        }
                     }
                     catch (Exception ex)
                     {

@@ -38,36 +38,36 @@ namespace TestCommon
         }
 
 #if NET5_0_OR_GREATER
-        public override ValueTask ApplyUpdate(FooEntity entity)
+        public override ValueTask ApplyUpdate(CallContext context, FooEntity entity)
 #else
-        public override Task ApplyUpdate(FooEntity entity)
+        public override Task ApplyUpdate(CallContext context, FooEntity entity)
 #endif
         {
             return FwAdapter.AsyncVoid;
         }
 
 #if NET5_0_OR_GREATER
-        public override ValueTask Flush()
+        public override ValueTask Flush(CallContext context)
 #else
-        public override Task Flush()
+        public override Task Flush(CallContext context)
 #endif
         {
             return FwAdapter.AsyncVoid;
         }
 
 #if NET5_0_OR_GREATER
-        public override ValueTask<MulticastReport> MulticastUpdateToClients(int msgCount, bool usePrebuiltMessages)
+        public override ValueTask<MulticastReport> MulticastUpdateToClients(CallContext context, int msgCount, bool usePrebuiltMessages)
 #else
-        public override Task<MulticastReport> MulticastUpdateToClients(int msgCount, bool usePrebuiltMessages)
+        public override Task<MulticastReport> MulticastUpdateToClients(CallContext context, int msgCount, bool usePrebuiltMessages)
 #endif
         {
             return FwAdapter.WrappResult(_multicaster.Multicast(msgCount, usePrebuiltMessages));
         }
 
 #if NET5_0_OR_GREATER
-        public override ValueTask<PerfReport> GetPerfCounters()
+        public override ValueTask<PerfReport> GetPerfCounters(CallContext context)
 #else
-        public override Task<PerfReport> GetPerfCounters()
+        public override Task<PerfReport> GetPerfCounters(CallContext context)
 #endif
         {
             var rep = new PerfReport();
@@ -79,5 +79,32 @@ namespace TestCommon
 #endif
             return FwAdapter.WrappResult(rep);
         }
+
+#if NET5_0_OR_GREATER
+        public override async ValueTask UpstreamUpdates(CallContext context, StreamReader<FooEntity> inputStream)
+        {
+            var summ = 0.0;
+
+            await foreach (var update in inputStream)
+                summ += update.Ask;
+        }
+
+        public override async ValueTask DownstreamUpdates(CallContext context, StreamWriter<FooEntity> outputStream)
+        {
+            _multicaster.Add(outputStream);
+
+            await Task.Delay(TimeSpan.FromMinutes(10));
+        }
+#else
+        public override Task UpstreamUpdates(CallContext context, StreamReader<FooEntity> inputStream)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override Task DownstreamUpdates(CallContext context, StreamWriter<FooEntity> outputStream)
+        {
+            throw new NotImplementedException();
+        }
+#endif
     }
 }

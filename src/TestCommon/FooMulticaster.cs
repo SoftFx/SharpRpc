@@ -5,6 +5,7 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+using SharpRpc;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -19,7 +20,7 @@ namespace TestCommon
         private bool _isBusy;
         private readonly EntitySet<FooEntity> _entitySet;
         private readonly EntitySet<BenchmarkContract_Gen.PrebuiltMessages.SendUpdateToClient> _prebuildEntitySet;
-        private readonly List<BenchmarkContract_Gen.CallbackClient> _listeners = new List<BenchmarkContract_Gen.CallbackClient>();
+        private readonly List<IListener> _listeners = new List<IListener>();
 
         public FooMulticaster()
         {
@@ -28,21 +29,22 @@ namespace TestCommon
 
         public void Add(BenchmarkContract_Gen.CallbackClient listener)
         {
-            lock (_listeners)
-            {
-                CheckIfIsBusy();
-                _listeners.Add(listener);
-            }
+            Add(new CallbackAdapter(listener));
         }
 
+        public void Add(StreamWriter<FooEntity> listener)
+        {
+            Add(new StreamAdapter(listener));
+        }
 
         public void Remove(BenchmarkContract_Gen.CallbackClient listener)
         {
-            lock (_listeners)
-            {
-                CheckIfIsBusy();
-                _listeners.Remove(listener);
-            }
+            FindAndRemove(listener);
+        }
+
+        public void Remove(StreamWriter<FooEntity> listener)
+        {
+            FindAndRemove(listener);
         }
 
         public Task<MulticastReport> Multicast(int msgCount, bool usePrebuiltMessages)
@@ -66,7 +68,7 @@ namespace TestCommon
                     {
                         for (int l = 0; l < _listeners.Count; l++)
                         {
-                            var sendResult = _listeners[l].Try.SendUpdateToClient(_prebuildEntitySet.Next());
+                            var sendResult = _listeners[l].Send(_prebuildEntitySet.Next());
                             if (!sendResult.IsOk)
                                 failed++;
                             else
@@ -79,7 +81,7 @@ namespace TestCommon
                         foreach (var l in _listeners)
                         //Parallel.ForEach(_listeners, l =>
                         {
-                            var sendResult = l.Try.SendUpdateToClient(entity);
+                            var sendResult = l.Send(entity);
                             if (!sendResult.IsOk)
                                 failed++;
                             else
@@ -101,6 +103,75 @@ namespace TestCommon
         {
             if (_isBusy)
                 throw new Exception("Multicaster is busy and cannot do anything more!");
+        }
+
+        private void Add(IListener listener)
+        {
+            lock (_listeners)
+            {
+                CheckIfIsBusy();
+                _listeners.Add(listener);
+            }
+        }
+
+        private void FindAndRemove(object listenerObj)
+        {
+            lock (_listeners)
+            {
+                CheckIfIsBusy();
+                _listeners.RemoveAll(l => l.OriginalListener == listenerObj);
+            }
+        }
+
+        private interface IListener
+        {
+            object OriginalListener { get; }
+            RpcResult Send(FooEntity update);
+            RpcResult Send(BenchmarkContract_Gen.PrebuiltMessages.SendUpdateToClient update);
+        }
+
+        private class CallbackAdapter : IListener
+        {
+            private readonly BenchmarkContract_Gen.CallbackClient _stub;
+
+            public CallbackAdapter(BenchmarkContract_Gen.CallbackClient callbackStub)
+            {
+                _stub = callbackStub;
+            }
+
+            public object OriginalListener => _stub;
+
+            public RpcResult Send(FooEntity update)
+            {
+                return _stub.Try.SendUpdateToClient(update);
+            }
+
+            public RpcResult Send(BenchmarkContract_Gen.PrebuiltMessages.SendUpdateToClient update)
+            {
+                return _stub.Try.SendUpdateToClient(update);
+            }
+        }
+
+        private class StreamAdapter : IListener
+        {
+            private readonly StreamWriter<FooEntity> _stub;
+
+            public StreamAdapter(StreamWriter<FooEntity> callbackStub)
+            {
+                _stub = callbackStub;
+            }
+
+            public object OriginalListener => _stub;
+
+            public RpcResult Send(FooEntity update)
+            {
+                return _stub.WriteAsync(update).Result;
+            }
+
+            public RpcResult Send(BenchmarkContract_Gen.PrebuiltMessages.SendUpdateToClient update)
+            {
+                throw new NotImplementedException();
+            }
         }
     }
 }
