@@ -69,18 +69,21 @@ namespace SharpRpc
 
         private readonly IOpenStreamRequest _requestMessage;
 
-        public StreamCall(IOpenStreamRequest request, Channel ch, IStreamMessageFactory<TInItem> inFactory, IStreamMessageFactory<TOutItem> outFactory,
-            bool hasRetParam, CancellationToken cToken)
+        public StreamCall(IOpenStreamRequest request, StreamOptions inputOptions, StreamOptions outputOptions, Channel ch,
+            IStreamMessageFactory<TInItem> inFactory, IStreamMessageFactory<TOutItem> outFactory, bool hasRetParam, CancellationToken cToken)
         {
             _requestMessage = request;
 
             CallId = ch.Dispatcher.GenerateOperationId(); // Guid.NewGuid().ToString();
 
             if (inFactory != null)
-                _inputStub = new PagingStreamWriter<TInItem>(CallId, ch, inFactory, false, 80, 6);
+                _inputStub = new PagingStreamWriter<TInItem>(CallId, ch, inFactory, false, inputOptions);
 
             if (outFactory != null)
+            {
                 _outputStub = new PagingStreamReader<TOutItem>(CallId, ch.Tx, outFactory);
+                _requestMessage.WindowSize = inputOptions?.WindowSize ?? StreamOptions.DefaultWindowsSize;
+            }
 
             if (hasRetParam)
                 _typedCompletion = new TaskCompletionSource<RpcResult<TReturn>>();
@@ -88,6 +91,10 @@ namespace SharpRpc
                 _voidCompletion = new TaskCompletionSource<RpcResult>();
 
             request.CallId = CallId;
+            request.WindowSize = outputOptions?.WindowSize ?? StreamOptions.DefaultWindowsSize;
+
+            if (cToken.CanBeCanceled)
+                request.Options |= RequestOptions.CancellationEnabled;
 
             var regResult = ch.Dispatcher.RegisterCallObject(CallId, this);
             if (regResult.IsOk)

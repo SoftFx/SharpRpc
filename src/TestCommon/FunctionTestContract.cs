@@ -59,16 +59,16 @@ namespace TestCommon
 
         [RpcContract(12, RpcType.Call)]
         [RpcStreamOutput(typeof(int))]
-        int TestOutStream(int p1, string p2, StreamTestOptions options);
+        int TestOutStream(TimeSpan delay, int count, StreamTestOptions options);
 
         [RpcContract(13, RpcType.Call)]
         [RpcStreamInput(typeof(int))]
-        int TestInStream(int p1, string p2, StreamTestOptions options);
+        int TestInStream(TimeSpan delay, StreamTestOptions options);
 
         [RpcContract(14, RpcType.Call)]
         [RpcStreamInput(typeof(int))]
         [RpcStreamOutput(typeof(int))]
-        int TestDuplexStream(int p1, string p2, StreamTestOptions options);
+        int TestDuplexStream(TimeSpan delay, StreamTestOptions options);
 
         [RpcContract(15, RpcType.Call)]
         bool CancellableCall(TimeSpan delay);

@@ -7,35 +7,43 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Net.NetworkInformation;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace SharpRpc
 {
     internal class StreamWriteCoordinator
     {
+        private readonly object _lockObj;
         private readonly int _windowSize;
         private int _windowFill;
 
-        public StreamWriteCoordinator(int windowSize)
+        public StreamWriteCoordinator(object lockObj, int windowSize)
         {
+            _lockObj = lockObj;
             _windowSize = windowSize;
         }
 
         public bool IsBlocked { get; private set; }
 
-        public void OnPageSent()
+        public void OnPageSent(int pageSize)
         {
-            _windowFill++;
+            Debug.Assert(Monitor.IsEntered(_lockObj));
+
+            _windowFill += pageSize;
             if (_windowFill >= _windowSize)
                 IsBlocked = true;
         }
 
         public void OnAcknowledgementRx(IStreamPageAck ack)
         {
-            _windowFill -= ack.PagesConsumed;
+            Debug.Assert(Monitor.IsEntered(_lockObj));
+
+            _windowFill -= ack.Consumed;
 
             // TO DO : check if _windowFill less than zero
 

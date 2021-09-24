@@ -318,7 +318,12 @@ namespace SharpRpc.Builder
             }
 
             if (MessageType == MessageType.Request)
+            {
                 properties.Add(GenerateMessageProperty("SharpRpc.RequestOptions", "Options"));
+
+                if (RpcInfo.HasStreams)
+                    properties.Add(GenerateMessageProperty("ushort?", "WindowSize"));
+            }
 
             if (MessageType == MessageType.Request || MessageType == MessageType.OneWay)
             {
@@ -528,7 +533,7 @@ namespace SharpRpc.Builder
                 .AddAutoSetter();
 
             var pagesConsumedProperty = SyntaxFactory
-                .PropertyDeclaration(SyntaxFactory.ParseTypeName("ushort"), "PagesConsumed")
+                .PropertyDeclaration(SyntaxFactory.ParseTypeName("ushort"), "Consumed")
                 .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
                 .AddAutoGetter()
                 .AddAutoSetter();

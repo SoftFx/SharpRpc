@@ -39,7 +39,7 @@ namespace SharpRpc
         internal PagingStreamReader(string callId, TxPipeline tx, IStreamMessageFactory<T> factory)
         {
             _tx = tx;
-            _coordinator = new StreamReadCoordinator(callId, factory);
+            _coordinator = new StreamReadCoordinator(_lockObj, callId, factory);
         }
 
         internal void OnRx(IStreamPage<T> page)
@@ -123,12 +123,14 @@ namespace SharpRpc
             {
                 _currentPageIndex = 0;
 
+                var pageSize = _currentPage.Count;
+
                 if (_pages.Count > 0)
                     _currentPage = _pages.Dequeue();
                 else
                     _currentPage = null;
 
-                ack = _coordinator.OnPageConsume();
+                ack = _coordinator.OnPageConsume(pageSize);
             }
             else
                 ack = null;
@@ -161,7 +163,14 @@ namespace SharpRpc
         private void OnAckSent(RpcResult sendResult)
         {
             // TO DO : analyze sendResult ???
-            _coordinator.OnAckSent();
+
+            IStreamPageAck nextAck = null;
+
+            lock (_lockObj)
+                nextAck = _coordinator.OnAckSent();
+
+            if (nextAck != null)
+                SendAck(nextAck);
         }
 
 #if NET5_0_OR_GREATER
@@ -181,31 +190,6 @@ namespace SharpRpc
 
             return enumerator;
         }
-
-        //public T Current => _currentPage[_currentPageIndex];
-
-        //public ValueTask<bool> MoveNextAsync()
-        //{
-        //    lock (_lockObj)
-        //    {
-        //        if (_currentPage != null)
-        //        {
-        //            _currentPageIndex++;
-        //            if (_currentPageIndex < _currentPage.Count)
-        //                return new ValueTask<bool>(true);
-
-        //            _currentPage = null;
-        //            _currentPageIndex = 0;
-        //        }
-
-
-        //    }
-        //}
-
-        //public ValueTask DisposeAsync()
-        //{
-        //    return new ValueTask();
-        //}
 
         private enum NextItemCode
         {
@@ -292,12 +276,5 @@ namespace SharpRpc
             }
         }
 #endif
-
-        //private class SlimEnumerator : IStreamEnumerator
-        //{
-        //    public SlimEnumerator(TxStream stream)
-        //    {
-        //    }
-        //}
     }
 }

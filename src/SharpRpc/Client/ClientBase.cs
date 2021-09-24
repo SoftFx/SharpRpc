@@ -94,36 +94,36 @@ namespace SharpRpc
 
         #region Streams
 
-        protected OutputStreamCall<TOut> OpenOutputStream<TOut>(IOpenStreamRequest request, IStreamMessageFactory<TOut> factory)
+        protected OutputStreamCall<TOut> OpenOutputStream<TOut>(IOpenStreamRequest request, StreamOptions options, IStreamMessageFactory<TOut> factory, CancellationToken cToken)
         {
-            return new StreamCall<object, TOut, object>(request, Channel, null, factory, false, CancellationToken.None);
+            return new StreamCall<object, TOut, object>(request, null, options, Channel, null, factory, false, cToken);
         }
 
-        protected OutputStreamCall<TOut, TResult> OpenOutputStream<TOut, TResult>(IOpenStreamRequest request, IStreamMessageFactory<TOut> factory)
+        protected OutputStreamCall<TOut, TResult> OpenOutputStream<TOut, TResult>(IOpenStreamRequest request, StreamOptions options, IStreamMessageFactory<TOut> factory, CancellationToken cToken)
         {
-            return new StreamCall<object, TOut, TResult>(request, Channel, null, factory, true, CancellationToken.None);
+            return new StreamCall<object, TOut, TResult>(request, null, options, Channel, null, factory, true, cToken);
         }
 
-        protected InputStreamCall<TIn> OpenInputStream<TIn>(IOpenStreamRequest request, IStreamMessageFactory<TIn> factory)
+        protected InputStreamCall<TIn> OpenInputStream<TIn>(IOpenStreamRequest request, StreamOptions options, IStreamMessageFactory<TIn> factory, CancellationToken cToken)
         {
-            return new StreamCall<TIn, object, object>(request, Channel, factory, null, false, CancellationToken.None);
+            return new StreamCall<TIn, object, object>(request, options, null, Channel, factory, null, false, cToken);
         }
 
-        protected InputStreamCall<TIn, TResult> OpenInputStream<TIn, TResult>(IOpenStreamRequest request, IStreamMessageFactory<TIn> factory)
+        protected InputStreamCall<TIn, TResult> OpenInputStream<TIn, TResult>(IOpenStreamRequest request, StreamOptions options, IStreamMessageFactory<TIn> factory, CancellationToken cToken)
         {
-            return new StreamCall<TIn, object, TResult>(request, Channel, factory, null, true, CancellationToken.None);
+            return new StreamCall<TIn, object, TResult>(request, options, null, Channel, factory, null, true, cToken);
         }
 
-        protected DuplexStreamCall<TIn, TOut, object> OpenDuplexStream<TIn, TOut>(IOpenStreamRequest request,
-            IStreamMessageFactory<TIn> inFactory, IStreamMessageFactory<TOut> outFactory)
+        protected DuplexStreamCall<TIn, TOut, object> OpenDuplexStream<TIn, TOut>(IOpenStreamRequest request, DuplexStreamOptions options,
+            IStreamMessageFactory<TIn> inFactory, IStreamMessageFactory<TOut> outFactory, CancellationToken cToken)
         {
-            return new StreamCall<TIn, TOut, object>(request, Channel, inFactory, outFactory, false, CancellationToken.None);
+            return new StreamCall<TIn, TOut, object>(request, options.GetInputOptions(), options.GetOutputOptions(), Channel, inFactory, outFactory, false, cToken);
         }
 
-        protected DuplexStreamCall<TIn, TOut, TResult> OpenDuplexStream<TIn, TOut, TResult>(IOpenStreamRequest request,
-            IStreamMessageFactory<TIn> inFactory, IStreamMessageFactory<TOut> outFactory)
+        protected DuplexStreamCall<TIn, TOut, TResult> OpenDuplexStream<TIn, TOut, TResult>(IOpenStreamRequest request, DuplexStreamOptions options,
+            IStreamMessageFactory<TIn> inFactory, IStreamMessageFactory<TOut> outFactory, CancellationToken cToken)
         {
-            return new StreamCall<TIn, TOut, TResult>(request, Channel, inFactory, outFactory, true, CancellationToken.None);
+            return new StreamCall<TIn, TOut, TResult>(request, options.GetInputOptions(), options.GetOutputOptions(), Channel, inFactory, outFactory, true, cToken);
         }
 
         #endregion

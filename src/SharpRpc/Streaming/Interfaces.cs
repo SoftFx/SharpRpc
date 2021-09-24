@@ -24,7 +24,7 @@ namespace SharpRpc
 
     public interface IOpenStreamRequest : IRequestMessage
     {
-        //int WindowSize { get; set; }
+        ushort? WindowSize { get; set; }
     }
 
     public interface IStreamAuxMessage : IInteropMessage
@@ -47,7 +47,7 @@ namespace SharpRpc
 
     public interface IStreamPageAck : IStreamAuxMessage
     {
-        ushort PagesConsumed { get; set; }
+        ushort Consumed { get; set; }
     }
 
     public interface StreamReader<T>

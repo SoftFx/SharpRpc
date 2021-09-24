@@ -274,7 +274,7 @@ namespace SharpRpc.Builder
             return SyntaxFactory.InvocationExpression(SyntaxFactory.IdentifierName(methodName), CallArguments(arguments));
         }
 
-        public static MemberAccessExpressionSyntax MemeberOfIdentifier(string variableName, string memberName)
+        public static MemberAccessExpressionSyntax MemberOfIdentifier(string variableName, string memberName)
         {
             return SyntaxFactory.MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
                 SyntaxFactory.IdentifierName(variableName), SyntaxFactory.IdentifierName(memberName));

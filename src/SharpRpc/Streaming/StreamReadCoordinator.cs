@@ -7,28 +7,34 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace SharpRpc
 {
     internal class StreamReadCoordinator
     {
+        private readonly object _lockObj;
         private readonly string _callId;
         private readonly IStreamMessageFactory _factory;
-        private ushort _pagesConsumedCount;
+        private ushort _itemsConsumed;
         private bool _isSending;
 
-        public StreamReadCoordinator(string callId, IStreamMessageFactory factory)
+        public StreamReadCoordinator(object lockObj, string callId, IStreamMessageFactory factory)
         {
+            _lockObj = lockObj;
             _callId = callId;
             _factory = factory;
         }
 
-        public IStreamPageAck OnPageConsume()
+        public IStreamPageAck OnPageConsume(int pageSize)
         {
-            _pagesConsumedCount++;
+            Debug.Assert(Monitor.IsEntered(_lockObj));
+
+            _itemsConsumed += (ushort)pageSize;
 
             if (!_isSending)
             {
@@ -41,8 +47,12 @@ namespace SharpRpc
 
         public IStreamPageAck OnAckSent()
         {
-            if (_pagesConsumedCount > 0)
+            Debug.Assert(Monitor.IsEntered(_lockObj));
+
+            if (_itemsConsumed > 0)
                 return CreateAck();
+
+            //Debug.WriteLine("RC done sending");
 
             _isSending = false;
             return null;
@@ -50,9 +60,11 @@ namespace SharpRpc
 
         private IStreamPageAck CreateAck()
         {
+            //Debug.WriteLine("RC sending ack...");
+
             var ack = _factory.CreatePageAcknowledgement(_callId);
-            ack.PagesConsumed = _pagesConsumedCount;
-            _pagesConsumedCount = 0;
+            ack.Consumed = _itemsConsumed;
+            _itemsConsumed = 0;
             return ack;
         }
     }

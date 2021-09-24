@@ -44,7 +44,7 @@ namespace SharpRpc
                 InputStream = new PagingStreamReader<TInItem>(CallId, ch.Tx, inFactory);
 
             if (outFactory != null)
-                OutputStream = new PagingStreamWriter<TOutItem>(CallId, ch, outFactory, true, 100, 5);
+                OutputStream = new PagingStreamWriter<TOutItem>(CallId, ch, outFactory, true, new StreamOptions(request));
 
             ch.Dispatcher.RegisterCallObject(request.CallId, this);
         }
@@ -103,8 +103,8 @@ namespace SharpRpc
             }
             else if (auxMessage is ICancelRequestMessage)
             {
-                
                 _cancelSrc?.Cancel();
+                InputStream?.Abort();
             }
 
             return new RpcResult(RpcRetCode.ProtocolViolation, "");

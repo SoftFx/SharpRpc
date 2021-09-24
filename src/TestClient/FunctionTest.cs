@@ -22,21 +22,29 @@ namespace TestClient
             var callback = new CallbackHandler();
             var client = FunctionTestContract_Gen.CreateClient(endpoint, callback);
 
+            var rConnect = client.Channel.TryConnectAsync().Result;
+
             try
             {
-                TestCall1(client);
-                TestCall2(client);
-                TestFaults(client);
-                TestCalbacks(client);
-                TestComplexData(client);
+                //TestCall1(client);
+                //TestCall2(client);
+                //TestFaults(client);
+                //TestCalbacks(client);
+                //TestComplexData(client);
 
-                TestInputStream(client);
-                TestOutputStream(client, true);
-                TestOutputStream(client, false);
-                TestDuplexStream(client, true);
-                TestDuplexStream(client, false);
+                //TestInputStream(client, 8);
+                //TestInputStream(client, 32);
+                //TestOutputStream(client, 8, true);
+                //TestOutputStream(client, 8, false);
+                //TestOutputStream(client, 32, true);
+                //TestOutputStream(client, 32, false);
+                //TestDuplexStream(client, 8, true);
+                //TestDuplexStream(client, 8, false);
+                //TestDuplexStream(client, 32, true);
+                //TestDuplexStream(client, 32, false);
 
-                TestCallCancellation(client);
+                //TestCallCancellation(client);
+                TestStreamCancellation(client);
 
                 Console.WriteLine("Done testing.");
             }
@@ -259,15 +267,15 @@ namespace TestClient
                 throw new Exception("InvokeCallback returned unexpected result!");
         }
 
-        private static void TestInputStream(FunctionTestContract_Gen.Client client)
+        private static void TestInputStream(FunctionTestContract_Gen.Client client, ushort windowSize)
         {
-            Console.WriteLine("TestStreams.Input");
+            Console.WriteLine("TestStreams.Input, windowSize=" + windowSize);
 
-            var call = client.TestInStream(10, "11", StreamTestOptions.DoNotInvokeCompletion);
+            var options = new StreamOptions() { WindowSize = windowSize };
+            var call = client.TestInStream(options, TimeSpan.Zero, StreamTestOptions.DoNotInvokeCompletion);
 
             var itemsCount = 100;
             var expectedSumm = (1 + itemsCount) * itemsCount / 2;
-            var expectedResult = expectedSumm + 10 + 11;
 
             for (int i = 1; i <= itemsCount; i++)
             {
@@ -283,21 +291,21 @@ namespace TestClient
 
             var result = call.AsyncResult.Result.Value;
 
-            if (result != expectedResult)
+            if (result != expectedSumm)
                 throw new Exception("Stream call returned an unexpected result!");
         }
 
-        private static void TestOutputStream(FunctionTestContract_Gen.Client client, bool withCompletion)
+        private static void TestOutputStream(FunctionTestContract_Gen.Client client, ushort windowSize, bool withCompletion)
         {
-            Console.WriteLine("TestStreams.Output, completion=" + withCompletion);
+            Console.WriteLine("TestStreams.Output, windowSize=" + windowSize + ", completion=" + withCompletion);
 
 #if NET5_0_OR_GREATER
             var itemsCount = 100;
             var expectedSumm = (1 + itemsCount) * itemsCount / 2;
-            var expectedResult = 11;
 
             var options = withCompletion ? StreamTestOptions.InvokeCompletion : StreamTestOptions.DoNotInvokeCompletion;
-            var call = client.TestOutStream(itemsCount, "11", options);
+            var streamOptions = new StreamOptions() { WindowSize = windowSize };
+            var call = client.TestOutStream(streamOptions, TimeSpan.Zero, itemsCount, options);
 
             var e = call.OutputStream.GetAsyncEnumerator();
             var summ = 0;
@@ -310,23 +318,23 @@ namespace TestClient
 
             var ret = call.AsyncResult.Result;
 
-            if (ret.Value != expectedResult)
+            if (ret.Value != 0)
                 throw new Exception("Returned value does not match expected!");
 #endif
         }
 
-        private static void TestDuplexStream(FunctionTestContract_Gen.Client client, bool withCompletion)
+        private static void TestDuplexStream(FunctionTestContract_Gen.Client client, ushort windowSize,  bool withCompletion)
         {
-            Console.WriteLine("TestStreams.Duplex, completion=" + withCompletion);
+            Console.WriteLine("TestStreams.Duplex, windowSize=" + windowSize + ", completion=" + withCompletion);
 
 #if NET5_0_OR_GREATER
 
             var options = withCompletion ? StreamTestOptions.InvokeCompletion : StreamTestOptions.DoNotInvokeCompletion;
-            var call = client.TestDuplexStream(10, "11", options);
+            var streamOptions = new DuplexStreamOptions() { InputWindowSize = windowSize, OutputWindowSize = windowSize };
+            var call = client.TestDuplexStream(streamOptions, TimeSpan.Zero, options);
 
             var itemsCount = 100;
             var expectedSumm = (1 + itemsCount) * itemsCount / 2;
-            var expectedResult = 10 + 11;
 
             var readTask = Task.Factory.StartNew<int>(() =>
             {
@@ -358,7 +366,7 @@ namespace TestClient
 
             var result = call.AsyncResult.Result.Value;
 
-            if (result != expectedResult)
+            if (result != 0)
                 throw new Exception("Stream call returned an unexpected result!");
 #endif
         }
@@ -380,6 +388,41 @@ namespace TestClient
 
             if (!result2)
                 throw new Exception("CancellableCall() returned an unexpected result!");
+        }
+
+        private static void TestStreamCancellation(FunctionTestContract_Gen.Client client)
+        {
+            Console.WriteLine("TestStreamCancellation.OutputStream");
+
+            var cancelSrc = new CancellationTokenSource(500);
+            var options = new StreamOptions() { WindowSize = 10 };
+            var callObj = client.TestOutStream(options, TimeSpan.FromMilliseconds(100), 100, StreamTestOptions.InvokeCompletion, cancelSrc.Token);
+
+            var retVal = callObj.AsyncResult.Result.Value;
+
+            if (retVal != -1)
+                throw new Exception("Stream call returned an unexpected result!");
+
+            Console.WriteLine("TestStreamCancellation.InputStream");
+
+            var cancelSrc2 = new CancellationTokenSource(500);
+            var callObj2 = client.TestInStream(options, TimeSpan.FromMilliseconds(100), StreamTestOptions.InvokeCompletion, cancelSrc2.Token);
+
+            var retVal2 = callObj2.AsyncResult.Result.Value;
+
+            if (retVal2 != -1)
+                throw new Exception("Stream call returned an unexpected result!");
+
+            Console.WriteLine("TestStreamCancellation.DuplexStream");
+
+            var cancelSrc3 = new CancellationTokenSource(500);
+            var duplexOptions = new DuplexStreamOptions() { InputWindowSize = 10, OutputWindowSize = 10 };
+            var callObj3 = client.TestDuplexStream(duplexOptions, TimeSpan.FromMilliseconds(100), StreamTestOptions.InvokeCompletion, cancelSrc3.Token);
+
+            var retVal3 = callObj3.AsyncResult.Result.Value;
+
+            if (retVal3 != -1)
+                throw new Exception("Stream call returned an unexpected result!");
         }
 
         private class CallbackHandler : FunctionTestContract_Gen.CallbackServiceBase

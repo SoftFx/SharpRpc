@@ -5,6 +5,7 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+using SharpRpc.Streaming;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
@@ -32,13 +33,22 @@ namespace SharpRpc
         private readonly IStreamMessageFactory<T> _factory;
         private readonly StreamWriteCoordinator _coordinator;
 
-        internal PagingStreamWriter(string callId, Channel channel, IStreamMessageFactory<T> factory, bool allowSendInitialValue, int maxPageSize, int windowSize)
+        internal PagingStreamWriter(string callId, Channel channel, IStreamMessageFactory<T> factory, bool allowSendInitialValue, StreamOptions options)
         {
             CallId = callId;
             _ch = channel;
             _factory = factory;
-            _maxPageSize = maxPageSize;
-            _windowSize = windowSize;
+            //_maxPageSize = maxPageSize;
+            _windowSize = options?.WindowSize ?? StreamOptions.DefaultWindowsSize;
+
+            if (_windowSize < 1)
+                _windowSize = StreamOptions.DefaultWindowsSize;
+
+            _maxPageSize = options.WindowSize / 8;
+
+            if (_maxPageSize < 1)
+                _maxPageSize = 1;
+
             _isSendingEnabled = allowSendInitialValue;
 
             _canImmediatelyReusePages = channel.Tx.ImmidiateSerialization;
@@ -47,7 +57,7 @@ namespace SharpRpc
             if (_canImmediatelyReusePages)
                 _pageToSend = CreatePage(); 
 
-            _coordinator = new StreamWriteCoordinator(_windowSize);
+            _coordinator = new StreamWriteCoordinator(_lockObj, _windowSize);
         }
 
         private bool DataIsAvailable => _queue.Items.Count > 0;
@@ -187,11 +197,14 @@ namespace SharpRpc
         private void OnSendCompleted(RpcResult sendResult)
         {
             bool sendNextPage = false;
+            int pageSize = 0;
 
             lock (_lockObj)
             {
                 if (_pageToSend != null)
                 {
+                    pageSize = _pageToSend.Items.Count;
+
                     if (_canImmediatelyReusePages)
                         _pageToSend.Items.Clear();
                     else
@@ -200,7 +213,7 @@ namespace SharpRpc
                 
                 if (sendResult.IsOk)
                 {
-                    _coordinator.OnPageSent();
+                    _coordinator.OnPageSent(pageSize);
 
                     if(_enqueueAwaiters.Count > 0)
                         ProcessAwaiters();

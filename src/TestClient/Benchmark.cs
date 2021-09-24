@@ -338,7 +338,7 @@ namespace TestClient
         {
             await Task.Factory.Dive();
 
-            var call = client.UpstreamUpdates();
+            var call = client.UpstreamUpdates(new StreamOptions() { WindowSize = 10 });
 
             for (int i = 0; i < msgCount; i++)
             {

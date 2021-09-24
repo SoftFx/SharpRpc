@@ -7,6 +7,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -117,50 +118,85 @@ namespace TestCommon
         }
 
 #if NET5_0_OR_GREATER
-        public override async ValueTask<int> TestInStream(CallContext context, StreamReader<int> inputStream, int p1, string p2, StreamTestOptions options)
+        public override async ValueTask<int> TestInStream(CallContext context, StreamReader<int> inputStream, TimeSpan delay, StreamTestOptions options)
         {
             var sum = 0;
 
             await foreach (var i in inputStream)
+            {
                 sum += i;
 
-            return sum + p1 + int.Parse(p2);
+                if (delay > TimeSpan.Zero)
+                    await Task.Delay(delay);
+            }
+
+            if (context.CancellationToken.IsCancellationRequested)
+                return -1;
+
+            return sum;
         }
 #else
-        public override Task<int> TestInStream(CallContext context, StreamReader<int> inputStream, int p1, string p2, StreamTestOptions options)
+        public override Task<int> TestInStream(CallContext context, StreamReader<int> inputStream, TimeSpan delay, StreamTestOptions options)
         {
-            return FwAdapter.WrappResult(p1);
+            return FwAdapter.WrappResult(0);
         }
 #endif
 
 #if NET5_0_OR_GREATER
-        public override async ValueTask<int> TestOutStream(CallContext context, StreamWriter<int> outputStream, int p1, string p2, StreamTestOptions options)
+        public override async ValueTask<int> TestOutStream(CallContext context, StreamWriter<int> outputStream, TimeSpan delay, int count, StreamTestOptions options)
 #else
-        public override async Task<int> TestOutStream(CallContext context, StreamWriter<int> outputStream, int p1, string p2, StreamTestOptions options)
+        public override async Task<int> TestOutStream(CallContext context, StreamWriter<int> outputStream, TimeSpan delay, int count, StreamTestOptions options)
 #endif
         {
-            for (int i = 1; i <= p1; i++)
-                await outputStream.WriteAsync(i);
+            for (int i = 1; i <= count; i++)
+            {
+                var wResult = await outputStream.WriteAsync(i);
+
+                if (!wResult.IsOk)
+                {
+                    if (wResult.Code == RpcRetCode.OperationCanceled)
+                        return -1;
+                    return -2;
+                }
+
+                if (context.CancellationToken.IsCancellationRequested)
+                    return -1;
+
+                if (delay > TimeSpan.Zero)
+                    await Task.Delay(delay);
+            }
 
             if (options == StreamTestOptions.InvokeCompletion)
                 await outputStream.CompleteAsync();
 
-            return int.Parse(p2);
+            return context.CancellationToken.IsCancellationRequested ? -1 : 0;
         }
 
 #if NET5_0_OR_GREATER
-        public override async ValueTask<int> TestDuplexStream(CallContext context, StreamReader<int> inputStream, StreamWriter<int> outputStream, int p1, string p2, StreamTestOptions options)
+        public override async ValueTask<int> TestDuplexStream(CallContext context, StreamReader<int> inputStream, StreamWriter<int> outputStream, TimeSpan delay, StreamTestOptions options)
         {
             await foreach (var item in inputStream)
-                await outputStream.WriteAsync(item);
+            {
+                var wResult = await outputStream.WriteAsync(item);
+
+                if (!wResult.IsOk)
+                {
+                    if (wResult.Code == RpcRetCode.OperationCanceled)
+                        return -1;
+                    return -2;
+                }
+
+                if (delay > TimeSpan.Zero)
+                    await Task.Delay(delay);
+            }
 
             if (options == StreamTestOptions.InvokeCompletion)
                 await outputStream.CompleteAsync();
 
-            return p1 + int.Parse(p2);
+            return context.CancellationToken.IsCancellationRequested ? -1 : 0;
         }
 #else
-        public override Task<int> TestDuplexStream(CallContext context, StreamReader<int> inputStream, StreamWriter<int> outputStream, int p1, string p2, StreamTestOptions options)
+        public override Task<int> TestDuplexStream(CallContext context, StreamReader<int> inputStream, StreamWriter<int> outputStream, TimeSpan delay, StreamTestOptions options)
         {
             throw new NotImplementedException();
         }

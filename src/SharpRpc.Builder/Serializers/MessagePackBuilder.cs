@@ -89,7 +89,7 @@ namespace SharpRpc.Builder
             var messageParam = SH.Parameter("message", Names.MessageInterface.Full);
             var messageWriterParam = SH.Parameter("writer", Names.MessageWriterClass.Full);
 
-            var writerBufferProperty = SH.MemeberOfIdentifier("writer", compatibility.IsNet5 ? Names.WriterBufferProperty : Names.WriterStreamProperty);
+            var writerBufferProperty = SH.MemberOfIdentifier("writer", compatibility.IsNet5 ? Names.WriterBufferProperty : Names.WriterStreamProperty);
             var messageBaseCast = SF.CastExpression(SF.ParseName(baseMessageClassName.Full), SF.IdentifierName("message"));
 
             var serilizerCall = SF.InvocationExpression(SH.GenericType(SerializerMethod, baseMessageClassName.Full),
@@ -105,7 +105,7 @@ namespace SharpRpc.Builder
         {
             var messageReaderParam = SH.Parameter("reader", Names.MessageReaderClass.Full);
 
-            var readerBufferProperty = SH.MemeberOfIdentifier("reader", compatibility.IsNet5 ?  Names.ReaderBufferProperty : Names.ReaderStreamProperty);
+            var readerBufferProperty = SH.MemberOfIdentifier("reader", compatibility.IsNet5 ?  Names.ReaderBufferProperty : Names.ReaderStreamProperty);
 
             var serilizerCall = SF.InvocationExpression(SH.GenericType(DeserializerMethod, baseMessageClassName.Full),
                 SH.CallArguments(SF.Argument(readerBufferProperty)));

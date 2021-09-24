@@ -159,7 +159,7 @@ namespace SharpRpc.Builder
 
         private static StatementSyntax GenSerializerInvoke(bool singleAdapter)
         {
-            var methodToCall = SH.MemeberOfIdentifier("_preserializer",
+            var methodToCall = SH.MemberOfIdentifier("_preserializer",
                 singleAdapter ? "SerializeOnSingleAdapter" : "SerializeOnAllAdapters");
 
             var invokeExpression = SF.InvocationExpression(methodToCall)

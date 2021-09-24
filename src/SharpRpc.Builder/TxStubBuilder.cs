@@ -362,12 +362,22 @@ namespace SharpRpc.Builder
             }
 
             var bodyStatements = new List<StatementSyntax>();
-            var methodParams = GenerateMethodParams(callDec);
+            var methodParams = new List<ParameterSyntax>();
+
+            if (callDec.HasInStream && callDec.HasOutStream)
+                methodParams.Add(SH.Parameter("streamOptions", "SharpRpc.DuplexStreamOptions"));
+            else
+                methodParams.Add(SH.Parameter("streamOptions", "SharpRpc.StreamOptions"));
+
+            methodParams.AddRange(GenerateMethodParams(callDec));
+
+            methodParams.Add(SH.Parameter("cancelToken", "System.Threading.CancellationToken")
+                .WithDefault(SF.EqualsValueClause(SF.DefaultExpression(SF.IdentifierName("System.Threading.CancellationToken")))));
 
             var msgClassName = _contract.GetRequestClassName(callDec);
 
             var openStreamInvoke = SF.InvocationExpression(methodToInvoke)
-                .AddArgumentListArguments(SH.IdentifierArgument("message"));
+                .AddArgumentListArguments(SH.IdentifierArgument("message"), SH.IdentifierArgument("streamOptions"));
 
             if (callDec.HasInStream)
             {
@@ -380,6 +390,8 @@ namespace SharpRpc.Builder
                 openStreamInvoke = openStreamInvoke.AddArgumentListArguments(
                     SF.Argument(GenerateStreamFactoryCreationExp(_contract.GetOutputStreamFactoryClassName(callDec))));
             }
+
+            openStreamInvoke = openStreamInvoke.AddArgumentListArguments(SH.IdentifierArgument("cancelToken"));
 
             bodyStatements.AddRange(GenerateCreateAndFillMessageStatements(callDec, msgClassName));
             bodyStatements.Add(SF.ReturnStatement(openStreamInvoke));
