@@ -64,8 +64,8 @@ namespace SharpRpc
         private readonly TaskCompletionSource<RpcResult<TReturn>> _typedCompletion;
         private readonly TaskCompletionSource<RpcResult> _voidCompletion;
 
-        private readonly PagingStreamWriter<TInItem> _inputStub;
-        private readonly PagingStreamReader<TOutItem> _outputStub;
+        private readonly PagingStreamWriter<TInItem> _writer;
+        private readonly PagingStreamReader<TOutItem> _reader;
 
         private readonly IOpenStreamRequest _requestMessage;
 
@@ -77,11 +77,11 @@ namespace SharpRpc
             CallId = ch.Dispatcher.GenerateOperationId(); // Guid.NewGuid().ToString();
 
             if (inFactory != null)
-                _inputStub = new PagingStreamWriter<TInItem>(CallId, ch, inFactory, false, inputOptions);
+                _writer = new PagingStreamWriter<TInItem>(CallId, ch, inFactory, false, inputOptions);
 
             if (outFactory != null)
             {
-                _outputStub = new PagingStreamReader<TOutItem>(CallId, ch.Tx, outFactory);
+                _reader = new PagingStreamReader<TOutItem>(CallId, ch.Tx, outFactory);
                 _requestMessage.WindowSize = inputOptions?.WindowSize ?? StreamOptions.DefaultWindowsSize;
             }
 
@@ -108,8 +108,8 @@ namespace SharpRpc
 
         public string CallId { get; }
 
-        public StreamWriter<TInItem> InputStream => _inputStub;
-        public StreamReader<TOutItem> OutputStream => _outputStub;
+        public StreamWriter<TInItem> InputStream => _writer;
+        public StreamReader<TOutItem> OutputStream => _reader;
 
         public Task<RpcResult> Completion => _voidCompletion.Task;
         public Task<RpcResult<TReturn>> AsyncResult => _typedCompletion.Task;
@@ -120,14 +120,14 @@ namespace SharpRpc
         private void RequestSendCompleted(RpcResult result)
         {
             if (result.IsOk)
-                _inputStub?.AllowSend();
+                _writer?.AllowSend();
             else
                 EndCall(result, default(TReturn));
         }
 
         private void EndCall(RpcResult result, TReturn resultValue)
         {
-            _inputStub?.Close(result);
+            _writer?.Close(result);
 
             if (ReturnsResult)
                 _typedCompletion.TrySetResult(result.ToValueResult(resultValue));
@@ -135,11 +135,25 @@ namespace SharpRpc
                 _voidCompletion.TrySetResult(result);
         }
 
+        private void CompleteStreams()
+        {
+            _writer?.Abort(new RpcResult(RpcRetCode.StreamCompleted, "Stream is closed due to call completion."));
+            _reader?.Complete();
+        }
+
+        private void AbortStreams(RpcResult fault)
+        {
+            _writer?.Abort(fault);
+            _reader?.Abort();
+        }
+
         #region MessageDispatcherCore.IInteropOperation
 
         RpcResult MessageDispatcherCore.IInteropOperation.Complete(IResponseMessage respMessage)
         {
             //System.Diagnostics.Debug.WriteLine("RX " + CallId + " RESP " + respMessage.GetType().Name);
+
+            CompleteStreams();
 
             if (ReturnsResult)
             {
@@ -161,6 +175,8 @@ namespace SharpRpc
 
         void MessageDispatcherCore.IInteropOperation.Fail(RpcResult result)
         {
+            AbortStreams(result);
+
             if (ReturnsResult)
                 _typedCompletion.TrySetResult(result.ToValueResult<TReturn>());
             else
@@ -169,10 +185,14 @@ namespace SharpRpc
 
         void MessageDispatcherCore.IInteropOperation.Fail(IRequestFaultMessage faultMessage)
         {
+            var rpcResult = faultMessage.ToRpcResult();
+
+            AbortStreams(rpcResult);
+
             if (ReturnsResult)
-                _typedCompletion.TrySetResult(faultMessage.ToRpcResult<TReturn>());
+                _typedCompletion.TrySetResult(rpcResult.ToValueResult<TReturn>());
             else
-                _voidCompletion.TrySetResult(faultMessage.ToRpcResult());
+                _voidCompletion.TrySetResult(rpcResult);
         }
 
         RpcResult MessageDispatcherCore.IInteropOperation.Update(IInteropMessage auxMessage)
@@ -181,17 +201,17 @@ namespace SharpRpc
 
             if (auxMessage is IStreamPage<TOutItem> page)
             {
-                _outputStub.OnRx(page);
+                _reader.OnRx(page);
                 return RpcResult.Ok;
             }
             else if (auxMessage is IStreamCompletionMessage compl)
             {
-                _outputStub.OnRx(compl);
+                _reader.OnRx(compl);
                 return RpcResult.Ok;
             }
             else if (auxMessage is IStreamPageAck ack)
             {
-                _inputStub.OnRx(ack);
+                _writer.OnRx(ack);
                 return RpcResult.Ok;
             }
 

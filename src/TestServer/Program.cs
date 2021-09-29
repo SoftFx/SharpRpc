@@ -6,7 +6,9 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 using System;
+using System.Diagnostics;
 using System.Net;
+using System.Reflection;
 using System.Security.Cryptography.X509Certificates;
 using SharpRpc;
 using TestCommon;
@@ -20,6 +22,8 @@ namespace TestServer
             Console.Title = "#RPC Server";
             Console.WriteLine("SharpRpc test server.");
             Console.WriteLine("Framework: " + AppDomain.CurrentDomain.SetupInformation.TargetFrameworkName);
+            Console.WriteLine(GetAssemblyInfo(Assembly.GetExecutingAssembly()));
+            Console.WriteLine(GetAssemblyInfo(typeof(RpcServer).Assembly));
 
             var srv1 = StartBenchmarkServer();
             var srv2 = StartFunctionTestServer();
@@ -67,6 +71,26 @@ namespace TestServer
             server.Start();
 
             return server;
+        }
+
+        private static string GetAssemblyInfo(Assembly assembly)
+        {
+            var aName = assembly.GetName();
+
+            return aName.Name + ".dll, v" + aName.Version + " (optimization " + IsOptimizationEbaled(assembly) + ")";
+        }
+
+        private static string IsOptimizationEbaled(Assembly assembly)
+        {
+            var attribute = assembly.GetCustomAttribute<DebuggableAttribute>();
+
+            if (attribute == null)
+                return "unknown";
+
+            if (attribute.IsJITOptimizerDisabled)
+                return "disabled";
+
+            return "enabled";
         }
     }
 }

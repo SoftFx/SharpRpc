@@ -119,9 +119,13 @@ namespace TestCommon
 
 #if NET5_0_OR_GREATER
         public override async ValueTask<int> TestInStream(CallContext context, StreamReader<int> inputStream, TimeSpan delay, StreamTestOptions options)
+#else
+        public override async Task<int> TestInStream(CallContext context, StreamReader<int> inputStream, TimeSpan delay, StreamTestOptions options)
+#endif
         {
             var sum = 0;
 
+#if NET5_0_OR_GREATER
             await foreach (var i in inputStream)
             {
                 sum += i;
@@ -129,18 +133,23 @@ namespace TestCommon
                 if (delay > TimeSpan.Zero)
                     await Task.Delay(delay);
             }
+#else
+            var e = inputStream.GetEnumerator();
+
+            while(await e.MoveNextAsync())
+            {
+                sum += e.Current;
+
+                if (delay > TimeSpan.Zero)
+                    await Task.Delay(delay);
+            }
+#endif
 
             if (context.CancellationToken.IsCancellationRequested)
                 return -1;
 
             return sum;
         }
-#else
-        public override Task<int> TestInStream(CallContext context, StreamReader<int> inputStream, TimeSpan delay, StreamTestOptions options)
-        {
-            return FwAdapter.WrappResult(0);
-        }
-#endif
 
 #if NET5_0_OR_GREATER
         public override async ValueTask<int> TestOutStream(CallContext context, StreamWriter<int> outputStream, TimeSpan delay, int count, StreamTestOptions options)
@@ -174,10 +183,20 @@ namespace TestCommon
 
 #if NET5_0_OR_GREATER
         public override async ValueTask<int> TestDuplexStream(CallContext context, StreamReader<int> inputStream, StreamWriter<int> outputStream, TimeSpan delay, StreamTestOptions options)
+#else
+        public override async Task<int> TestDuplexStream(CallContext context, StreamReader<int> inputStream, StreamWriter<int> outputStream, TimeSpan delay, StreamTestOptions options)
+#endif
         {
+#if NET5_0_OR_GREATER
             await foreach (var item in inputStream)
             {
                 var wResult = await outputStream.WriteAsync(item);
+#else
+            var e = inputStream.GetEnumerator();
+            while(await e.MoveNextAsync())
+            {
+                var wResult = await outputStream.WriteAsync(e.Current);
+#endif
 
                 if (!wResult.IsOk)
                 {
@@ -195,12 +214,6 @@ namespace TestCommon
 
             return context.CancellationToken.IsCancellationRequested ? -1 : 0;
         }
-#else
-        public override Task<int> TestDuplexStream(CallContext context, StreamReader<int> inputStream, StreamWriter<int> outputStream, TimeSpan delay, StreamTestOptions options)
-        {
-            throw new NotImplementedException();
-        }
-#endif
 
 #if NET5_0_OR_GREATER
         public override async ValueTask<bool> CancellableCall(CallContext context, TimeSpan delay)

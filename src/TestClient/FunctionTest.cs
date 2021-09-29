@@ -8,6 +8,8 @@
 using SharpRpc;
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using TestCommon;
@@ -18,6 +20,69 @@ namespace TestClient
     {
         public static void Run(string address)
         {
+            //ExecTest<Call1Test>(address);
+            //ExecTest<Call2Test>(address);
+            //ExecTest<ComplexDataTest>(address);
+            //ExecTest<RegularFaultTest>(address);
+            //ExecTest<CrashFaultTest>(address);
+            //ExecTest<CustomFaultTest>(address);
+            //ExecTest<CallbackTest1>(address);
+            //ExecTest<CallbackTest2>(address);
+            //ExecTest<InputStreamTest>(address);
+            //ExecTest<OutputStreamTest>(address);
+            ExecTest<DuplexStreamTest>(address);
+            //ExecTest<InputStreamCancellationTest>(address);
+            //ExecTest<OutputStreamCancellationTest>(address);
+            //ExecTest<DuplexStreamCancellationTest>(address);
+
+            Console.WriteLine("Done testing.");
+        }
+
+        private static void ExecTest<T>(string address)
+            where T : TestBase, new()
+        {
+            var test = new T();
+            var cases = test.GetPredefinedCases().ToList();
+
+            Console.WriteLine();
+
+            if (cases.Count > 1)
+            {
+                Console.WriteLine(test.Name);
+
+                foreach (var tCase in cases)
+                {
+                    var caseInfoBuilder = new StringBuilder();
+                    caseInfoBuilder.Append("\t");
+                    tCase.PrintCaseParams(caseInfoBuilder);
+                    caseInfoBuilder.Append(" ...");
+
+                    Console.Write(caseInfoBuilder.ToString());
+                    ExecTestCase(address, tCase);
+                }
+            }
+            else
+            {
+                Console.Write(test.Name + " ...");
+                ExecTestCase(address, cases[0]);
+            }
+        }
+
+        private static void ExecTestCase(string address, TestCase tCase)
+        {
+            if (RunTestCase(address, tCase, out var error))
+                Console.WriteLine(" Passed");
+            else
+            {
+                Console.WriteLine(" Failed");
+                Console.WriteLine();
+                Console.WriteLine(error);
+                Console.WriteLine();
+            }
+        }
+
+        private static bool RunTestCase(string address, TestCase tCase, out string errorMessage)
+        {
             var endpoint = new TcpClientEndpoint(address, 812, TcpSecurity.None);
             var callback = new CallbackHandler();
             var client = FunctionTestContract_Gen.CreateClient(endpoint, callback);
@@ -26,164 +91,275 @@ namespace TestClient
 
             try
             {
-                TestCall1(client);
-                TestCall2(client);
-                TestFaults(client);
-                TestCalbacks(client);
-                TestComplexData(client);
-
-                TestInputStream(client, 8);
-                TestInputStream(client, 32);
-                TestOutputStream(client, 8, true);
-                TestOutputStream(client, 8, false);
-                TestOutputStream(client, 32, true);
-                TestOutputStream(client, 32, false);
-                TestDuplexStream(client, 8, true);
-                TestDuplexStream(client, 8, false);
-                TestDuplexStream(client, 32, true);
-                TestDuplexStream(client, 32, false);
-
-                TestCallCancellation(client);
-                TestStreamCancellation(client);
-
-                Console.WriteLine("Done testing.");
+                tCase.RunTest(client);
+                errorMessage = null;
+                return true;
             }
             catch (Exception ex)
             {
                 if (ex is AggregateException aggr && aggr.InnerExceptions.Count == 1)
                     ex = aggr.InnerException;
 
-                Console.WriteLine("Tests failed: " + ex.Message);
+                errorMessage = ex.Message;
+                return false;
+            }
+            finally
+            {
+                client.Channel.CloseAsync().Wait();
+            }
+        }
+
+        private enum CallType
+        {
+            Regular,
+            Try,
+            Async,
+            TryAsync
+        }
+
+        private class Call1Test : TestBase
+        {
+            public override IEnumerable<TestCase> GetPredefinedCases()
+            {
+                yield return CreateCase(CallType.Regular);
+                yield return CreateCase(CallType.Try);
+                yield return CreateCase(CallType.Async);
+                yield return CreateCase(CallType.TryAsync);
             }
 
-            client.Channel.CloseAsync().Wait();
-        }
-
-        private static void TestCall1(FunctionTestContract_Gen.Client client)
-        {
-            Console.WriteLine("TestCall1.Call");
-
-            client.TestCall1(10, "11");
-
-            Console.WriteLine("TestCall1.CallAsync");
-
-            client.Async.TestCall1(10, "11").Wait();
-
-            Console.WriteLine("TestCall1.TryCall");
-
-            client.Try.TestCall1(10, "11").ThrowIfNotOk();
-
-            Console.WriteLine("TestCall1.TryCallAsync");
-
-            client.TryAsync.TestCall1(10, "11").Result.ThrowIfNotOk();
-        }
-
-        private static void TestCall2(FunctionTestContract_Gen.Client client)
-        {
-            Console.WriteLine("TestCall2.Call");
-
-            var r1 = client.TestCall2(10, "11");
-            if (r1 != "123")
-                throw new Exception("TestCall2 returned unexpected result!");
-
-            Console.WriteLine("TestCall2.CallAsync");
-
-            var r3 = client.Async.TestCall2(10, "11").Result;
-            if (r3 != "123")
-                throw new Exception("TestCall2Async returned unexpected result!");
-
-            Console.WriteLine("TestCall2.TryCall");
-
-            var r2 = client.Try.TestCall2(10, "11");
-            r2.ThrowIfNotOk();
-            if (r2.Value != "123")
-                throw new Exception("TryTestCall2 returned unexpected result!");
-
-            Console.WriteLine("TestCall2.TryCallAsync");
-
-            var r4 = client.TryAsync.TestCall2(10, "11").Result;
-            r4.ThrowIfNotOk();
-            if (r4.Value != "123")
-                throw new Exception("TestCall2Async returned unexpected result!");
-        }
-
-        private static void TestFaults(FunctionTestContract_Gen.Client client)
-        {
-            Console.WriteLine("TestFaults.Regular");
-
-            AssertFault(RpcRetCode.RequestFault, "Test exception", () =>
+            public override TestCase GetRandomCase(Random rnd)
             {
-                client.TestRpcException(10, "11");
-                return RpcResult.Ok;
-            });
+                return CreateCase((CallType)rnd.Next(4));
+            }
 
-            Console.WriteLine("TestFaults.Regular.Try");
-
-            AssertFault(RpcRetCode.RequestFault, "Test exception", () => client.Try.TestRpcException(10, "11").GetResultInfo());
-
-            Console.WriteLine("TestFaults.Crash");
-
-            AssertFault(RpcRetCode.RequestCrash, "Request faulted due to", () =>
+            private TestCase CreateCase(CallType cType)
             {
-                client.TestCrash(10, "11");
-                return RpcResult.Ok;
-            });
+                return new TestCase(this)
+                    .SetParam("callType", cType);
+            }
 
-            Console.WriteLine("TestFaults.Crash.Try");
-
-            AssertFault(RpcRetCode.RequestCrash, "Request faulted due to", () => client.Try.TestCrash(10, "11").GetResultInfo());
-
-            Console.WriteLine("TestFaults.Custom1");
-
-            AssertCustomFault(RpcRetCode.RequestCrash, new TestFault1 { CustomCode = 11 }, () =>
+            public override void RunTest(TestCase tCase, FunctionTestContract_Gen.Client client)
             {
-                client.TestCallFault(1);
-                return RpcResult.Ok;
-            });
+                var type = (CallType)tCase["callType"];
 
-            Console.WriteLine("TestFaults.Custom1.Try");
-
-            AssertCustomFault(RpcRetCode.RequestCrash, new TestFault1 { CustomCode = 11 }, () => client.Try.TestCallFault(1));
+                if (type == CallType.Regular)
+                    client.TestCall1(10, "11");
+                else if (type == CallType.Async)
+                    client.Async.TestCall1(10, "11").Wait();
+                else if (type == CallType.Try)
+                    client.Try.TestCall1(10, "11").ThrowIfNotOk();
+                else if (type == CallType.TryAsync)
+                    client.TryAsync.TestCall1(10, "11").Result.ThrowIfNotOk();
+            }
         }
 
-        private static void TestComplexData(FunctionTestContract_Gen.Client client)
+        private class Call2Test : TestBase
         {
-            Console.WriteLine("TestComplexData.Call");
+            public override IEnumerable<TestCase> GetPredefinedCases()
+            {
+                yield return CreateCase(CallType.Regular);
+                yield return CreateCase(CallType.Try);
+                yield return CreateCase(CallType.Async);
+                yield return CreateCase(CallType.TryAsync);
+            }
 
-            var list1 = new List<DateTime>();
-            list1.Add(new DateTime(2011, 10, 10));
-            list1.Add(new DateTime(2012, 10, 10));
+            public override TestCase GetRandomCase(Random rnd)
+            {
+                return CreateCase((CallType)rnd.Next(4));
+            }
 
-            var list2 = new List<DateTime>();
-            list2.Add(new DateTime(2013, 10, 10));
-            list2.Add(new DateTime(2014, 10, 10));
+            private TestCase CreateCase(CallType cType)
+            {
+                return new TestCase(this)
+                    .SetParam("callType", cType);
+            }
 
-            var list3 = new List<DateTime>();
-            list3.Add(new DateTime(2015, 10, 10));
-            list3.Add(new DateTime(2016, 10, 10));
+            public override void RunTest(TestCase tCase, FunctionTestContract_Gen.Client client)
+            {
+                var type = (CallType)tCase["callType"];
 
-            var listOfList = new List<List<DateTime>>();
-            listOfList.Add(list2);
-            listOfList.Add(list3);
+                if (type == CallType.Regular)
+                {
+                    var r1 = client.TestCall2(10, "11");
+                    if (r1 != "123")
+                        throw new Exception("TestCall2 returned unexpected result!");
+                }
+                else if (type == CallType.Try)
+                {
+                    var r2 = client.Try.TestCall2(10, "11");
+                    r2.ThrowIfNotOk();
+                    if (r2.Value != "123")
+                        throw new Exception("TryTestCall2 returned unexpected result!");
+                }
+                else if (type == CallType.Async)
+                {
+                    var r3 = client.Async.TestCall2(10, "11").Result;
+                    if (r3 != "123")
+                        throw new Exception("TestCall2Async returned unexpected result!");
+                }
+                else
+                {
+                    var r4 = client.TryAsync.TestCall2(10, "11").Result;
+                    r4.ThrowIfNotOk();
+                    if (r4.Value != "123")
+                        throw new Exception("TestCall2Async returned unexpected result!");
+                }
+            }
+        }
 
-            var dictionary = new Dictionary<int, int>();
-            dictionary.Add(1, 2);
-            dictionary.Add(2, 4);
-            dictionary.Add(5, 6);
+        private class RegularFaultTest : TestBase
+        {
+            public override IEnumerable<TestCase> GetPredefinedCases()
+            {
+                yield return CreateCase(CallType.Regular);
+                yield return CreateCase(CallType.Try);
+                //yield return CreateCase(CallType.Async);
+                //yield return CreateCase(CallType.TryAsync);
+            }
 
-            var r1 = client.ComplexTypesCall(list1, listOfList, dictionary);
+            public override TestCase GetRandomCase(Random rnd)
+            {
+                return CreateCase((CallType)rnd.Next(2));
+            }
 
-            if (r1.Count != 3)
-                throw new Exception("");
+            private TestCase CreateCase(CallType cType)
+            {
+                return new TestCase(this)
+                    .SetParam("callType", cType);
+            }
 
-            if (r1[0].Item1 != 4023)
-                throw new Exception();
+            public override void RunTest(TestCase tCase, FunctionTestContract_Gen.Client client)
+            {
+                var type = (CallType)tCase["callType"];
 
-            if (r1[1].Item1 != 8058)
-                throw new Exception();
+                AssertFault(RpcRetCode.RequestFault, "Test exception", () =>
+                {
+                    if (type == CallType.Regular)
+                    {
+                        client.TestRpcException(10, "11");
+                        return RpcResult.Ok;
+                    }
+                    else //if (type == CallType.Try)
+                        return client.Try.TestRpcException(10, "11").GetResultInfo();
+                });
+            }
+        }
 
-            if (r1[2].Item1 != 20)
-                throw new Exception();
+        private class CrashFaultTest : TestBase
+        {
+            public override IEnumerable<TestCase> GetPredefinedCases()
+            {
+                yield return CreateCase(CallType.Regular);
+                yield return CreateCase(CallType.Try);
+                //yield return CreateCase(CallType.Async);
+                //yield return CreateCase(CallType.TryAsync);
+            }
+
+            public override TestCase GetRandomCase(Random rnd)
+            {
+                return CreateCase((CallType)rnd.Next(2));
+            }
+
+            private TestCase CreateCase(CallType cType)
+            {
+                return new TestCase(this)
+                    .SetParam("callType", cType);
+            }
+
+            public override void RunTest(TestCase tCase, FunctionTestContract_Gen.Client client)
+            {
+                var type = (CallType)tCase["callType"];
+
+                AssertFault(RpcRetCode.RequestCrash, "Request faulted due to", () =>
+                {
+                    if (type == CallType.Regular)
+                    {
+                        client.TestCrash(10, "11");
+                        return RpcResult.Ok;
+                    }
+                    else // if(type == CallType.Try)
+                        return client.Try.TestCrash(10, "11").GetResultInfo();
+                });
+            }
+        }
+
+        private class CustomFaultTest : TestBase
+        {
+            public override IEnumerable<TestCase> GetPredefinedCases()
+            {
+                yield return CreateCase(CallType.Regular);
+                yield return CreateCase(CallType.Try);
+                //yield return CreateCase(CallType.Async);
+                //yield return CreateCase(CallType.TryAsync);
+            }
+
+            public override TestCase GetRandomCase(Random rnd)
+            {
+                return CreateCase((CallType)rnd.Next(2));
+            }
+
+            private TestCase CreateCase(CallType cType)
+            {
+                return new TestCase(this)
+                    .SetParam("callType", cType);
+            }
+
+            public override void RunTest(TestCase tCase, FunctionTestContract_Gen.Client client)
+            {
+                var type = (CallType)tCase["callType"];
+
+                AssertCustomFault(RpcRetCode.RequestCrash, new TestFault1 { CustomCode = 11 }, () =>
+                {
+                    if (type == CallType.Regular)
+                    {
+                        client.TestCallFault(1);
+                        return RpcResult.Ok;
+                    }
+                    else
+                        return client.Try.TestCallFault(1);
+                });
+            }
+        }
+
+        private class ComplexDataTest : TestBase
+        {
+            public override void RunTest(TestCase tCase, FunctionTestContract_Gen.Client client)
+            {
+                var list1 = new List<DateTime>();
+                list1.Add(new DateTime(2011, 10, 10));
+                list1.Add(new DateTime(2012, 10, 10));
+
+                var list2 = new List<DateTime>();
+                list2.Add(new DateTime(2013, 10, 10));
+                list2.Add(new DateTime(2014, 10, 10));
+
+                var list3 = new List<DateTime>();
+                list3.Add(new DateTime(2015, 10, 10));
+                list3.Add(new DateTime(2016, 10, 10));
+
+                var listOfList = new List<List<DateTime>>();
+                listOfList.Add(list2);
+                listOfList.Add(list3);
+
+                var dictionary = new Dictionary<int, int>();
+                dictionary.Add(1, 2);
+                dictionary.Add(2, 4);
+                dictionary.Add(5, 6);
+
+                var r1 = client.ComplexTypesCall(list1, listOfList, dictionary);
+
+                if (r1.Count != 3)
+                    throw new Exception("");
+
+                if (r1[0].Item1 != 4023)
+                    throw new Exception();
+
+                if (r1[1].Item1 != 8058)
+                    throw new Exception();
+
+                if (r1[2].Item1 != 20)
+                    throw new Exception();
+            }
         }
 
         private static void AssertFault(RpcRetCode expectedCode, string expectedMessageStart, Func<RpcResult> call)
@@ -252,172 +428,262 @@ namespace TestClient
                 throw new Exception("Fault data does not match expected!");
         }
 
-        private static void TestCalbacks(FunctionTestContract_Gen.Client client)
+        private class CallbackTest1 : TestBase
         {
-            Console.WriteLine("TestCalbacks.Callback1");
-
-            var r1 = client.Async.InvokeCallback(1, 10, "11").Result;
-            if (r1 != "Ok")
-                throw new Exception("InvokeCallback returned unexpected result!");
-
-            Console.WriteLine("TestCalbacks.Callback2");
-
-            var r2 = client.Async.InvokeCallback(2, 10, "11").Result;
-            if (r2 != "21")
-                throw new Exception("InvokeCallback returned unexpected result!");
+            public override void RunTest(TestCase tCase, FunctionTestContract_Gen.Client client)
+            {
+                var r1 = client.Async.InvokeCallback(1, 10, "11").Result;
+                if (r1 != "Ok")
+                    throw new Exception("InvokeCallback returned unexpected result!");
+            }
         }
 
-        private static void TestInputStream(FunctionTestContract_Gen.Client client, ushort windowSize)
+        private class CallbackTest2 : TestBase
         {
-            Console.WriteLine("TestStreams.Input, windowSize=" + windowSize);
-
-            var options = new StreamOptions() { WindowSize = windowSize };
-            var call = client.TestInStream(options, TimeSpan.Zero, StreamTestOptions.DoNotInvokeCompletion);
-
-            var itemsCount = 100;
-            var expectedSumm = (1 + itemsCount) * itemsCount / 2;
-
-            for (int i = 1; i <= itemsCount; i++)
+            public override void RunTest(TestCase tCase, FunctionTestContract_Gen.Client client)
             {
-                var rWrite = call.InputStream.WriteAsync(i).Result;
-                if (!rWrite.IsOk)
-                    throw new Exception("WriteAsync() returned " + rWrite.Code);
+                var r2 = client.Async.InvokeCallback(2, 10, "11").Result;
+                if (r2 != "21")
+                    throw new Exception("InvokeCallback returned unexpected result!");
+            }
+        }
+
+        private class InputStreamTest : TestBase
+        {
+            private TestCase CreateCase(ushort windowSize)
+            {
+                return new TestCase(this)
+                    .SetParam("windowSize", windowSize);
             }
 
-            var rCompletion = call.InputStream.CompleteAsync().Result;
-
-            if (!rCompletion.IsOk)
-                throw new Exception("CompleteAsync() returned " + rCompletion.Code);
-
-            var result = call.AsyncResult.Result.Value;
-
-            if (result != expectedSumm)
-                throw new Exception("Stream call returned an unexpected result!");
-        }
-
-        private static void TestOutputStream(FunctionTestContract_Gen.Client client, ushort windowSize, bool withCompletion)
-        {
-            Console.WriteLine("TestStreams.Output, windowSize=" + windowSize + ", completion=" + withCompletion);
-
-            var itemsCount = 100;
-            var expectedSumm = (1 + itemsCount) * itemsCount / 2;
-
-            var options = withCompletion ? StreamTestOptions.InvokeCompletion : StreamTestOptions.DoNotInvokeCompletion;
-            var streamOptions = new StreamOptions() { WindowSize = windowSize };
-            var call = client.TestOutStream(streamOptions, TimeSpan.Zero, itemsCount, options);
-
-            var e = call.OutputStream.GetEnumerator();
-            var summ = 0;
-
-            while (e.MoveNextAsync().Result)
-                summ += e.Current;
-
-            if (summ != expectedSumm)
-                throw new Exception("Items summ does not match expected value!");
-
-            var ret = call.AsyncResult.Result;
-
-            if (ret.Value != 0)
-                throw new Exception("Returned value does not match expected!");
-        }
-
-        private static void TestDuplexStream(FunctionTestContract_Gen.Client client, ushort windowSize,  bool withCompletion)
-        {
-            Console.WriteLine("TestStreams.Duplex, windowSize=" + windowSize + ", completion=" + withCompletion);
-
-            var options = withCompletion ? StreamTestOptions.InvokeCompletion : StreamTestOptions.DoNotInvokeCompletion;
-            var streamOptions = new DuplexStreamOptions() { InputWindowSize = windowSize, OutputWindowSize = windowSize };
-            var call = client.TestDuplexStream(streamOptions, TimeSpan.Zero, options);
-
-            var itemsCount = 100;
-            var expectedSumm = (1 + itemsCount) * itemsCount / 2;
-
-            var readTask = Task.Factory.StartNew<int>(() =>
+            public override IEnumerable<TestCase> GetPredefinedCases()
             {
+                yield return CreateCase(8);
+                yield return CreateCase(32);
+            }
+
+            public override TestCase GetRandomCase(Random rnd)
+            {
+                return CreateCase((ushort)rnd.Next(8, 100));
+            }
+
+            public override void RunTest(TestCase tCase, FunctionTestContract_Gen.Client client)
+            {
+                var windowSize = (ushort)tCase["windowSize"];
+                var options = new StreamOptions() { WindowSize = windowSize };
+                var call = client.TestInStream(options, TimeSpan.Zero, StreamTestOptions.DoNotInvokeCompletion);
+
+                var itemsCount = 100;
+                var expectedSumm = (1 + itemsCount) * itemsCount / 2;
+
+                for (int i = 1; i <= itemsCount; i++)
+                {
+                    var rWrite = call.InputStream.WriteAsync(i).Result;
+                    if (!rWrite.IsOk)
+                        throw new Exception("WriteAsync() returned " + rWrite.Code);
+                }
+
+                var rCompletion = call.InputStream.CompleteAsync().Result;
+
+                if (!rCompletion.IsOk)
+                    throw new Exception("CompleteAsync() returned " + rCompletion.Code);
+
+                var result = call.AsyncResult.Result.Value;
+
+                if (result != expectedSumm)
+                    throw new Exception("Stream call returned an unexpected result!");
+            }
+        }
+
+        private class OutputStreamTest : TestBase
+        {
+            private TestCase CreateCase(ushort windowSize, bool withCompletion)
+            {
+                return new TestCase(this)
+                    .SetParam("windowSize", windowSize)
+                    .SetParam("withCompletion", withCompletion);
+            }
+
+            public override IEnumerable<TestCase> GetPredefinedCases()
+            {
+                yield return CreateCase(8, true);
+                yield return CreateCase(8, false);
+                yield return CreateCase(32, true);
+                yield return CreateCase(32, false);
+            }
+
+            public override TestCase GetRandomCase(Random rnd)
+            {
+                return CreateCase((ushort)rnd.Next(8, 100), rnd.Next(2) > 0);
+            }
+
+            public override void RunTest(TestCase tCase, FunctionTestContract_Gen.Client client)
+            {
+                var windowSize = (ushort)tCase["windowSize"];
+                var withCompletion = (bool)tCase["withCompletion"];
+
+                var itemsCount = 100;
+                var expectedSumm = (1 + itemsCount) * itemsCount / 2;
+
+                var options = withCompletion ? StreamTestOptions.InvokeCompletion : StreamTestOptions.DoNotInvokeCompletion;
+                var streamOptions = new StreamOptions() { WindowSize = windowSize };
+                var call = client.TestOutStream(streamOptions, TimeSpan.Zero, itemsCount, options);
+
                 var e = call.OutputStream.GetEnumerator();
-                var sm = 0;
+                var summ = 0;
 
                 while (e.MoveNextAsync().Result)
-                    sm += e.Current;
+                    summ += e.Current;
 
-                return sm;
-            });
+                if (summ != expectedSumm)
+                    throw new Exception("Items summ does not match expected value!");
 
-            for (int i = 1; i <= itemsCount; i++)
+                var ret = call.AsyncResult.Result;
+
+                if (ret.Value != 0)
+                    throw new Exception("Returned value does not match expected!");
+            }
+        }
+
+        private class DuplexStreamTest : TestBase
+        {
+            private TestCase CreateCase(ushort windowSize, bool withCompletion)
             {
-                var rWrite = call.InputStream.WriteAsync(i).Result;
-                if (!rWrite.IsOk)
-                    throw new Exception("WriteAsync() returned " + rWrite.Code);
+                return new TestCase(this)
+                    .SetParam("windowSize", windowSize)
+                    .SetParam("withCompletion", withCompletion);
             }
 
-            var rCompletion = call.InputStream.CompleteAsync().Result;
+            public override IEnumerable<TestCase> GetPredefinedCases()
+            {
+                yield return CreateCase(8, true);
+                yield return CreateCase(8, false);
+                yield return CreateCase(32, true);
+                yield return CreateCase(32, false);
+            }
 
-            if (!rCompletion.IsOk)
-                throw new Exception("CompleteAsync() returned " + rCompletion.Code);
+            public override TestCase GetRandomCase(Random rnd)
+            {
+                return CreateCase((ushort)rnd.Next(8, 100), rnd.Next(2) > 0);
+            }
 
-            var summ = readTask.Result;
-            
-            if (summ != expectedSumm)
-                throw new Exception("Items summ does not match expected value!");
+            public override void RunTest(TestCase tCase, FunctionTestContract_Gen.Client client)
+            {
+                var windowSize = (ushort)tCase["windowSize"];
+                var withCompletion = (bool)tCase["withCompletion"];
 
-            var result = call.AsyncResult.Result.Value;
+                var options = withCompletion ? StreamTestOptions.InvokeCompletion : StreamTestOptions.DoNotInvokeCompletion;
+                var streamOptions = new DuplexStreamOptions() { InputWindowSize = windowSize, OutputWindowSize = windowSize };
+                var call = client.TestDuplexStream(streamOptions, TimeSpan.Zero, options);
 
-            if (result != 0)
-                throw new Exception("Stream call returned an unexpected result!");
+                var itemsCount = 100;
+                var expectedSumm = (1 + itemsCount) * itemsCount / 2;
+
+                var readTask = Task.Factory.StartNew<int>(() =>
+                {
+                    var e = call.OutputStream.GetEnumerator();
+                    var sm = 0;
+
+                    while (e.MoveNextAsync().Result)
+                        sm += e.Current;
+
+                    return sm;
+                });
+
+                for (int i = 1; i <= itemsCount; i++)
+                {
+                    var rWrite = call.InputStream.WriteAsync(i).Result;
+                    if (!rWrite.IsOk)
+                        throw new Exception("WriteAsync() returned " + rWrite.Code);
+                }
+
+                var rCompletion = call.InputStream.CompleteAsync().Result;
+
+                if (!rCompletion.IsOk)
+                    throw new Exception("CompleteAsync() returned " + rCompletion.Code);
+
+                var summ = readTask.Result;
+
+                if (summ != expectedSumm)
+                    throw new Exception("Items summ does not match expected value!");
+
+                var result = call.AsyncResult.Result.Value;
+
+                if (result != 0)
+                    throw new Exception("Stream call returned an unexpected result!");
+            }
         }
 
-        private static void TestCallCancellation(FunctionTestContract_Gen.Client client)
+        private class TestCallCancellation_CancelAfterDelay : TestBase
         {
-            Console.WriteLine("TestCallCancellation.WaitThenCancel");
+            public override void RunTest(TestCase tCase, FunctionTestContract_Gen.Client client)
+            {
+                var cancelSrc = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
 
-            var cancelSrc = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+                var result = client.CancellableCall(TimeSpan.FromMinutes(5), cancelSrc.Token);
 
-            var result = client.CancellableCall(TimeSpan.FromMinutes(5), cancelSrc.Token);
-
-            if (!result)
-                throw new Exception("CancellableCall() returned an unexpected result!");
-
-            Console.WriteLine("TestCallCancellation.PreCancel");
-
-            var result2 = client.CancellableCall(TimeSpan.FromMinutes(2), cancelSrc.Token);
-
-            if (!result2)
-                throw new Exception("CancellableCall() returned an unexpected result!");
+                if (!result)
+                    throw new Exception("CancellableCall() returned an unexpected result!");
+            }
         }
 
-        private static void TestStreamCancellation(FunctionTestContract_Gen.Client client)
+        private class TestCallCancellation_CancelBefore : TestBase
         {
-            Console.WriteLine("TestStreamCancellation.OutputStream");
+            public override void RunTest(TestCase tCase, FunctionTestContract_Gen.Client client)
+            {
+                var cancelSrc = new CancellationTokenSource();
+                cancelSrc.Cancel();
 
-            var cancelSrc = new CancellationTokenSource(500);
-            var options = new StreamOptions() { WindowSize = 10 };
-            var callObj = client.TestOutStream(options, TimeSpan.FromMilliseconds(100), 100, StreamTestOptions.InvokeCompletion, cancelSrc.Token);
+                var result = client.CancellableCall(TimeSpan.FromMinutes(2), cancelSrc.Token);
 
-            var retVal = callObj.AsyncResult.Result.Value;
+                if (!result)
+                    throw new Exception("CancellableCall() returned an unexpected result!");
+            }
+        }
 
-            if (retVal != -1)
-                throw new Exception("Stream call returned an unexpected result!");
+        private class InputStreamCancellationTest : TestBase
+        {
+            public override void RunTest(TestCase tCase, FunctionTestContract_Gen.Client client)
+            {
+                var cancelSrc = new CancellationTokenSource(500);
+                var options = new StreamOptions() { WindowSize = 10 };
+                var callObj = client.TestOutStream(options, TimeSpan.FromMilliseconds(100), 100, StreamTestOptions.InvokeCompletion, cancelSrc.Token);
 
-            Console.WriteLine("TestStreamCancellation.InputStream");
+                var retVal = callObj.AsyncResult.Result.Value;
 
-            var cancelSrc2 = new CancellationTokenSource(500);
-            var callObj2 = client.TestInStream(options, TimeSpan.FromMilliseconds(100), StreamTestOptions.InvokeCompletion, cancelSrc2.Token);
+                if (retVal != -1)
+                    throw new Exception("Stream call returned an unexpected result!");
+            }
+        }
 
-            var retVal2 = callObj2.AsyncResult.Result.Value;
+        private class OutputStreamCancellationTest : TestBase
+        {
+            public override void RunTest(TestCase tCase, FunctionTestContract_Gen.Client client)
+            {
+                var cancelSrc2 = new CancellationTokenSource(500);
+                var options = new StreamOptions() { WindowSize = 10 };
+                var callObj2 = client.TestInStream(options, TimeSpan.FromMilliseconds(100), StreamTestOptions.InvokeCompletion, cancelSrc2.Token);
 
-            if (retVal2 != -1)
-                throw new Exception("Stream call returned an unexpected result!");
+                var retVal2 = callObj2.AsyncResult.Result.Value;
 
-            Console.WriteLine("TestStreamCancellation.DuplexStream");
+                if (retVal2 != -1)
+                    throw new Exception("Stream call returned an unexpected result!");
+            }
+        }
 
-            var cancelSrc3 = new CancellationTokenSource(500);
-            var duplexOptions = new DuplexStreamOptions() { InputWindowSize = 10, OutputWindowSize = 10 };
-            var callObj3 = client.TestDuplexStream(duplexOptions, TimeSpan.FromMilliseconds(100), StreamTestOptions.InvokeCompletion, cancelSrc3.Token);
+        private class DuplexStreamCancellationTest : TestBase
+        {
+            public override void RunTest(TestCase tCase, FunctionTestContract_Gen.Client client)
+            {
+                var cancelSrc3 = new CancellationTokenSource(500);
+                var duplexOptions = new DuplexStreamOptions() { InputWindowSize = 10, OutputWindowSize = 10 };
+                var callObj3 = client.TestDuplexStream(duplexOptions, TimeSpan.FromMilliseconds(100), StreamTestOptions.InvokeCompletion, cancelSrc3.Token);
 
-            var retVal3 = callObj3.AsyncResult.Result.Value;
+                var retVal3 = callObj3.AsyncResult.Result.Value;
 
-            if (retVal3 != -1)
-                throw new Exception("Stream call returned an unexpected result!");
+                if (retVal3 != -1)
+                    throw new Exception("Stream call returned an unexpected result!");
+            }
         }
 
         private class CallbackHandler : FunctionTestContract_Gen.CallbackServiceBase

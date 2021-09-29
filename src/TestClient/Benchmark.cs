@@ -34,15 +34,15 @@ namespace TestClient
 
         public void LaunchTestSeries(int multiplier)
         {
-            LaunchTestSeriesOndeSide(_address, multiplier, TestOptions.None);
-            //LaunchTestSeriesOndeSide(_address, multiplier, TestOptions.Backwards);
+            //LaunchTestSeriesOndeSide(_address, multiplier, TestOptions.None);
+            LaunchTestSeriesOndeSide(_address, multiplier, TestOptions.Backwards);
         }
 
         private void LaunchTestSeriesOndeSide(string address, int multiplier, TestOptions options)
         {
             // one way
 
-            //DoOneWayTestSeries(address, 500000, 1,  multiplier, options);
+            DoOneWayTestSeries(address, 500000, 1,  multiplier, options);
             //DoOneWayTestSeries(address, 50000, 10, multiplier, options);
             DoOneWayTestSeries(address, 20000, 30, multiplier, options);
             //DoOneWayTestSeries(address, 10000, 50, multiplier, options);
@@ -76,7 +76,7 @@ namespace TestClient
         private void DoOneWayTestSeries(string address, int msgCount, int clientCount, int multiplier, TestOptions baseOptions)
         {
             //DoTest(address, msgCount * multiplier, clientCount, baseOptions | TestOptions.OneWay);
-            //DoTest(address, msgCount * multiplier, clientCount, baseOptions | TestOptions.OneWay | TestOptions.Async);
+            DoTest(address, msgCount * multiplier, clientCount, baseOptions | TestOptions.OneWay | TestOptions.Async);
             //DoTest(address, msgCount * multiplier, clientCount, baseOptions | TestOptions.OneWay | TestOptions.Prebuild);
             DoTest(address, msgCount * multiplier, clientCount, baseOptions | TestOptions.OneWay | TestOptions.Async | TestOptions.Prebuild);
         }

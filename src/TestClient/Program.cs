@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 using SharpRpc;
 using TestCommon;
@@ -15,6 +17,8 @@ namespace TestClient
             Console.Title = "#RPC Client";
             Console.WriteLine("SharpRpc test client.");
             Console.WriteLine("Framework: " + AppDomain.CurrentDomain.SetupInformation.TargetFrameworkName);
+            Console.WriteLine(GetAssemblyInfo(Assembly.GetExecutingAssembly()));
+            Console.WriteLine(GetAssemblyInfo(typeof(RpcServer).Assembly));
             Console.WriteLine("Target server: " + address);
             Console.WriteLine("Choose action:");
 
@@ -88,6 +92,26 @@ namespace TestClient
             }
             else
                 Console.WriteLine("Invalid input.");
+        }
+
+        private static string GetAssemblyInfo(Assembly assembly)
+        {
+            var aName = assembly.GetName();
+
+            return aName.Name + ".dll, v" +  aName.Version + " (optimization " + IsOptimizationEbaled(assembly) + ")";
+        }
+
+        private static string IsOptimizationEbaled(Assembly assembly)
+        {
+            var attribute = assembly.GetCustomAttribute<DebuggableAttribute>();
+
+            if (attribute == null)
+                return "unknown";
+
+            if (attribute.IsJITOptimizerDisabled)
+                return "disabled";
+
+            return "enabled";
         }
     }
 }

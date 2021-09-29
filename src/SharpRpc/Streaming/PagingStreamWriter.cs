@@ -120,7 +120,7 @@ namespace SharpRpc
             {
                 _isSendingEnabled = true;
 
-                if (!_isSedning && !_coordinator.IsBlocked)
+                if (!_isSedning && DataIsAvailable && !_coordinator.IsBlocked)
                 {
                     _isSedning = true;
                     _pageToSend = DequeuePage();
@@ -138,6 +138,15 @@ namespace SharpRpc
             {
                 if (!_isClosed)
                     CloseStream(false, fault);
+            }
+        }
+
+        internal void Abort(RpcResult fault)
+        {
+            lock (_lockObj)
+            {
+                if (!_isClosed)
+                    CloseStream(true, fault);
             }
         }
 

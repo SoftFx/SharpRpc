@@ -52,16 +52,12 @@ namespace SharpRpc
             if (_itemsConsumed > 0)
                 return CreateAck();
 
-            //Debug.WriteLine("RC done sending");
-
             _isSending = false;
             return null;
         }
 
         private IStreamPageAck CreateAck()
         {
-            //Debug.WriteLine("RC sending ack...");
-
             var ack = _factory.CreatePageAcknowledgement(_callId);
             ack.Consumed = _itemsConsumed;
             _itemsConsumed = 0;

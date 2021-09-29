@@ -90,6 +90,11 @@ namespace SharpRpc
             CompleteStream(true);
         }
 
+        internal void Complete()
+        {
+            CompleteStream(false);
+        }
+
         private void CompleteStream(bool clearQueue)
         {
             var wakeupListener = false;
