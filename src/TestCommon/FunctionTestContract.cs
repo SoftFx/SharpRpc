@@ -76,10 +76,14 @@ namespace TestCommon
 
     public enum StreamTestOptions
     {
+        None,
+        JustExit,
         InvokeCompletion,
         DoNotInvokeCompletion,
-        ReturnFault,
-        ReturnCustomFault
+        ImmediateFault,
+        ImmediateCustomFault,
+        FollowingFault,
+        FollowingCustomFault
     }
 
     [MessagePackObject]

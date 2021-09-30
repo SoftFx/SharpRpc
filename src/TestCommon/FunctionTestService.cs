@@ -123,6 +123,13 @@ namespace TestCommon
         public override async Task<int> TestInStream(CallContext context, StreamReader<int> inputStream, TimeSpan delay, StreamTestOptions options)
 #endif
         {
+            if (options == StreamTestOptions.JustExit)
+                return -2;
+            else if (options == StreamTestOptions.ImmediateFault)
+                throw new RpcFaultException("Test fault");
+            else if (options == StreamTestOptions.ImmediateCustomFault)
+                throw RpcFaultException.Create(new TestFault1());
+
             var sum = 0;
 
 #if NET5_0_OR_GREATER
@@ -136,7 +143,7 @@ namespace TestCommon
 #else
             var e = inputStream.GetEnumerator();
 
-            while(await e.MoveNextAsync())
+            while (await e.MoveNextAsync())
             {
                 sum += e.Current;
 
@@ -157,6 +164,13 @@ namespace TestCommon
         public override async Task<int> TestOutStream(CallContext context, StreamWriter<int> outputStream, TimeSpan delay, int count, StreamTestOptions options)
 #endif
         {
+            if (options == StreamTestOptions.JustExit)
+                return -2;
+            else if (options == StreamTestOptions.ImmediateFault)
+                throw new RpcFaultException("Test fault");
+            else if (options == StreamTestOptions.ImmediateCustomFault)
+                throw RpcFaultException.Create(new TestFault1());
+
             for (int i = 1; i <= count; i++)
             {
                 var wResult = await outputStream.WriteAsync(i);
@@ -187,6 +201,13 @@ namespace TestCommon
         public override async Task<int> TestDuplexStream(CallContext context, StreamReader<int> inputStream, StreamWriter<int> outputStream, TimeSpan delay, StreamTestOptions options)
 #endif
         {
+            if (options == StreamTestOptions.JustExit)
+                return -2;
+            else if (options == StreamTestOptions.ImmediateFault)
+                throw new RpcFaultException("Test fault");
+            else if (options == StreamTestOptions.ImmediateCustomFault)
+                throw RpcFaultException.Create(new TestFault1());
+
 #if NET5_0_OR_GREATER
             await foreach (var item in inputStream)
             {

@@ -6,7 +6,11 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 using SharpRpc.Streaming;
+using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace SharpRpc
@@ -105,11 +109,7 @@ namespace SharpRpc
 
         public void MarkAsCompleted()
         {
-            lock (_lockObj)
-            {
-                if (!_isClosed)
-                    CloseStream(false, new RpcResult(RpcRetCode.StreamCompleted, "The stream is completed and does not accept additions."));
-            }
+            CloseStream(false, new RpcResult(RpcRetCode.StreamCompleted, "The stream is completed and does not accept additions."));
         }
 
         #region Control methods
@@ -134,29 +134,31 @@ namespace SharpRpc
 
         internal void Close(RpcResult fault)
         {
-            lock (_lockObj)
-            {
-                if (!_isClosed)
-                    CloseStream(false, fault);
-            }
+            CloseStream(false, fault);
         }
 
         internal void Abort(RpcResult fault)
         {
-            lock (_lockObj)
-            {
-                if (!_isClosed)
-                    CloseStream(true, fault);
-            }
+            CloseStream(true, fault);
         }
 
         internal void Cancel()
         {
+            CloseStream(true, new RpcResult(RpcRetCode.OperationCanceled, "The operation was canceled by the user!"));
+        }
+
+        private void CloseStream(bool abortMode, RpcResult fault)
+        {
+            var sendComplMessage = false;
+
             lock (_lockObj)
             {
                 if (!_isClosed)
-                    CloseStream(true, new RpcResult(RpcRetCode.OperationCanceled, "The operation was canceled by the user!"));
+                    CloseStreamInternal(abortMode, fault, out sendComplMessage);
             }
+
+            if (sendComplMessage)
+                SendCompletionMessage();
         }
 
         #endregion
@@ -198,14 +200,13 @@ namespace SharpRpc
 
         private void SendNextPage()
         {
-            //_pageToSend = DequeuePage();
-
             _ch.Tx.TrySendAsync(_pageToSend, OnSendCompleted);
         }
 
         private void OnSendCompleted(RpcResult sendResult)
         {
             bool sendNextPage = false;
+            bool sendCompletion = false;
             int pageSize = 0;
 
             lock (_lockObj)
@@ -227,25 +228,33 @@ namespace SharpRpc
                     if(_enqueueAwaiters.Count > 0)
                         ProcessAwaiters();
 
-                    if (DataIsAvailable && !_coordinator.IsBlocked)
+                    if (DataIsAvailable)
                     {
-                        _pageToSend = DequeuePage();
-                        sendNextPage = true;
+                        if (!_coordinator.IsBlocked)
+                        {
+                            _pageToSend = DequeuePage();
+                            sendNextPage = true;
+                        }
+                        else
+                            _isSedning = false;
                     }
                     else
                     {
                         _isSedning = false;
 
                         if (_isClosed)
-                            CompleteStream();
+                            CompleteStream(out sendCompletion);
                     }
                 }
                 else
-                    CloseStream(true, sendResult);
+                    CloseStreamInternal(true, sendResult, out sendCompletion);
             }
 
             if (sendNextPage)
                 SendNextPage();
+
+            if (sendCompletion)
+                SendCompletionMessage();
         }
 
         private void ProcessAwaiters()
@@ -272,8 +281,12 @@ namespace SharpRpc
             }
         }
 
-        private void CloseStream(bool abortMode, RpcResult fault)
+        private void CloseStreamInternal(bool abortMode, RpcResult fault, out bool sendCompletion)
         {
+            Debug.Assert(Monitor.IsEntered(_lockObj));
+
+            sendCompletion = false;
+
             _closeFault = fault;
             _isClosed = true;
 
@@ -286,18 +299,29 @@ namespace SharpRpc
             }
 
             if (!_isSedning && !DataIsAvailable)
-                CompleteStream();
+                CompleteStream(out sendCompletion);
         }
 
-        private void CompleteStream()
+        private void CompleteStream(out bool sendCompletion)
         {
             if (!_isAbroted)
             {
-                var complMessage = _factory.CreateCompletionMessage(CallId);
-                _ch.Tx.TrySendAsync(complMessage, OnCompletionMessageSent);
+                sendCompletion = true;
             }
             else
+            {
                 Task.Factory.StartNew(FireCompletion);
+                sendCompletion = false;
+            }
+        }
+
+        private void SendCompletionMessage()
+        {
+            if (DataIsAvailable || _isSedning)
+                Debugger.Break();
+
+            var complMessage = _factory.CreateCompletionMessage(CallId);
+            _ch.Tx.TrySendAsync(complMessage, OnCompletionMessageSent);
         }
 
         private void OnCompletionMessageSent(RpcResult result)

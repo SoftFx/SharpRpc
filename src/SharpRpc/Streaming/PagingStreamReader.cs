@@ -44,8 +44,6 @@ namespace SharpRpc
         private readonly StreamReadCoordinator _coordinator;
         private readonly TxPipeline _tx;
 
-        //private bool _isWating;
-
         internal PagingStreamReader(string callId, TxPipeline tx, IStreamMessageFactory<T> factory)
         {
             _tx = tx;
@@ -62,6 +60,9 @@ namespace SharpRpc
 
             lock (_lockObj)
             {
+                if (_completed)
+                    return; // TO DO : signal protocol violation
+
                 if (_currentPage == null)
                 {
                     Debug.Assert(_currentPageIndex == 0);

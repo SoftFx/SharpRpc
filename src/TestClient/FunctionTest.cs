@@ -8,6 +8,7 @@
 using SharpRpc;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -20,20 +21,20 @@ namespace TestClient
     {
         public static void Run(string address)
         {
-            //ExecTest<Call1Test>(address);
-            //ExecTest<Call2Test>(address);
-            //ExecTest<ComplexDataTest>(address);
-            //ExecTest<RegularFaultTest>(address);
-            //ExecTest<CrashFaultTest>(address);
-            //ExecTest<CustomFaultTest>(address);
-            //ExecTest<CallbackTest1>(address);
-            //ExecTest<CallbackTest2>(address);
-            //ExecTest<InputStreamTest>(address);
-            //ExecTest<OutputStreamTest>(address);
+            ExecTest<Call1Test>(address);
+            ExecTest<Call2Test>(address);
+            ExecTest<ComplexDataTest>(address);
+            ExecTest<RegularFaultTest>(address);
+            ExecTest<CrashFaultTest>(address);
+            ExecTest<CustomFaultTest>(address);
+            ExecTest<CallbackTest1>(address);
+            ExecTest<CallbackTest2>(address);
+            ExecTest<InputStreamTest>(address);
+            ExecTest<OutputStreamTest>(address);
             ExecTest<DuplexStreamTest>(address);
-            //ExecTest<InputStreamCancellationTest>(address);
-            //ExecTest<OutputStreamCancellationTest>(address);
-            //ExecTest<DuplexStreamCancellationTest>(address);
+            ExecTest<InputStreamCancellationTest>(address);
+            ExecTest<OutputStreamCancellationTest>(address);
+            ExecTest<DuplexStreamCancellationTest>(address);
 
             Console.WriteLine("Done testing.");
         }
@@ -450,48 +451,74 @@ namespace TestClient
 
         private class InputStreamTest : TestBase
         {
-            private TestCase CreateCase(ushort windowSize)
+            private TestCase CreateCase(ushort windowSize, StreamTestOptions options)
             {
                 return new TestCase(this)
-                    .SetParam("windowSize", windowSize);
+                    .SetParam("windowSize", windowSize)
+                    .SetParam("options", options);
             }
 
             public override IEnumerable<TestCase> GetPredefinedCases()
             {
-                yield return CreateCase(8);
-                yield return CreateCase(32);
+                yield return CreateCase(8, StreamTestOptions.JustExit);
+                yield return CreateCase(8, StreamTestOptions.ImmediateFault);
+                yield return CreateCase(8, StreamTestOptions.ImmediateCustomFault);
+                yield return CreateCase(8, StreamTestOptions.None);
+                yield return CreateCase(32, StreamTestOptions.None);
             }
 
             public override TestCase GetRandomCase(Random rnd)
             {
-                return CreateCase((ushort)rnd.Next(8, 100));
+                return CreateCase((ushort)rnd.Next(8, 100),
+                    rnd.Pick(StreamTestOptions.JustExit, StreamTestOptions.ImmediateFault, StreamTestOptions.ImmediateCustomFault));
             }
 
             public override void RunTest(TestCase tCase, FunctionTestContract_Gen.Client client)
             {
                 var windowSize = (ushort)tCase["windowSize"];
+                var testOptions = (StreamTestOptions)tCase["options"];
+
                 var options = new StreamOptions() { WindowSize = windowSize };
-                var call = client.TestInStream(options, TimeSpan.Zero, StreamTestOptions.DoNotInvokeCompletion);
+
+                var call = client.TestInStream(options, TimeSpan.Zero, testOptions);
 
                 var itemsCount = 100;
                 var expectedSumm = (1 + itemsCount) * itemsCount / 2;
+                var rWrite = RpcResult.Ok;
 
                 for (int i = 1; i <= itemsCount; i++)
                 {
-                    var rWrite = call.InputStream.WriteAsync(i).Result;
+                    rWrite = call.InputStream.WriteAsync(i).Result;
+
                     if (!rWrite.IsOk)
-                        throw new Exception("WriteAsync() returned " + rWrite.Code);
+                        break;
                 }
+
+                if ((testOptions == StreamTestOptions.None && rWrite.Code != RpcRetCode.Ok)
+                        || (testOptions == StreamTestOptions.JustExit && rWrite.Code != RpcRetCode.StreamCompleted)
+                        || (testOptions == StreamTestOptions.ImmediateFault && rWrite.Code != RpcRetCode.RequestFault))
+                    throw new Exception("WriteAsync() returned " + rWrite.Code);
 
                 var rCompletion = call.InputStream.CompleteAsync().Result;
 
                 if (!rCompletion.IsOk)
                     throw new Exception("CompleteAsync() returned " + rCompletion.Code);
 
-                var result = call.AsyncResult.Result.Value;
+                if (testOptions == StreamTestOptions.ImmediateFault || testOptions == StreamTestOptions.ImmediateCustomFault)
+                {
+                    var result = call.AsyncResult.Result;
 
-                if (result != expectedSumm)
-                    throw new Exception("Stream call returned an unexpected result!");
+                    if (result.Code != RpcRetCode.RequestFault)
+                        throw new Exception("Stream call returned an unexpected result!");
+                }
+                else
+                {
+                    var result = call.AsyncResult.Result.Value;
+
+                    if ((testOptions == StreamTestOptions.None && result != expectedSumm)
+                        || (testOptions == StreamTestOptions.JustExit && result != -2))
+                        throw new Exception("Stream call returned an unexpected result!");
+                }
             }
         }
 
