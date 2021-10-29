@@ -5,7 +5,7 @@
 
     <IsPackable>false</IsPackable>
 
-    <Configurations>Debug;Release;ReleasePfCounters;SnRelease</Configurations>
+    <Configurations>Debug;Release;ReleasePfCounters;ReleaseIde</Configurations>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">

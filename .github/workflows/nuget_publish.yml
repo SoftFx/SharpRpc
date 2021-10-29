@@ -30,7 +30,7 @@ jobs:
         encodedString: ${{ secrets.SOFTFX_CERT }}
 
     - name: Build
-      run: dotnet build --configuration SnRelease --no-restore
+      run: dotnet build --configuration Release --no-restore
       working-directory: src/
       env:
         SignAssembly: true

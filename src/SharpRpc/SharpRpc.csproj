@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <TargetFrameworks>net5.0;net472</TargetFrameworks>
-    <Version>1.2.2-alpha</Version>
+    <Version>1.2.3-alpha</Version>
     <Company>Soft-Fx</Company>
     <Authors>Andrei Hilevich</Authors>
     <PackageId>SharpRpc.Core</PackageId>
@@ -12,32 +12,32 @@
     <PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
     <Description>A high performance, open source  RPC framework for C#</Description>
     <RepositoryUrl>https://github.com/SoftFx/SharpRpc</RepositoryUrl>
-    <Configurations>Debug;Release;ReleasePfCounters;SnRelease</Configurations>
+    <Configurations>Debug;Release;ReleasePfCounters;ReleaseIde</Configurations>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+  <PropertyGroup Condition="'$(Configuration)'=='Debug'">
     <NoWarn>1701;1702</NoWarn>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <DebugType>full</DebugType>
     <DebugSymbols>true</DebugSymbols>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+  <PropertyGroup Condition="'$(Configuration)'=='Release'">
+    <DefineConstants>TRACE;STRONG_NAME_BUILD</DefineConstants>
+    <Optimize>true</Optimize>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)'=='ReleaseIde'">
     <DefineConstants>TRACE</DefineConstants>
     <Optimize>true</Optimize>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='SnRelease|AnyCPU'">
-    <DefineConstants>TRACE;STRONG_NAME_BUILD</DefineConstants>
-    <Optimize>true</Optimize>
-  </PropertyGroup>  
-
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ReleasePfCounters|AnyCPU'">
+  <PropertyGroup Condition="'$(Configuration)'=='ReleasePfCounters'">
     <DefineConstants>TRACE;PF_COUNTERS</DefineConstants>
     <Optimize>true</Optimize>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net5.0|AnyCPU'">
+  <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)'=='Debug|net5.0'">
     <DebugType>full</DebugType>
     <DebugSymbols>true</DebugSymbols>
   </PropertyGroup>
