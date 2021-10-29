@@ -7,4 +7,8 @@
 
 using System.Runtime.CompilerServices;
 
+#if STRONG_NAME_BUILD
+[assembly: InternalsVisibleTo("SharpRpc.MsTest, PublicKey=f93e83ea42ea164d")]
+#else
 [assembly: InternalsVisibleTo("SharpRpc.MsTest")]
+#endif

@@ -12,7 +12,7 @@
     <PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
     <Description>A high performance, open source  RPC framework for C#</Description>
     <RepositoryUrl>https://github.com/SoftFx/SharpRpc</RepositoryUrl>
-    <Configurations>Debug;Release;ReleasePfCounters</Configurations>
+    <Configurations>Debug;Release;ReleasePfCounters;SnRelease</Configurations>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -24,6 +24,11 @@
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
     <DefineConstants>TRACE</DefineConstants>
+    <Optimize>true</Optimize>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='SnRelease|AnyCPU'">
+    <DefineConstants>TRACE;STRONG_NAME_BUILD</DefineConstants>
     <Optimize>true</Optimize>
   </PropertyGroup>  
 

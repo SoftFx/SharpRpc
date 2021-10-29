@@ -28,6 +28,7 @@ Global
 		DebugBuilder|Any CPU = DebugBuilder|Any CPU
 		Release|Any CPU = Release|Any CPU
 		ReleasePfCounters|Any CPU = ReleasePfCounters|Any CPU
+		SnRelease|Any CPU = SnRelease|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{CF00A0A6-2BF7-4DB4-B438-19D8FC48BAD7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
@@ -38,6 +39,8 @@ Global
 		{CF00A0A6-2BF7-4DB4-B438-19D8FC48BAD7}.Release|Any CPU.Build.0 = Release|Any CPU
 		{CF00A0A6-2BF7-4DB4-B438-19D8FC48BAD7}.ReleasePfCounters|Any CPU.ActiveCfg = ReleasePfCounters|Any CPU
 		{CF00A0A6-2BF7-4DB4-B438-19D8FC48BAD7}.ReleasePfCounters|Any CPU.Build.0 = ReleasePfCounters|Any CPU
+		{CF00A0A6-2BF7-4DB4-B438-19D8FC48BAD7}.SnRelease|Any CPU.ActiveCfg = SnRelease|Any CPU
+		{CF00A0A6-2BF7-4DB4-B438-19D8FC48BAD7}.SnRelease|Any CPU.Build.0 = SnRelease|Any CPU
 		{1C930B5A-931B-45C8-AA6E-F77CBC7740BF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{1C930B5A-931B-45C8-AA6E-F77CBC7740BF}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1C930B5A-931B-45C8-AA6E-F77CBC7740BF}.DebugBuilder|Any CPU.ActiveCfg = DebugBuilder|Any CPU
@@ -46,6 +49,8 @@ Global
 		{1C930B5A-931B-45C8-AA6E-F77CBC7740BF}.Release|Any CPU.Build.0 = Release|Any CPU
 		{1C930B5A-931B-45C8-AA6E-F77CBC7740BF}.ReleasePfCounters|Any CPU.ActiveCfg = ReleasePfCounters|Any CPU
 		{1C930B5A-931B-45C8-AA6E-F77CBC7740BF}.ReleasePfCounters|Any CPU.Build.0 = ReleasePfCounters|Any CPU
+		{1C930B5A-931B-45C8-AA6E-F77CBC7740BF}.SnRelease|Any CPU.ActiveCfg = SnRelease|Any CPU
+		{1C930B5A-931B-45C8-AA6E-F77CBC7740BF}.SnRelease|Any CPU.Build.0 = SnRelease|Any CPU
 		{62EA8108-F3AD-4E29-8CC6-36B5F4EBC1A9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{62EA8108-F3AD-4E29-8CC6-36B5F4EBC1A9}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{62EA8108-F3AD-4E29-8CC6-36B5F4EBC1A9}.DebugBuilder|Any CPU.ActiveCfg = Debug|Any CPU
@@ -54,6 +59,8 @@ Global
 		{62EA8108-F3AD-4E29-8CC6-36B5F4EBC1A9}.Release|Any CPU.Build.0 = Release|Any CPU
 		{62EA8108-F3AD-4E29-8CC6-36B5F4EBC1A9}.ReleasePfCounters|Any CPU.ActiveCfg = ReleasePfCounters|Any CPU
 		{62EA8108-F3AD-4E29-8CC6-36B5F4EBC1A9}.ReleasePfCounters|Any CPU.Build.0 = ReleasePfCounters|Any CPU
+		{62EA8108-F3AD-4E29-8CC6-36B5F4EBC1A9}.SnRelease|Any CPU.ActiveCfg = SnRelease|Any CPU
+		{62EA8108-F3AD-4E29-8CC6-36B5F4EBC1A9}.SnRelease|Any CPU.Build.0 = SnRelease|Any CPU
 		{17E9C428-0375-4232-A410-8D43B03D5165}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{17E9C428-0375-4232-A410-8D43B03D5165}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{17E9C428-0375-4232-A410-8D43B03D5165}.DebugBuilder|Any CPU.ActiveCfg = Debug|Any CPU
@@ -62,6 +69,8 @@ Global
 		{17E9C428-0375-4232-A410-8D43B03D5165}.Release|Any CPU.Build.0 = Release|Any CPU
 		{17E9C428-0375-4232-A410-8D43B03D5165}.ReleasePfCounters|Any CPU.ActiveCfg = ReleasePfCounters|Any CPU
 		{17E9C428-0375-4232-A410-8D43B03D5165}.ReleasePfCounters|Any CPU.Build.0 = ReleasePfCounters|Any CPU
+		{17E9C428-0375-4232-A410-8D43B03D5165}.SnRelease|Any CPU.ActiveCfg = SnRelease|Any CPU
+		{17E9C428-0375-4232-A410-8D43B03D5165}.SnRelease|Any CPU.Build.0 = SnRelease|Any CPU
 		{426EE7DB-9B59-4F8B-9584-56B8FA455289}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{426EE7DB-9B59-4F8B-9584-56B8FA455289}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{426EE7DB-9B59-4F8B-9584-56B8FA455289}.DebugBuilder|Any CPU.ActiveCfg = Debug|Any CPU
@@ -70,6 +79,8 @@ Global
 		{426EE7DB-9B59-4F8B-9584-56B8FA455289}.Release|Any CPU.Build.0 = Release|Any CPU
 		{426EE7DB-9B59-4F8B-9584-56B8FA455289}.ReleasePfCounters|Any CPU.ActiveCfg = Release|Any CPU
 		{426EE7DB-9B59-4F8B-9584-56B8FA455289}.ReleasePfCounters|Any CPU.Build.0 = Release|Any CPU
+		{426EE7DB-9B59-4F8B-9584-56B8FA455289}.SnRelease|Any CPU.ActiveCfg = Release|Any CPU
+		{426EE7DB-9B59-4F8B-9584-56B8FA455289}.SnRelease|Any CPU.Build.0 = Release|Any CPU
 		{4E00FB18-333C-427F-811D-18EE4FE222AE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{4E00FB18-333C-427F-811D-18EE4FE222AE}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4E00FB18-333C-427F-811D-18EE4FE222AE}.DebugBuilder|Any CPU.ActiveCfg = Debug|Any CPU
@@ -78,6 +89,8 @@ Global
 		{4E00FB18-333C-427F-811D-18EE4FE222AE}.Release|Any CPU.Build.0 = Release|Any CPU
 		{4E00FB18-333C-427F-811D-18EE4FE222AE}.ReleasePfCounters|Any CPU.ActiveCfg = ReleasePfCounters|Any CPU
 		{4E00FB18-333C-427F-811D-18EE4FE222AE}.ReleasePfCounters|Any CPU.Build.0 = ReleasePfCounters|Any CPU
+		{4E00FB18-333C-427F-811D-18EE4FE222AE}.SnRelease|Any CPU.ActiveCfg = Release|Any CPU
+		{4E00FB18-333C-427F-811D-18EE4FE222AE}.SnRelease|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -3,7 +3,7 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFrameworks>net5.0;net472</TargetFrameworks>
-    <Configurations>Debug;Release;ReleasePfCounters</Configurations>
+    <Configurations>Debug;Release;ReleasePfCounters;SnRelease</Configurations>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
