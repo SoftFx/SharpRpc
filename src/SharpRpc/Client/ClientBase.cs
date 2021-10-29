@@ -114,7 +114,7 @@ namespace SharpRpc
             return new StreamCall<TIn, object, TResult>(request, options, null, Channel, factory, null, true, cToken);
         }
 
-        protected DuplexStreamCall<TIn, TOut, object> OpenDuplexStream<TIn, TOut>(IOpenStreamRequest request, DuplexStreamOptions options,
+        protected DuplexStreamCall<TIn, TOut> OpenDuplexStream<TIn, TOut>(IOpenStreamRequest request, DuplexStreamOptions options,
             IStreamMessageFactory<TIn> inFactory, IStreamMessageFactory<TOut> outFactory, CancellationToken cToken)
         {
             return new StreamCall<TIn, TOut, object>(request, options.GetInputOptions(), options.GetOutputOptions(), Channel, inFactory, outFactory, false, cToken);
