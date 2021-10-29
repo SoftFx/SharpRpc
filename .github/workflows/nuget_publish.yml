@@ -10,7 +10,8 @@ jobs:
     environment: Nuget
 
     steps:
-    - uses: actions/checkout@v2
+    - name: Checkout Code
+      uses: actions/checkout@v2
 
     - name: Setup .NET
       uses: actions/setup-dotnet@v1
@@ -20,10 +21,20 @@ jobs:
     - name: Restore dependencies
       run: dotnet restore
       working-directory: src/
+      
+    - name: Materialize Signing Key
+      id: write_sign_key_file
+      uses: timheuer/base64-to-file@v1
+      with:
+        fileName: 'SoftFx.snk'
+        encodedString: ${{ secrets.SOFTFX_CERT }}
 
     - name: Build
       run: dotnet build --configuration Release --no-restore
       working-directory: src/
+      env:
+        SignAssembly: true
+        AssemblyOriginatorKeyFile: ${{ steps.write_sign_key_file.outputs.filePath }}
 
     - name: Publish SharpRpc.Core
       uses: brandedoutcast/publish-nuget@v2.5.2
