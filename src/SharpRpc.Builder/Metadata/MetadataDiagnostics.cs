@@ -22,6 +22,13 @@ namespace SharpRpc.Builder.Metadata
             AddRecord(descriptor, location, methodName);
         }
 
+        public void AddDupKeyError(Location location, string methodName, ushort key)
+        {
+            var descriptor = CreateErrorDescriptor("RPC002", "Duplicate operation key",
+                "Key '{1}' is already in use for another operation. All operations keys must be unique within a service contract.");
+            AddRecord(descriptor, location, methodName, key);
+        }
+
         public void DumpRecordsTo(GeneratorExecutionContext context)
         {
             foreach (var record in _records)

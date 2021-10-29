@@ -6,6 +6,7 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 using Microsoft.CodeAnalysis;
+using SharpRpc.Builder.Metadata;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -138,6 +139,22 @@ namespace SharpRpc.Builder
         public TypeString GetOutputStreamFactoryClassName(OperationDeclaration operation)
         {
             return new TypeString(MessageBundleClassName.Short, "C" + operation.Key + "_OutputStreamFactory");
+        }
+
+        public void Validate(MetadataDiagnostics diagnostics)
+        {
+            var keySet = new HashSet<ushort>();
+
+            foreach (var op in Operations.ToList())
+            {
+                if (keySet.Contains(op.Key))
+                {
+                    diagnostics.AddDupKeyError(op.CodeLocation, op.MethodName, op.Key);
+                    Operations.Remove(op);
+                }
+                else
+                    keySet.Add(op.Key);
+            }
         }
     }
 }

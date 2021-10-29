@@ -48,10 +48,21 @@ namespace SharpRpc.Builder
 #endif
                 var diagnostics = new MetadataDiagnostics();
 
+                // collect contracts
+
                 var contracts = GetRpcContracts(context).ToList();
+
+                // validate contracts
+
+                foreach (var contractInfo in contracts)
+                    contractInfo.Validate(diagnostics);
+
+                // generate stubs
 
                 foreach (var contractInfo in contracts)
                     GenerateStubFile(contractInfo, context, diagnostics);
+
+                // report errors
 
                 diagnostics.DumpRecordsTo(context);
             }
