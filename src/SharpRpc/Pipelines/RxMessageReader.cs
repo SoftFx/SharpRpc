@@ -89,6 +89,8 @@ namespace SharpRpc
                     _currSegmentNo++;
                     _currOffset = 0;
                 }
+                else
+                    _currOffset += toCopy;
 
             }
 

@@ -263,7 +263,7 @@ namespace SharpRpc
             }
             catch (Exception ex)
             {
-                return OnTxError(new RpcResult(RpcRetCode.SerializationError, ex.Message));
+                return OnTxError(new RpcResult(RpcRetCode.SerializationError, ex.JoinAllMessages()));
             }
             finally
             {

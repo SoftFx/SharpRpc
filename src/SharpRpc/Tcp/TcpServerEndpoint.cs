@@ -82,6 +82,8 @@ namespace SharpRpc
             _stopFlag = false;
             _security.Init();
 
+            _listener.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.IPv6Only, _ipv6Only);
+
             _listener.Bind(_ipEndpoint);
             _listener.Listen(100);
 

@@ -155,7 +155,7 @@ namespace SharpRpc
                     }
                     catch (Exception ex)
                     {
-                        return new RpcResult(RpcRetCode.DeserializationError, ex.Message);
+                        return new RpcResult(RpcRetCode.DeserializationError, ex.JoinAllMessages());
                     }
 
                     bytesConsumed += _parser.MessageBrutto;

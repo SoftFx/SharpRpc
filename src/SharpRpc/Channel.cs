@@ -44,6 +44,8 @@ namespace SharpRpc
 
         internal event Action<Channel, RpcResult> Closed;
 
+        public event Action<Channel, RpcResult> Faulted;
+
         internal Channel(bool serverSide, Endpoint endpoint, ContractDescriptor descriptor, RpcCallHandler msgHandler)
         {
             _isServerSide = serverSide;
@@ -298,10 +300,15 @@ namespace SharpRpc
 
             await CloseComponents();
 
+            var faultToRise = RpcResult.Ok;
+
             lock (_stateSyncObj)
             {
                 if (_channelDisplayFault.Code != RpcRetCode.Ok)
+                {
                     State = ChannelState.Faulted;
+                    faultToRise = _channelDisplayFault;
+                }
                 else
                     State = ChannelState.Closed;
             }
@@ -309,6 +316,10 @@ namespace SharpRpc
             Logger.Info(Id, "Disconnected. Final state: " + State);
 
             Closed?.Invoke(this, _channelDisplayFault);
+
+
+            if (!faultToRise.IsOk)
+                Faulted?.Invoke(this, faultToRise);
 
             _disconnectEvent.SetResult(RpcResult.Ok);
         }
