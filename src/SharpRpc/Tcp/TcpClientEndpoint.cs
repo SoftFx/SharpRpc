@@ -19,27 +19,41 @@ namespace SharpRpc
         private readonly string _address;
         private readonly int _port;
         private readonly TcpSecurity _security;
+        private readonly IPEndPoint _endpoint;
 
         public TcpClientEndpoint(string address, int port, TcpSecurity security)
         {
-            _address = address;
+            _address = address ?? throw new ArgumentNullException(nameof(address));
             _port = port;
-            _security = security ?? throw new ArgumentNullException("security");
+            _security = security ?? throw new ArgumentNullException(nameof(security));
+        }
+
+        public TcpClientEndpoint(IPEndPoint ipEndpoint, TcpSecurity security)
+        {
+            _endpoint = ipEndpoint ?? throw new ArgumentNullException(nameof(ipEndpoint));
+            _security = security ?? throw new ArgumentNullException(nameof(security));
         }
 
         public override async Task<RpcResult<ByteTransport>> ConnectAsync()
         {
-            IPHostEntry ipHostInfo = Dns.GetHostEntry(_address);
-            IPAddress ipAddress = ipHostInfo.AddressList[0];
-            IPEndPoint remoteEP = new IPEndPoint(ipAddress, _port);
+            IPEndPoint targetEndpoint;
+
+            if (_endpoint == null)
+            {
+                IPHostEntry ipHostInfo = await Dns.GetHostEntryAsync(_address);
+                IPAddress ipAddress = ipHostInfo.AddressList[0];
+                targetEndpoint = new IPEndPoint(ipAddress, _port);
+            }
+            else
+                targetEndpoint = _endpoint;
 
             try
             {
                 // Create a TCP/IP socket.  
-                var socket = new Socket(ipAddress.AddressFamily,
+                var socket = new Socket(targetEndpoint.AddressFamily,
                     SocketType.Stream, ProtocolType.Tcp);
 
-                await socket.ConnectAsync(remoteEP);
+                await socket.ConnectAsync(targetEndpoint);
 
                 return new RpcResult<ByteTransport>(await _security.SecureTransport(socket, this, _address));
             }
