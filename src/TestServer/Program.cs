@@ -12,6 +12,7 @@ using System.Reflection;
 using System.Security.Cryptography.X509Certificates;
 using SharpRpc;
 using TestCommon;
+using TestCommon.StressTest;
 
 namespace TestServer
 {
@@ -27,11 +28,13 @@ namespace TestServer
 
             var srv1 = StartBenchmarkServer();
             var srv2 = StartFunctionTestServer();
+            var srv3 = StartStressServer();
 
             Console.Read();
 
             srv1.StopAsync().Wait();
             srv2.StopAsync().Wait();
+            srv3.StopAsync().Wait();
 
             Console.Read();
         }
@@ -44,16 +47,16 @@ namespace TestServer
             tcpEndpoint.Authenticator = new BasicAuthenticator(new AuthValidator());
 
             var serverCert = new StoredCertificate(StoreLocation.LocalMachine, StoreName.My, X509FindType.FindByThumbprint, "6e4c04ed965eb8d71a66b8e2b89e5767f2e076d8");
-            var sslEndpoit = new TcpServerEndpoint(IPAddress.IPv6Any, BenchmarkContractCfg.GetPort(true), new SslServerSecurity(serverCert));
-            sslEndpoit.IPv6Only = false;
-            BenchmarkContractCfg.ConfigureEndpoint(sslEndpoit);
-            sslEndpoit.Authenticator = new BasicAuthenticator(new AuthValidator());
+            var sslEndpoint = new TcpServerEndpoint(IPAddress.IPv6Any, BenchmarkContractCfg.GetPort(true), new SslServerSecurity(serverCert));
+            sslEndpoint.IPv6Only = false;
+            BenchmarkContractCfg.ConfigureEndpoint(sslEndpoint);
+            sslEndpoint.Authenticator = new BasicAuthenticator(new AuthValidator());
 
             var multicaster = new FooMulticaster();
 
             var server = new RpcServer(BenchmarkContract_Gen.CreateBinding(() => new BenchmarkServiceImpl(multicaster)));
             server.AddEndpoint(tcpEndpoint);
-            server.AddEndpoint(sslEndpoit);
+            server.AddEndpoint(sslEndpoint);
             server.SetLogger(new ConsoleLogger(true, true));
             server.Start();
 
@@ -73,14 +76,27 @@ namespace TestServer
             return server;
         }
 
+        private static RpcServer StartStressServer()
+        {
+            var tcpEndpoint = new TcpServerEndpoint(IPAddress.IPv6Any, 813, TcpServerSecurity.None);
+            tcpEndpoint.IPv6Only = false;
+
+            var server = new RpcServer(StressTestContract_Gen.CreateBinding(() => new StressTestService()));
+            server.AddEndpoint(tcpEndpoint);
+            //server.SetLogger(new ConsoleLogger(false, true));
+            server.Start();
+
+            return server;
+        }
+
         private static string GetAssemblyInfo(Assembly assembly)
         {
             var aName = assembly.GetName();
 
-            return aName.Name + ".dll, v" + aName.Version + " (optimization " + IsOptimizationEbaled(assembly) + ")";
+            return aName.Name + ".dll, v" + aName.Version + " (optimization " + IsOptimizationEnabled(assembly) + ")";
         }
 
-        private static string IsOptimizationEbaled(Assembly assembly)
+        private static string IsOptimizationEnabled(Assembly assembly)
         {
             var attribute = assembly.GetCustomAttribute<DebuggableAttribute>();
 

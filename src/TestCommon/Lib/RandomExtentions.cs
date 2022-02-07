@@ -11,10 +11,16 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace TestClient
+namespace TestCommon.Lib
 {
-    public static class Helper
+    public static class RandomExtensions
     {
+        public static T Pick<T>(this Random rnd, IReadOnlyList<T> items)
+        {
+            var index = rnd.Next(0, items.Count);
+            return items[index];
+        }
+
         public static T Pick<T>(this Random rnd, params T[] pickItems)
         {
             var index = rnd.Next(0, pickItems.Length);

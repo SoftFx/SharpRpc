@@ -25,6 +25,7 @@ namespace TestClient
             Console.WriteLine("1. Benchmark");
             Console.WriteLine("2. Function test");
             Console.WriteLine("3. Keep connected");
+            Console.WriteLine("4. Stress test");
             Console.Write(">");
 
             var choice = Console.ReadLine();
@@ -89,6 +90,29 @@ namespace TestClient
                 }
                 else
                     Console.WriteLine("Failed to connect! Code: {0} Message: {1}", connectRet.Code, connectRet.FaultMessage);
+            }
+            else if (choice == "4")
+            {
+                var test = new StressTest(address)
+                {
+                    MaxParallelRequests = 8,
+                    MaxRequestsPerSession = 1000,
+                    MaxItemsPerCall = 300,
+                    ParallelConnections = 30
+                };
+
+                Console.WriteLine("Starting...");
+                test.Start();
+                Console.WriteLine("Test has been started. Press enter key to stop...");
+                Console.Read();
+                Console.WriteLine("Stopping...");
+                test.Stop();
+                Console.WriteLine("Test has been stopped. Errors count: " + test.Errors.Count);
+                if (test.Errors.Count > 0)
+                {
+                    Console.WriteLine("Top 100 errors:");
+                    test.PrintTopErrors(100);
+                }
             }
             else
                 Console.WriteLine("Invalid input.");
