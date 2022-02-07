@@ -14,7 +14,6 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using TestCommon;
-using TestCommon.Lib;
 
 namespace TestClient
 {
