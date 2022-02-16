@@ -20,7 +20,7 @@ namespace SharpRpc
     {
         private const int MaxThreshold = 1024 * 5;
 
-        private CircularList<RxSegment> _tail = new CircularList<RxSegment>();
+        private readonly CircularList<RxSegment> _tail = new CircularList<RxSegment>();
         private RxSegment _currentSegment;
         private readonly int _segmentSize;
         private readonly int _segmentSizeThreshold;

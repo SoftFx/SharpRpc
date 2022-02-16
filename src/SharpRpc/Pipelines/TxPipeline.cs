@@ -19,7 +19,7 @@ namespace SharpRpc
     {
         TaskFactory TaskQueue { get; }
         IMessageFactory MessageFactory { get; }
-        bool ImmidiateSerialization { get; }
+        bool ImmediateSerialization { get; }
 
         RpcResult TrySend(IMessage message);
         void Send(IMessage message);

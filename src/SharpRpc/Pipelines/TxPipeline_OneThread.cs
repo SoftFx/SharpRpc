@@ -219,7 +219,7 @@ namespace SharpRpc
 
         public TaskFactory TaskQueue { get; }
         public IMessageFactory MessageFactory { get; }
-        public bool ImmidiateSerialization => false;
+        public bool ImmediateSerialization => false;
 
         public void Start(ByteTransport transport)
         {

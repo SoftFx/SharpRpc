@@ -55,7 +55,7 @@ namespace SharpRpc
 
             _isSendingEnabled = allowSendInitialValue;
 
-            _canImmediatelyReusePages = channel.Tx.ImmidiateSerialization;
+            _canImmediatelyReusePages = channel.Tx.ImmediateSerialization;
             
             _queue = CreatePage();
             if (_canImmediatelyReusePages)

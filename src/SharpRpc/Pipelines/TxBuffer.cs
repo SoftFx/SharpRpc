@@ -61,6 +61,7 @@ namespace SharpRpc
         public bool IsDataAvailable => IsCurrentDataAvailable || HasCompletedSegments;
 
         public int DataSize { get; private set; }
+        public int CurrentWriteSize { get; private set; }
 
         private byte[] CurrentSegment { get; set; }
         private int CurrentOffset { get; set; }
@@ -73,7 +74,7 @@ namespace SharpRpc
 
         public event Action OnDequeue;
 
-        // shoult be called under lock
+        // should be called under lock
         public void Lock()
         {
             Debug.Assert(Monitor.IsEntered(_lockObj));
@@ -104,13 +105,14 @@ namespace SharpRpc
                 Debug.Assert(IsCurrentSegmentLocked);
 
                 IsCurrentSegmentLocked = false;
+                ApplyCurrentDataSize();
                 SignalDataAvailable();
             }
 
             //toSignal?.Signal();
         }
 
-        // shoult be called under lock
+        // should be called under lock
         public void Close()
         {
             _isClosed = true;
@@ -124,7 +126,7 @@ namespace SharpRpc
 
         public SlimAwaitable<ArraySegment<byte>> DequeueNext()
         {
-            //Debug.Assert(!Monitor.IsEntered(_lockObj));
+            Debug.Assert(!Monitor.IsEntered(_lockObj));
 
             lock (_lockObj)
             {
@@ -168,13 +170,13 @@ namespace SharpRpc
 
         private ArraySegment<byte> Dequeue()
         {
+            Debug.Assert(Monitor.IsEntered(_lockObj), "This method must be called under lock!");
+
             if (_completeSegments.Count == 0)
                 CompleteCurrentSegment();
 
             _dequeuedSegment = _completeSegments.Dequeue();
             DataSize -= _dequeuedSegment.Count;
-
-            //System.Diagnostics.Debug.WriteLine("DataSize=" + DataSize + " -" + _dequeuedSegment.Count);
 
             OnDequeue?.Invoke();
 
@@ -190,15 +192,8 @@ namespace SharpRpc
 
         public Memory<byte> GetMemory(int sizeHint = 0)
         {
-            try
-            {
-                EnsureSpace(sizeHint);
-                return new Memory<byte>(CurrentSegment, CurrentOffset, SegmentSize - CurrentOffset);
-            }
-            catch
-            {
-                throw;
-            }
+            EnsureSpace(sizeHint);
+            return new Memory<byte>(CurrentSegment, CurrentOffset, SegmentSize - CurrentOffset);
         }
 
         public Span<byte> GetSpan(int sizeHint = 0)
@@ -220,12 +215,12 @@ namespace SharpRpc
             {
                 lock (_lockObj)
                 {
+                    ApplyCurrentDataSize();
                     CompleteCurrentSegment();
                     SignalDataAvailable();
                 }
             }
 
-                
             _marker.OnAlloc();
         }
 
@@ -261,8 +256,16 @@ namespace SharpRpc
         private void MoveOffset(int size)
         {
             CurrentOffset += size;
-            DataSize += size;
+            CurrentWriteSize += size;
             //System.Diagnostics.Debug.WriteLine("DataSize=" + DataSize + " +" + size);
+        }
+
+        private void ApplyCurrentDataSize()
+        {
+            Debug.Assert(Monitor.IsEntered(_lockObj), "This method must be called under lock!");
+
+            DataSize += CurrentWriteSize;
+            CurrentWriteSize = 0;
         }
 
         #region MessageWriter implementation
