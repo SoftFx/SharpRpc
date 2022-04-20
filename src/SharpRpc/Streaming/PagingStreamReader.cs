@@ -103,16 +103,19 @@ namespace SharpRpc
 
             lock (_lockObj)
             {
-                _completed = true;
-
-                if (clearQueue)
+                if (!_completed)
                 {
-                    _pages.Clear();
-                    _currentPage = null;
-                    _currentPageIndex = 0;
-                }
+                    _completed = true;
 
-                wakeupListener = OnDataArrived(out ack);
+                    if (clearQueue)
+                    {
+                        _pages.Clear();
+                        _currentPage = null;
+                        _currentPageIndex = 0;
+                    }
+
+                    wakeupListener = OnDataArrived(out ack);
+                }
             }
 
             if (ack != null)
@@ -189,15 +192,15 @@ namespace SharpRpc
                 SendAck(nextAck);
         }
 
-        public IStreamEnumerator<T> GetEnumerator()
+        public IStreamEnumerator<T> GetEnumerator(CancellationToken cancellationToken = default)
         {
-            lock (_lockObj) return SetEnumerator(new AsyncEnumerator(this));
+            lock (_lockObj) return SetEnumerator(new AsyncEnumerator(this, cancellationToken));
         }
 
 #if NET5_0_OR_GREATER
-        public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken)
+        public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default)
         {
-            lock (_lockObj) return SetEnumerator(new AsyncEnumerator(this));
+            lock (_lockObj) return SetEnumerator(new AsyncEnumerator(this, cancellationToken));
         }
 #endif
 
@@ -236,9 +239,10 @@ namespace SharpRpc
             //private TaskCompletionSource<bool> _closeWaitSrc;
             private bool _completed;
 
-            public AsyncEnumerator(PagingStreamReader<T> stream)
+            public AsyncEnumerator(PagingStreamReader<T> stream, CancellationToken cancellationToken)
             {
                 _stream = stream;
+                cancellationToken.Register(Cancel);
             }
 
             public T Current { get; private set; }
@@ -246,6 +250,7 @@ namespace SharpRpc
 #if NET5_0_OR_GREATER
             public ValueTask DisposeAsync()
             {
+                // close stream ??? 
                 return new ValueTask();
             }
 #endif
@@ -307,6 +312,11 @@ namespace SharpRpc
                 var eventCpy = _itemWaitSrc;
                 _itemWaitSrc = null;
                 eventCpy.SetResult(!_completed);
+            }
+
+            private void Cancel()
+            {
+                _stream.Abort();
             }
         }
     }

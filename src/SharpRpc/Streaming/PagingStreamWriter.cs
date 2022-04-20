@@ -76,9 +76,9 @@ namespace SharpRpc
         }
 
 #if NET5_0_OR_GREATER
-        public ValueTask<RpcResult> WriteAsync(T item)
+        public ValueTask<RpcResult> WriteAsync(T item, CancellationToken cancellationToken = default)
 #else
-        public Task<RpcResult> WriteAsync(T item)
+        public Task<RpcResult> WriteAsync(T item, CancellationToken cancellationToken = default)
 #endif
         {
             bool sendNextPage = false;
@@ -87,6 +87,9 @@ namespace SharpRpc
             {
                 if (_isClosed)
                     return FwAdapter.WrappResult(_closeFault);
+
+                if (cancellationToken.IsCancellationRequested)
+                    return FwAdapter.WrappResult(RpcResult.OperationCanceled);
 
                 if (HasSpaceInQueue)
                 {
@@ -97,6 +100,11 @@ namespace SharpRpc
                 {
                     var waitHandler = new EnqueueAwaiter(item);
                     _enqueueAwaiters.Enqueue(waitHandler);
+
+                    if (cancellationToken.CanBeCanceled)
+                        cancellationToken.Register(CancelReadAwait, waitHandler);
+                        //cancellationToken.Register(waitHandler.Cancel, waitHandler);
+
                     return FwAdapter.WrappResult(waitHandler.Task);
                 }       
             }
@@ -262,12 +270,15 @@ namespace SharpRpc
             while (_enqueueAwaiters.Count > 0)
             {
                 var awaiter = _enqueueAwaiters.Dequeue();
-                EnqueueItem(awaiter.Item);
-                awaiter.Result = RpcResult.Ok;
-                Task.Factory.StartNew(awaiter.Fire);
+                if (!awaiter.WasCanceled)
+                {
+                    EnqueueItem(awaiter.Item);
+                    awaiter.Result = RpcResult.Ok;
+                    Task.Factory.StartNew(awaiter.Fire);
 
-                if (!HasSpaceInQueue)
-                    break;
+                    if (!HasSpaceInQueue)
+                        break;
+                }
             }
         }
 
@@ -366,6 +377,11 @@ namespace SharpRpc
             return page;
         }
 
+        private void CancelReadAwait(object param)
+        {
+            lock (_lockObj) ((EnqueueAwaiter)param).Cancel();
+        }
+
         private class EnqueueAwaiter : TaskCompletionSource<RpcResult>
         {
             public EnqueueAwaiter(T item)
@@ -375,10 +391,17 @@ namespace SharpRpc
 
             public T Item { get; }
             public RpcResult Result { get; set; } = RpcResult.Ok;
+            public bool WasCanceled { get; private set; }
+
+            public void Cancel()
+            {
+                WasCanceled = true;
+                TrySetResult(RpcResult.OperationCanceled);
+            }
 
             public void Fire()
             {
-                SetResult(Result);
+                TrySetResult(Result);
             }
         }
     }

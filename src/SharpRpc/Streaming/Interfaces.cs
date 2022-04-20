@@ -56,15 +56,15 @@ namespace SharpRpc
     public interface StreamReader<T>
 #endif
     {
-        IStreamEnumerator<T> GetEnumerator();
+        IStreamEnumerator<T> GetEnumerator(CancellationToken cancellationToken = default);
     }
 
     public interface StreamWriter<T>
     {
 #if NET5_0_OR_GREATER
-        ValueTask<RpcResult> WriteAsync(T item);
+        ValueTask<RpcResult> WriteAsync(T item, CancellationToken cancellationToken = default);
 #else
-        Task<RpcResult> WriteAsync(T item);
+        Task<RpcResult> WriteAsync(T item, CancellationToken cancellationToken = default);
 #endif
 
         Task<RpcResult> CompleteAsync();

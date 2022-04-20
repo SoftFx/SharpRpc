@@ -22,7 +22,8 @@ namespace SharpRpc
         }
 
         public static readonly RpcResult Ok = new RpcResult();
-        public static readonly RpcResult ChannelClose = new RpcResult(RpcRetCode.ChannelClosed, "Operation has been aborted due to Channel close.");
+        internal static readonly RpcResult ChannelClose = new RpcResult(RpcRetCode.ChannelClosed, "The operation has been aborted due to Channel close.");
+        internal static readonly RpcResult OperationCanceled = new RpcResult(RpcRetCode.OperationCanceled, "The operation has been canceled.");
 
         public RpcRetCode Code { get; }
         public string FaultMessage { get; }
