@@ -6,7 +6,6 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 using SharpRpc.Lib;
-using SharpRpc.Streaming;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -40,15 +39,22 @@ namespace SharpRpc
         private IList<T> _currentPage;
         private int _currentPageIndex;
         private INestedEnumerator _enumerator;
-        private bool _completed;
+        private bool _isCompleted;
+        private bool _isCompletionRequested;
         private readonly StreamReadCoordinator _coordinator;
         private readonly TxPipeline _tx;
+        private readonly string _callId;
+        private readonly IStreamMessageFactory<T> _factory;
 
         internal PagingStreamReader(string callId, TxPipeline tx, IStreamMessageFactory<T> factory)
         {
+            _callId = callId;
             _tx = tx;
+            _factory = factory;
             _coordinator = new StreamReadCoordinator(_lockObj, callId, factory);
         }
+
+        private bool HasData => _currentPage != null;
 
         internal void OnRx(IStreamPage<T> page)
         {
@@ -60,7 +66,7 @@ namespace SharpRpc
 
             lock (_lockObj)
             {
-                if (_completed)
+                if (_isCompleted)
                     return; // TO DO : signal protocol violation
 
                 if (_currentPage == null)
@@ -83,46 +89,52 @@ namespace SharpRpc
 
         internal void OnRx(IStreamCompletionMessage msg)
         {
-            CompleteStream(false);
+            CompleteStream(CompletionModes.InitiatedByWriter);
         }
 
         internal void Abort()
         {
-            CompleteStream(true);
+            CompleteStream(CompletionModes.Abort);
         }
 
         internal void Complete()
         {
-            CompleteStream(false);
+            CompleteStream(CompletionModes.InitiatedByReader);
         }
 
-        private void CompleteStream(bool clearQueue)
+        private void CompleteStream(CompletionModes mode)
         {
             var wakeupListener = false;
             IStreamPageAck ack = null;
 
             lock (_lockObj)
             {
-                if (!_completed)
+                if (mode == CompletionModes.Abort)
                 {
-                    _completed = true;
-
-                    if (clearQueue)
-                    {
-                        _pages.Clear();
-                        _currentPage = null;
-                        _currentPageIndex = 0;
-                    }
-
+                    _pages.Clear();
+                    _currentPage = null;
+                    _currentPageIndex = 0;
+                    _isCompleted = true;
                     wakeupListener = OnDataArrived(out ack);
+                }
+                else if (mode == CompletionModes.InitiatedByWriter)
+                {
+                    if (!_isCompleted) // TO DO : signal protocol violation if already completed
+                    {
+                        _isCompleted = true;
+                        if (!HasData)
+                            wakeupListener = OnDataArrived(out ack);
+                    }
+                }
+                else if (!_isCompletionRequested)
+                {
+                    _isCompletionRequested = true;
+                    SendCompletionMessage();
                 }
             }
 
-            if (ack != null)
-                SendAck(ack);
-
-            if (wakeupListener)
-                _enumerator.WakeUpListener();
+            if (ack != null) SendAck(ack);
+            if (wakeupListener) _enumerator.WakeUpListener();
         }
 
         private bool OnDataArrived(out IStreamPageAck ack)
@@ -142,14 +154,14 @@ namespace SharpRpc
             {
                 _currentPageIndex = 0;
 
-                var pageSize = _currentPage.Count;
+                var consumedPageSize = _currentPage.Count;
 
                 if (_pages.Count > 0)
                     _currentPage = _pages.Dequeue();
                 else
                     _currentPage = null;
 
-                ack = _coordinator.OnPageConsume(pageSize);
+                ack = _coordinator.OnPageConsume(consumedPageSize);
             }
             else
                 ack = null;
@@ -168,7 +180,7 @@ namespace SharpRpc
             item = default(T);
             ack = null;
 
-            if (_completed)
+            if (_isCompleted)
                 return NextItemCode.Completed;
 
             return NextItemCode.NoItems;
@@ -190,6 +202,16 @@ namespace SharpRpc
 
             if (nextAck != null)
                 SendAck(nextAck);
+        }
+
+        private void SendCompletionMessage()
+        {
+            var complMessage = _factory.CreateCompletionRequestMessage(_callId);
+            _tx.TrySendAsync(complMessage, OnCompletionMessageSent);
+        }
+
+        private void OnCompletionMessageSent(RpcResult result)
+        {
         }
 
         public IStreamEnumerator<T> GetEnumerator(CancellationToken cancellationToken = default)
@@ -222,6 +244,13 @@ namespace SharpRpc
             Completed
         }
 
+        private enum CompletionModes
+        {
+            Abort,
+            InitiatedByReader,
+            InitiatedByWriter
+        }
+
         private interface INestedEnumerator
         {
             bool OnDataArrived(out IStreamPageAck ack);
@@ -251,6 +280,7 @@ namespace SharpRpc
             public ValueTask DisposeAsync()
             {
                 // close stream ??? 
+                //_stream.Abort();
                 return new ValueTask();
             }
 #endif
@@ -316,7 +346,7 @@ namespace SharpRpc
 
             private void Cancel()
             {
-                _stream.Abort();
+                _stream.Complete();
             }
         }
     }

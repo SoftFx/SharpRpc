@@ -150,10 +150,7 @@ namespace TestClient
                     var execBlock = new ActionBlock<StressTask>(r => ExecRequest(r, client, callbackHandler), execBlockOptions);
 
                     for (int i = 0; i < reqNumber; i++)
-                    {
-                        var requestType = rnd.Pick(RequestType.RequestResponse, RequestType.CallbackMessages, RequestType.Downstream, RequestType.Upstream);
-                        execBlock.Post(new StressTask(requestType, null, rnd.Next(1, MaxItemsPerCall)));
-                    }
+                        execBlock.Post(GenerateRnadomTask(rnd));
 
                     _states[no] = WorkerState.WaitingCompletion;
 
@@ -175,6 +172,21 @@ namespace TestClient
 
                 _states[no] = WorkerState.Closed;
             }
+        }
+
+        private StressTask GenerateRnadomTask(Random rnd)
+        {
+            var shouldCancel = rnd.Next(0, 3) == 0;
+
+            return new StressTask()
+            {
+                RequestId = Guid.NewGuid(),
+                Type = rnd.Pick(RequestType.RequestResponse, RequestType.CallbackMessages, RequestType.Downstream, RequestType.Upstream),
+                MessageCount = rnd.Next(1, MaxItemsPerCall),
+                Fault = null,
+                PerItemPauseMs = rnd.Next(0, 300),
+                CancelAfterMs = shouldCancel ? rnd.Next(0, MaxItemsPerCall * 300) : -1
+            };
         }
 
         private async Task ExecRequest(StressTask task, StressTestContract_Gen.Client client, CallbackHandler callback)
@@ -223,21 +235,32 @@ namespace TestClient
                 var call = client.UpstreamEntities(streamOpt, task.GetRequestConfig());
                 var generator = new StressEntityGenerator();
 
+                var sentItems = 0;
+                var notSentItems = 0;
+
                 for (int i = 0; i < task.MessageCount; i++)
                 {
                     var item = generator.Next();
-                    await call.InputStream.WriteAsync(item);
+
+                    var writeResult = await call.InputStream.WriteAsync(item);
+                    if (writeResult.IsOk)
+                        sentItems++;
+                    else
+                        notSentItems++;
                 }
 
                 await call.InputStream.CompleteAsync();
 
                 var result = await call.AsyncResult;
 
-                if (result.Code != RpcRetCode.Ok)
+                if (result.FaultMessage == null && (result.Code != RpcRetCode.Ok && result.Code != RpcRetCode.OperationCanceled))
                     RegisterError("Upstream failed: " + result.FaultMessage);
 
-                if (result.Value != task.MessageCount)
-                    RegisterError("Service received " + result.Value + " items while client sent " + task.MessageCount + " items");
+                if (result.FaultMessage != null && result.Code != RpcRetCode.RequestFault)
+                    RegisterError("Upstream failed: " + result.FaultMessage);
+
+                if (result.Value + notSentItems != task.MessageCount)
+                    RegisterError($"Service received {result.Value} items while client sent {task.MessageCount - notSentItems} items");
 
                 lock (_statLockObj)
                 {
@@ -283,24 +306,18 @@ namespace TestClient
             Closed
         }
 
-        public readonly struct StressTask
+        public struct StressTask
         {
-            public StressTask(RequestType type, string fault, int msgCount)
-            {
-                RequestId = Guid.NewGuid();
-                Type = type;
-                Fault = fault;
-                MessageCount = msgCount;
-            }
-
-            public Guid RequestId { get; }
-            public RequestType Type { get; }
-            public string Fault { get; }
-            public int MessageCount { get; }
+            public Guid RequestId { get; set; }
+            public RequestType Type { get; set; }
+            public string Fault { get; set; }
+            public int MessageCount { get; set; }
+            public int CancelAfterMs { get; set; }
+            public int PerItemPauseMs { get; set; }
 
             public RequestConfig GetRequestConfig()
             {
-                return new RequestConfig() {Id = RequestId, Fault = Fault};
+                return new RequestConfig() { Id = RequestId, Fault = Fault, CancelAfterMs = CancelAfterMs, PerItemPauseMs = PerItemPauseMs };
             }
         }
 

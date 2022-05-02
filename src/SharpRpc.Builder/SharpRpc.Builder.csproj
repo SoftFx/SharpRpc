@@ -4,7 +4,7 @@
    <TargetFramework>netstandard2.0</TargetFramework>
 	 <LangVersion>8.0</LangVersion>
 	 <Configurations>Debug;Release;DebugBuilder;ReleasePfCounters;ReleaseIde</Configurations>
-	 <Version>1.4.0</Version>
+	 <Version>1.4.1</Version>
 	 <Authors>Andrei Hilevich</Authors>
 	 <Company>Soft-Fx</Company>
 	 <Product>SharpRpc</Product>
@@ -16,7 +16,7 @@
 	 <PackageReleaseNotes></PackageReleaseNotes>
 	 <PackageTags>#RPC RPC</PackageTags>
    <IncludeBuildOutput>false</IncludeBuildOutput>
-   <AssemblyVersion>1.4.0.0</AssemblyVersion>
+   <AssemblyVersion>1.4.1.0</AssemblyVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)'=='DebugBuilder'">

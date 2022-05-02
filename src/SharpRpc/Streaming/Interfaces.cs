@@ -14,6 +14,7 @@ namespace SharpRpc
     public interface IStreamMessageFactory
     {
         IStreamCompletionMessage CreateCompletionMessage(string streamId);
+        IStreamCompletionRequestMessage CreateCompletionRequestMessage(string streamId);
         IStreamPageAck CreatePageAcknowledgement(string streamId);
     }
 
@@ -42,6 +43,10 @@ namespace SharpRpc
     }
 
     public interface IStreamCompletionMessage : IStreamAuxMessage
+    {
+    }
+
+    public interface IStreamCompletionRequestMessage : IStreamAuxMessage
     {
     }
 

@@ -10,12 +10,15 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace TestCommon.StressTest
 {
     public class StressTestService : StressTestContract_Gen.ServiceBase
     {
+        private readonly Random _rndSeed = new Random();
+
 #if NET5_0_OR_GREATER
         public override async ValueTask DownstreamEntities(CallContext context, StreamWriter<StressEntity> outputStream, RequestConfig cfg, int count)
 #else
@@ -70,15 +73,32 @@ namespace TestCommon.StressTest
 
             var count = 0;
 
+            var cancelSrc = new CancellationTokenSource();
+
+            if (cfg.CancelAfterMs > 0)
+                cancelSrc.CancelAfter(cfg.CancelAfterMs);
+
+            var rnd = new Random(_rndSeed.Next());
+
+            if (cfg.HasItemPause)
+                await RandomItemDelay(cfg, rnd);
+
 #if NET5_0_OR_GREATER
-            await foreach (var entity in inputStream)
-                count++;
+            await foreach (var entity in inputStream.WithCancellation(cancelSrc.Token))
 #else
-            var e = inputStream.GetEnumerator();
+            var e = inputStream.GetEnumerator(cancelSrc.Token);
 
             while (await e.MoveNextAsync())
-                count++;       
 #endif
+            {
+                count++;
+
+                if (cfg.HasItemPause)
+                    await RandomItemDelay(cfg, rnd);
+            }
+
+            if (cfg.HasItemPause)
+                await RandomItemDelay(cfg, rnd);
 
             return count;
         }
@@ -107,6 +127,12 @@ namespace TestCommon.StressTest
         {
             if (!string.IsNullOrEmpty(cfg.Fault))
                 throw new RpcFaultException(cfg.Fault);
+        }
+
+        private Task RandomItemDelay(RequestConfig cfg, Random rnd)
+        {
+            var randomPauseMs = rnd.Next(0, cfg.PerItemPauseMs);
+            return Task.Delay(randomPauseMs);
         }
     }
 }

@@ -41,6 +41,7 @@ namespace SharpRpc.Builder
         public static readonly TypeString StreamPageInterface = new TypeString("SharpRpc.IStreamPage");
         public static readonly TypeString StreamFactoryInterface = new TypeString("SharpRpc.IStreamMessageFactory");
         public static readonly TypeString StreamCompletionMessageInterface = new TypeString("SharpRpc.IStreamCompletionMessage");
+        public static readonly TypeString StreamCompletionRequestMessageInterface = new TypeString("SharpRpc.IStreamCompletionRequestMessage");
         public static readonly TypeString StreamPageAckInterface = new TypeString("SharpRpc.IStreamPageAck");
 
         public static readonly TypeString RpcInputStreamCallClass = new TypeString("SharpRpc.InputStreamCall");

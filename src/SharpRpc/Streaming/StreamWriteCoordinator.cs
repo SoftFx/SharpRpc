@@ -45,7 +45,7 @@ namespace SharpRpc
 
             _windowFill -= ack.Consumed;
 
-            // TO DO : check if _windowFill less than zero
+            // TO DO : check if _windowFill less than zero 
 
             if (_windowFill < _windowSize)
                 IsBlocked = false;

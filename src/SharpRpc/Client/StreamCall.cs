@@ -201,16 +201,29 @@ namespace SharpRpc
 
             if (auxMessage is IStreamPage<TOutItem> page)
             {
+                if (_reader == null)
+                    return new RpcResult(RpcRetCode.ProtocolViolation, "");
                 _reader.OnRx(page);
                 return RpcResult.Ok;
             }
             else if (auxMessage is IStreamCompletionMessage compl)
             {
+                if(_reader == null)
+                    return new RpcResult(RpcRetCode.ProtocolViolation, "");
                 _reader.OnRx(compl);
+                return RpcResult.Ok;
+            }
+            else if (auxMessage is IStreamCompletionRequestMessage complRequest)
+            {
+                if(_writer == null)
+                    return new RpcResult(RpcRetCode.ProtocolViolation, "");
+                _writer.OnRx(complRequest);
                 return RpcResult.Ok;
             }
             else if (auxMessage is IStreamPageAck ack)
             {
+                if (_writer == null)
+                    return new RpcResult(RpcRetCode.ProtocolViolation, "");
                 _writer.OnRx(ack);
                 return RpcResult.Ok;
             }

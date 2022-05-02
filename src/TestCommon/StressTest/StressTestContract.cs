@@ -50,6 +50,15 @@ namespace TestCommon
 
         [Key(2)]
         public string Fault { get; set; }
+
+        [Key(3)]
+        public int PerItemPauseMs { get; set; }
+
+        [Key(4)]
+        public int CancelAfterMs { get; set; }
+
+        [IgnoreMember]
+        public bool HasItemPause => PerItemPauseMs > 0;
     }
 
     [MessagePackObject]

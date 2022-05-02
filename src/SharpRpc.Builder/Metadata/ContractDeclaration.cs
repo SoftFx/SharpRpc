@@ -32,6 +32,7 @@ namespace SharpRpc.Builder
             FaultMessageClassName = new TypeString(MessageBundleClassName.Short, "RequestFault");
             StreamPageAckMessageClassName = new TypeString(MessageBundleClassName.Short, "PageAcknowledgement");
             StreamCompletionMessageClassName = new TypeString(MessageBundleClassName.Short, "StreamCompletion");
+            StreamCompletionRequestMessageClassName = new TypeString(MessageBundleClassName.Short, "StreamCompletionRequest");
             HeartbeatMessageClassName = new TypeString(MessageBundleClassName.Short, "Heartbeat");
             CancelRequestMessageClassName = new TypeString(MessageBundleClassName.Short, "CancelRequest");
             CancelStreamingMessageClassName = new TypeString(MessageBundleClassName.Short, "CancelStreaming");
@@ -63,6 +64,7 @@ namespace SharpRpc.Builder
         public TypeString FaultMessageClassName { get; }
         public TypeString StreamPageAckMessageClassName { get; }
         public TypeString StreamCompletionMessageClassName { get; }
+        public TypeString StreamCompletionRequestMessageClassName { get; }
         public TypeString HeartbeatMessageClassName { get; }
 
         public TypeString CancelRequestMessageClassName { get; }
