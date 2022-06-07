@@ -69,19 +69,20 @@ namespace SharpRpc
 
         private readonly IOpenStreamRequest _requestMessage;
 
-        public StreamCall(IOpenStreamRequest request, StreamOptions inputOptions, StreamOptions outputOptions, Channel ch,
-            IStreamMessageFactory<TInItem> inFactory, IStreamMessageFactory<TOutItem> outFactory, bool hasRetParam, CancellationToken cToken)
+        public StreamCall(IOpenStreamRequest request, StreamOptions inputOptions, StreamOptions outputOptions, TxPipeline msgTransmitter,
+            IOpDispatcher dispatcher, IStreamMessageFactory<TInItem> inFactory, IStreamMessageFactory<TOutItem> outFactory,
+            bool hasRetParam, CancellationToken cToken)
         {
             _requestMessage = request;
 
-            CallId = ch.Dispatcher.GenerateOperationId(); // Guid.NewGuid().ToString();
+            CallId = dispatcher.GenerateOperationId();
 
             if (inFactory != null)
-                _writer = new PagingStreamWriter<TInItem>(CallId, ch, inFactory, false, inputOptions);
+                _writer = new PagingStreamWriter<TInItem>(CallId, msgTransmitter, inFactory, false, inputOptions);
 
             if (outFactory != null)
             {
-                _reader = new PagingStreamReader<TOutItem>(CallId, ch.Tx, outFactory);
+                _reader = new PagingStreamReader<TOutItem>(CallId, msgTransmitter, outFactory);
                 _requestMessage.WindowSize = inputOptions?.WindowSize ?? StreamOptions.DefaultWindowsSize;
             }
 
@@ -96,11 +97,11 @@ namespace SharpRpc
             if (cToken.CanBeCanceled)
                 request.Options |= RequestOptions.CancellationEnabled;
 
-            var regResult = ch.Dispatcher.RegisterCallObject(CallId, this);
+            var regResult = dispatcher.RegisterCallObject(CallId, this);
             if (regResult.IsOk)
             {
-                ch.Tx.TrySendAsync(request, RequestSendCompleted);
-                cToken.Register(ch.Dispatcher.CancelOperation, this);
+                msgTransmitter.TrySendAsync(request, RequestSendCompleted);
+                cToken.Register(dispatcher.CancelOperation, this);
             }
             else
                 EndCall(regResult, default(TReturn));
@@ -149,7 +150,7 @@ namespace SharpRpc
 
         #region MessageDispatcherCore.IInteropOperation
 
-        RpcResult MessageDispatcherCore.IInteropOperation.Complete(IResponseMessage respMessage)
+        RpcResult MessageDispatcherCore.IInteropOperation.OnResponse(IResponseMessage respMessage)
         {
             //System.Diagnostics.Debug.WriteLine("RX " + CallId + " RESP " + respMessage.GetType().Name);
 
@@ -173,7 +174,7 @@ namespace SharpRpc
             }
         }
 
-        void MessageDispatcherCore.IInteropOperation.Fail(RpcResult result)
+        void MessageDispatcherCore.IInteropOperation.OnFail(RpcResult result)
         {
             AbortStreams(result);
 
@@ -183,7 +184,7 @@ namespace SharpRpc
                 _voidCompletion.TrySetResult(result);
         }
 
-        void MessageDispatcherCore.IInteropOperation.Fail(IRequestFaultMessage faultMessage)
+        void MessageDispatcherCore.IInteropOperation.OnFail(IRequestFaultMessage faultMessage)
         {
             var rpcResult = faultMessage.ToRpcResult();
 
@@ -195,7 +196,7 @@ namespace SharpRpc
                 _voidCompletion.TrySetResult(rpcResult);
         }
 
-        RpcResult MessageDispatcherCore.IInteropOperation.Update(IInteropMessage auxMessage)
+        RpcResult MessageDispatcherCore.IInteropOperation.OnUpdate(IInteropMessage auxMessage)
         {
             //System.Diagnostics.Debug.WriteLine("RX " + CallId + " A.MSG " + auxMessage.GetType().Name);
 
@@ -208,14 +209,14 @@ namespace SharpRpc
             }
             else if (auxMessage is IStreamCompletionMessage compl)
             {
-                if(_reader == null)
+                if (_reader == null)
                     return new RpcResult(RpcRetCode.ProtocolViolation, "");
                 _reader.OnRx(compl);
                 return RpcResult.Ok;
             }
             else if (auxMessage is IStreamCompletionRequestMessage complRequest)
             {
-                if(_writer == null)
+                if (_writer == null)
                     return new RpcResult(RpcRetCode.ProtocolViolation, "");
                 _writer.OnRx(complRequest);
                 return RpcResult.Ok;

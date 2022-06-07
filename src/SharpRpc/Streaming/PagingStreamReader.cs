@@ -126,10 +126,13 @@ namespace SharpRpc
                             wakeupListener = OnDataArrived(out ack);
                     }
                 }
-                else if (!_isCompletionRequested)
+                else if (mode == CompletionModes.InitiatedByReader)
                 {
-                    _isCompletionRequested = true;
-                    SendCompletionMessage();
+                    if (!_isCompletionRequested)
+                    {
+                        _isCompletionRequested = true;
+                        SendCompletionMessage();
+                    }
                 }
             }
 

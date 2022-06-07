@@ -14,7 +14,15 @@ using System.Threading.Tasks;
 
 namespace SharpRpc
 {
-    internal abstract partial class MessageDispatcher
+    internal interface IOpDispatcher
+    {
+        string GenerateOperationId();
+        RpcResult RegisterCallObject(string callId, MessageDispatcherCore.IInteropOperation callObject);
+        void UnregisterCallObject(string callId);
+        void CancelOperation(object state);
+    }
+
+    internal abstract partial class MessageDispatcher : IOpDispatcher
     {
         private string _opIdPrefix;
         private int _opIdSeed;
@@ -35,7 +43,7 @@ namespace SharpRpc
             _opIdPrefix = serverSide ? "S" : "C";
             //MessageHandler = handler;
             TaskQueue = tx.TaskQueue;
-            Core = new MessageDispatcherCore(tx, this, handler, OnError);
+            Core = new MessageDispatcherCore(tx, handler, OnError);
             return this;
         }
 

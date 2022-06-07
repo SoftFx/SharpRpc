@@ -317,7 +317,6 @@ namespace SharpRpc
 
             Closed?.Invoke(this, _channelDisplayFault);
 
-
             if (!faultToRise.IsOk)
                 Faulted?.Invoke(this, faultToRise);
 

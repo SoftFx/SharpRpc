@@ -49,20 +49,20 @@ namespace SharpRpc
         {
         }
 
-        RpcResult MessageDispatcherCore.IInteropOperation.Complete(IResponseMessage respMessage)
+        RpcResult MessageDispatcherCore.IInteropOperation.OnResponse(IResponseMessage respMessage)
         {
             return new RpcResult(RpcRetCode.UnexpectedMessage, "");
         }
 
-        void MessageDispatcherCore.IInteropOperation.Fail(RpcResult result)
+        void MessageDispatcherCore.IInteropOperation.OnFail(RpcResult result)
         {
         }
 
-        void MessageDispatcherCore.IInteropOperation.Fail(IRequestFaultMessage faultMessage)
+        void MessageDispatcherCore.IInteropOperation.OnFail(IRequestFaultMessage faultMessage)
         {
         }
 
-        RpcResult MessageDispatcherCore.IInteropOperation.Update(IInteropMessage auxMessage)
+        RpcResult MessageDispatcherCore.IInteropOperation.OnUpdate(IInteropMessage auxMessage)
         {
             if (auxMessage is ICancelRequestMessage)
             {

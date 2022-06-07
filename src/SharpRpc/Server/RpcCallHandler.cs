@@ -80,18 +80,18 @@ namespace SharpRpc
 
         protected ServiceStreamingCallContext<object, T> CreateOutputStreamContext<T>(IOpenStreamRequest request, IStreamMessageFactory<T> factory)
         {
-            return new ServiceStreamingCallContext<object, T>(request, _ch, null, factory);
+            return new ServiceStreamingCallContext<object, T>(request, _ch.Tx, _ch.Dispatcher, null, factory);
         }
 
         protected ServiceStreamingCallContext<T, object> CreateInputStreamContext<T>(IOpenStreamRequest request, IStreamMessageFactory<T> factory)
         {
-            return new ServiceStreamingCallContext<T, object>(request, _ch, factory, null);
+            return new ServiceStreamingCallContext<T, object>(request, _ch.Tx, _ch.Dispatcher, factory, null);
         }
 
         protected ServiceStreamingCallContext<TIn, TOut> CreateDuplexStreamContext<TIn, TOut>(IOpenStreamRequest request,
             IStreamMessageFactory<TIn> inFactory, IStreamMessageFactory<TOut> outFactory)
         {
-            return new ServiceStreamingCallContext<TIn, TOut>(request, _ch, inFactory, outFactory);
+            return new ServiceStreamingCallContext<TIn, TOut>(request, _ch.Tx, _ch.Dispatcher, inFactory, outFactory);
         }
 
         protected Task CloseStreamContext(IStreamContext context)

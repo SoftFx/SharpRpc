@@ -105,7 +105,7 @@ namespace SharpRpc
                 }
 
                 if (result.Code != RpcRetCode.Ok)
-                    callTask.Fail(result);
+                    callTask.OnFail(result);
             }
 
             public override RpcResult RegisterCallObject(string callId, MessageDispatcherCore.IInteropOperation callTask)
@@ -130,7 +130,7 @@ namespace SharpRpc
                 }
 
                 if (sendWasCanceled)
-                    opObject.Fail(new RpcResult(RpcRetCode.OperationCanceled, "Canceled by user."));
+                    opObject.OnFail(new RpcResult(RpcRetCode.OperationCanceled, "Canceled by user."));
                 else
                 {
                     var cancelMessage = Tx.MessageFactory.CreateCancelRequestMessage();

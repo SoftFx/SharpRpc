@@ -42,7 +42,7 @@ namespace TestClient
         {
             // one way
 
-            DoOneWayTestSeries(address, 500000, 1,  multiplier, options);
+            //DoOneWayTestSeries(address, 500000, 1,  multiplier, options);
             //DoOneWayTestSeries(address, 50000, 10, multiplier, options);
             DoOneWayTestSeries(address, 20000, 30, multiplier, options);
             //DoOneWayTestSeries(address, 10000, 50, multiplier, options);

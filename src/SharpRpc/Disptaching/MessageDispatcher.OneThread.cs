@@ -121,7 +121,7 @@ namespace SharpRpc
                 }
 
                 if (result.Code != RpcRetCode.Ok)
-                    callTask.Fail(result);
+                    callTask.OnFail(result);
             }
 
             protected override void CancelOperation(MessageDispatcherCore.IInteropOperation opObject)

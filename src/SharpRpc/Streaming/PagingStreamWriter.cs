@@ -21,7 +21,7 @@ namespace SharpRpc
         private IStreamPage<T> _queue;
         private IStreamPage<T> _pageToSend;
         private readonly bool _canImmediatelyReusePages;
-        private readonly Channel _ch;
+        private readonly TxPipeline _msgTransmitter;
         private readonly Queue<EnqueueAwaiter> _enqueueAwaiters = new Queue<EnqueueAwaiter>();
         //private readonly List<EnqueueAwaiter> _awaitersToRelease = new List<EnqueueAwaiter>();
         private readonly TaskCompletionSource<RpcResult> _completionEventSrc = new TaskCompletionSource<RpcResult>();
@@ -35,10 +35,10 @@ namespace SharpRpc
         private readonly IStreamMessageFactory<T> _factory;
         private readonly StreamWriteCoordinator _coordinator;
 
-        internal PagingStreamWriter(string callId, Channel channel, IStreamMessageFactory<T> factory, bool allowSendInitialValue, StreamOptions options)
+        internal PagingStreamWriter(string callId, TxPipeline msgTransmitter, IStreamMessageFactory<T> factory, bool allowSendInitialValue, StreamOptions options)
         {
             CallId = callId;
-            _ch = channel;
+            _msgTransmitter = msgTransmitter;
             _factory = factory;
             //_maxPageSize = maxPageSize;
             _windowSize = options?.WindowSize ?? StreamOptions.DefaultWindowsSize;
@@ -53,7 +53,7 @@ namespace SharpRpc
 
             _isSendingEnabled = allowSendInitialValue;
 
-            _canImmediatelyReusePages = channel.Tx.ImmediateSerialization;
+            _canImmediatelyReusePages = _msgTransmitter.ImmediateSerialization;
             
             _queue = CreatePage();
             if (_canImmediatelyReusePages)
@@ -211,7 +211,7 @@ namespace SharpRpc
 
         private void SendNextPage()
         {
-            _ch.Tx.TrySendAsync(_pageToSend, OnSendCompleted);
+            _msgTransmitter.TrySendAsync(_pageToSend, OnSendCompleted);
         }
 
         private void OnSendCompleted(RpcResult sendResult)
@@ -335,7 +335,7 @@ namespace SharpRpc
                 Debugger.Break();
 
             var complMessage = _factory.CreateCompletionMessage(CallId);
-            _ch.Tx.TrySendAsync(complMessage, OnCompletionMessageSent);
+            _msgTransmitter.TrySendAsync(complMessage, OnCompletionMessageSent);
         }
 
         private void OnCompletionMessageSent(RpcResult result)

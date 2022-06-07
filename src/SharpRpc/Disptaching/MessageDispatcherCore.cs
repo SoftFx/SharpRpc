@@ -20,16 +20,14 @@ namespace SharpRpc
         private RpcResult _fault;
         private List<IInteropOperation> _tasksToCancel;
 
-        public MessageDispatcherCore(TxPipeline txNode, MessageDispatcher dispatcher, IUserMessageHandler msgHandler, Action<RpcRetCode, string> onErrorAction)
+        public MessageDispatcherCore(TxPipeline txNode, IUserMessageHandler msgHandler, Action<RpcRetCode, string> onErrorAction)
         {
             Tx = txNode;
-            Dispatcher = dispatcher;
             MessageHandler = msgHandler;
             OnError = onErrorAction;
         }
 
         public TxPipeline Tx { get; }
-        public MessageDispatcher Dispatcher { get; }
         public IUserMessageHandler MessageHandler { get; }
         public Action<RpcRetCode, string> OnError { get; }
         
@@ -82,7 +80,7 @@ namespace SharpRpc
         public void CompleteStop()
         {
             foreach (var task in _tasksToCancel)
-                task.Fail(_fault);
+                task.OnFail(_fault);
         }
 
         public RpcResult FireOpened()
@@ -162,9 +160,9 @@ namespace SharpRpc
             }
 
             if (resp is IRequestFaultMessage faultMsg)
-                taskToComplete.Fail(faultMsg);
+                taskToComplete.OnFail(faultMsg);
             else
-                taskToComplete.Complete(resp);
+                taskToComplete.OnResponse(resp);
         }
 
         private void ProcessAxuMessage(IInteropMessage message)
@@ -180,7 +178,7 @@ namespace SharpRpc
                 }
             }
 
-            var opUpdateResult = operation.Update(message);
+            var opUpdateResult = operation.OnUpdate(message);
 
             if (!opUpdateResult.IsOk)
             {
@@ -194,10 +192,10 @@ namespace SharpRpc
 
             void StartCancellation();
 
-            RpcResult Update(IInteropMessage message);
-            RpcResult Complete(IResponseMessage respMessage);
-            void Fail(RpcResult result);
-            void Fail(IRequestFaultMessage faultMessage);
+            RpcResult OnUpdate(IInteropMessage message);
+            RpcResult OnResponse(IResponseMessage respMessage);
+            void OnFail(RpcResult result);
+            void OnFail(IRequestFaultMessage faultMessage);
         }
 
         public class CallTask<TResp> : TaskCompletionSource<RpcResult>, IInteropOperation
@@ -213,23 +211,23 @@ namespace SharpRpc
 
             public void StartCancellation() { }
 
-            public RpcResult Complete(IResponseMessage respMessage)
+            public RpcResult OnResponse(IResponseMessage respMessage)
             {
                 SetResult(RpcResult.Ok);
                 return RpcResult.Ok;
             }
 
-            public void Fail(RpcResult result)
+            public void OnFail(RpcResult result)
             {
                 SetException(result.ToException());
             }
 
-            public void Fail(IRequestFaultMessage faultMessage)
+            public void OnFail(IRequestFaultMessage faultMessage)
             {
                 SetException(faultMessage.CreateException());
             }
 
-            public RpcResult Update(IInteropMessage page)
+            public RpcResult OnUpdate(IInteropMessage page)
             {
                 return new RpcResult(RpcRetCode.ProtocolViolation, "");
             }
@@ -247,23 +245,23 @@ namespace SharpRpc
 
             public void StartCancellation() { }
 
-            public RpcResult Complete(IResponseMessage respMessage)
+            public RpcResult OnResponse(IResponseMessage respMessage)
             {
                 SetResult(RpcResult.Ok);
                 return RpcResult.Ok;
             }
 
-            public void Fail(RpcResult result)
+            public void OnFail(RpcResult result)
             {
                 SetResult(result);
             }
 
-            public void Fail(IRequestFaultMessage faultMessage)
+            public void OnFail(IRequestFaultMessage faultMessage)
             {
                 SetResult(faultMessage.ToRpcResult());
             }
 
-            public RpcResult Update(IInteropMessage auxMessage)
+            public RpcResult OnUpdate(IInteropMessage auxMessage)
             {
                 return new RpcResult(RpcRetCode.ProtocolViolation, "");
             }
@@ -281,7 +279,7 @@ namespace SharpRpc
 
             public void StartCancellation() { }
 
-            public RpcResult Complete(IResponseMessage respMessage)
+            public RpcResult OnResponse(IResponseMessage respMessage)
             {
                 var resp = respMessage as IResponseMessage<TReturn>;
                 if (resp != null)
@@ -293,17 +291,17 @@ namespace SharpRpc
                     return new RpcResult(RpcRetCode.ProtocolViolation, "");
             }
 
-            public void Fail(RpcResult result)
+            public void OnFail(RpcResult result)
             {
                 SetException(result.ToException());
             }
 
-            public void Fail(IRequestFaultMessage faultMessage)
+            public void OnFail(IRequestFaultMessage faultMessage)
             {
                 SetException(faultMessage.CreateException());
             }
 
-            public RpcResult Update(IInteropMessage auxMessage)
+            public RpcResult OnUpdate(IInteropMessage auxMessage)
             {
                 return new RpcResult(RpcRetCode.ProtocolViolation, "");
             }
@@ -321,7 +319,7 @@ namespace SharpRpc
 
             public void StartCancellation() { }
 
-            public RpcResult Complete(IResponseMessage respMessage)
+            public RpcResult OnResponse(IResponseMessage respMessage)
             {
                 var resp = respMessage as IResponseMessage<TReturn>;
                 if (resp != null)
@@ -333,17 +331,17 @@ namespace SharpRpc
                     return new RpcResult(RpcRetCode.ProtocolViolation, "");
             }
 
-            public void Fail(RpcResult result)
+            public void OnFail(RpcResult result)
             {
                 SetResult(new RpcResult<TReturn>(result.Code, result.FaultMessage, result.CustomFaultData));
             }
 
-            public void Fail(IRequestFaultMessage faultMessage)
+            public void OnFail(IRequestFaultMessage faultMessage)
             {
                 SetResult(faultMessage.ToRpcResult<TReturn>());
             }
 
-            public RpcResult Update(IInteropMessage auxMessage)
+            public RpcResult OnUpdate(IInteropMessage auxMessage)
             {
                 return new RpcResult(RpcRetCode.ProtocolViolation, "");
             }

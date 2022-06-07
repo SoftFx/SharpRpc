@@ -25,7 +25,8 @@ namespace SharpRpc
     {
         private readonly CancellationTokenSource _cancelSrc;
 
-        public ServiceStreamingCallContext(IOpenStreamRequest request, Channel ch, IStreamMessageFactory<TInItem> inFactory, IStreamMessageFactory<TOutItem> outFactory)
+        internal ServiceStreamingCallContext(IOpenStreamRequest request, TxPipeline msgTx, IOpDispatcher dispatcher,
+            IStreamMessageFactory<TInItem> inFactory, IStreamMessageFactory<TOutItem> outFactory)
         {
             RequestMessage = request;
             CallId = request.CallId;
@@ -41,12 +42,12 @@ namespace SharpRpc
                 CancellationToken = CancellationToken.None;
 
             if (inFactory != null)
-                InputStream = new PagingStreamReader<TInItem>(CallId, ch.Tx, inFactory);
+                InputStream = new PagingStreamReader<TInItem>(CallId, msgTx, inFactory);
 
             if (outFactory != null)
-                OutputStream = new PagingStreamWriter<TOutItem>(CallId, ch, outFactory, true, new StreamOptions(request));
+                OutputStream = new PagingStreamWriter<TOutItem>(CallId, msgTx, outFactory, true, new StreamOptions(request));
 
-            ch.Dispatcher.RegisterCallObject(request.CallId, this);
+            dispatcher.RegisterCallObject(request.CallId, this);
         }
 
         public string CallId { get; }
@@ -69,20 +70,20 @@ namespace SharpRpc
             ch.Dispatcher.UnregisterCallObject(CallId);
         }
 
-        RpcResult MessageDispatcherCore.IInteropOperation.Complete(IResponseMessage respMessage)
+        RpcResult MessageDispatcherCore.IInteropOperation.OnResponse(IResponseMessage respMessage)
         {
             return new RpcResult(RpcRetCode.ProtocolViolation, "");
         }
 
-        void MessageDispatcherCore.IInteropOperation.Fail(RpcResult result)
+        void MessageDispatcherCore.IInteropOperation.OnFail(RpcResult result)
         {
         }
 
-        void MessageDispatcherCore.IInteropOperation.Fail(IRequestFaultMessage faultMessage)
+        void MessageDispatcherCore.IInteropOperation.OnFail(IRequestFaultMessage faultMessage)
         {
         }
 
-        RpcResult MessageDispatcherCore.IInteropOperation.Update(IInteropMessage auxMessage)
+        RpcResult MessageDispatcherCore.IInteropOperation.OnUpdate(IInteropMessage auxMessage)
         {
             //System.Diagnostics.Debug.WriteLine("RX " + CallId + " A.MSG " + auxMessage.GetType().Name);
 
@@ -94,6 +95,11 @@ namespace SharpRpc
             else if (auxMessage is IStreamCompletionMessage compl)
             {
                 InputStream.OnRx(compl);
+                return RpcResult.Ok;
+            }
+            else if (auxMessage is IStreamCompletionRequestMessage complRequest)
+            {
+                OutputStream.OnRx(complRequest);
                 return RpcResult.Ok;
             }
             else if (auxMessage is IStreamPageAck ack)
