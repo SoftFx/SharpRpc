@@ -141,7 +141,7 @@ namespace SharpRpc
                 else
                     return Task.CompletedTask;
             }
-            
+
             DoDisconnect(ChannelShutdownMode.Normal, LogoutOption.Immidiate);
 
             return _disconnectEvent.Task;
@@ -181,7 +181,7 @@ namespace SharpRpc
         }
 
         private async void DoConnect()
-        {            
+        {
             if (!_isServerSide)
             {
                 Logger.Info(Id, "Connecting...");
@@ -230,6 +230,9 @@ namespace SharpRpc
                     State = ChannelState.Online;
             }
 
+            // exit transport thread
+            await Task.Yield();
+
             if (abortConnect)
             {
                 _tx.StopProcessingUserMessages(_channelOperationFault);
@@ -248,7 +251,6 @@ namespace SharpRpc
             }
             else
             {
-                
                 Logger.Info(Id, "Connected.");
                 _connectEvent.SetResult(RpcResult.Ok);
             }

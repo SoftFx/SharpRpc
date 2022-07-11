@@ -182,12 +182,68 @@ You may stop server at any time by calling server.StopAsync();
 
 ## Callbacks
 
+## Authentication
+
+Currently, SharpRpc supports only basic login/password for authenticating clients and only certificates for authenticating servers.
+More authentication methods will be added in the future.
+
 ## Basic authentication setup
+
+On the client-side create BasicCredentials object and pass it to the endpoint:
+
+var endpoint = new TcpClientEndpoint(address, port, security);
+endpoint.Credentials = new BasicCredentials("Admin", "zzzz");
+
+Note: It's not advised to use basic authentication together with TcpSecuriot.None option. Login and password should not be send via unprocected transport.
+
+On the server-side create a login/password validator class first:
+
+```csharp
+internal class AuthValidator : PasswordValidator
+{
+    public ValueTask<string> Validate(string userName, string password)
+    {
+        if (userName == "Admin" && password == "zzzz")
+            return ValueTask.FromResult<string>(null);
+
+        return ValueTask.FromResult("Invalid credentials.");
+    }
+}
+```
+
+Than update Authenticator filed in the server endpoint: 
+
+```csharp
+var tcpEndpoint = new TcpServerEndpoint(IPAddress.IPv6Any, 812, security);
+tcpEndpoint.Authenticator = new BasicAuthenticator(new AuthValidator());
+```
+
+If you have multiple endpoints authenticator should be configured separately for every one of them.
 
 ## SSL Setup
 
+
+
+
+
 ## Prebuilt messages
 
+The prebuilt messages may be useful in cases when one message is multiple times, e.g. multicasting the same update for multiple clients. Prebuilding a message allows for significantly improved performance by excluding multiple serializations of the same message.
 
+To use prebuild message sepcify EnablePrebuilder=true in the contract attribute: 
+
+```csharp
+[RpcServiceContract(EnablePrebuilder = true)]
+public interface SomeRpcContract
+{
+}
+```
+
+This will signal the builder to generate a prebuilder class and overloads which accept prebuilt messages. Only operation contracts with RpcType.Message or RpcType.CallbackMessage allows prebuilding.
+
+Then you may use the prebuilder to pre-serialize messages and send them to multiple clients:
+```csharp
+
+```
 
 
