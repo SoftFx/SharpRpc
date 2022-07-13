@@ -1,10 +1,11 @@
-﻿// Copyright © 2021 Soft-Fx. All rights reserved.
+﻿// Copyright © 2022 Soft-Fx. All rights reserved.
 // Author: Andrei Hilevich
 //
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+using SharpRpc.Tcp;
 using System;
 using System.Collections.Generic;
 using System.Net;
@@ -16,10 +17,8 @@ namespace SharpRpc
 {
     public class TcpServerEndpoint : ServerEndpoint
     {
-        //private readonly object _lockObj;
-        private readonly Socket _listener;
-        private Task _listenerTask;
-        private volatile bool _stopFlag;
+        private readonly Socket _socket;
+        private readonly SocketListener _listener;
         private readonly IPEndPoint _ipEndpoint;
         private readonly TcpServerSecurity _security;
         private bool _ipv6Only = true;
@@ -27,10 +26,9 @@ namespace SharpRpc
         public TcpServerEndpoint(IPEndPoint ipEndpoint, TcpServerSecurity security)
         {
             _security = security ?? throw new ArgumentNullException("security");
-            _ipEndpoint = ipEndpoint;
-
-            _listener = new Socket(ipEndpoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
-            _listener.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.IPv6Only, false);
+            _ipEndpoint = ipEndpoint ?? throw new ArgumentNullException("security");
+            _socket = new Socket(ipEndpoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+            _listener = new SocketListener(_socket, this, security, OnConnect);
         }
 
         public TcpServerEndpoint(IPAddress address, int port, TcpServerSecurity security)
@@ -54,7 +52,8 @@ namespace SharpRpc
             var ipAddress = ipHostInfo.AddressList[0];
             _ipEndpoint = new IPEndPoint(ipAddress, port);
 
-            _listener = new Socket(ipAddress.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+            _socket = new Socket(ipAddress.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+            _listener = new SocketListener(_socket, this, _security, OnConnect);
         }
 
         /// <summary>
@@ -79,24 +78,14 @@ namespace SharpRpc
         {
             LoggerAdapter.Info(Name, "listening at {0}, security: {1}", _ipEndpoint, _security.Name);
 
-            _stopFlag = false;
-            _security.Init();
+            _socket.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.IPv6Only, _ipv6Only);
 
-            _listener.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.IPv6Only, _ipv6Only);
-
-            _listener.Bind(_ipEndpoint);
-            _listener.Listen(100);
-
-            _listenerTask = AcceptLoop();
+            _listener.Start(_ipEndpoint);
         }
 
-        protected override async Task StopAsync()
+        protected override Task StopAsync()
         {
-            _stopFlag = true;
-
-            _listener.Close();
-
-            await _listenerTask;
+            return _listener.Stop();
         }
 
 #if NET5_0_OR_GREATER
@@ -110,47 +99,5 @@ namespace SharpRpc
             return Task.FromResult<ByteTransport>(new TcpTransport(socket, TaskQueue));
         }
 #endif
-
-        private async Task AcceptLoop()
-        {
-            while (!_stopFlag)
-            {
-                Socket socket;
-
-                try
-                {
-                    socket = await _listener.AcceptAsync().ConfigureAwait(false);
-                }
-                catch (Exception ex)
-                {
-                    var socketEx = ex as SocketException;
-
-                    if (!_stopFlag || socketEx == null || socketEx.SocketErrorCode != SocketError.OperationAborted)
-                        LoggerAdapter.Error(Name, ex.Message);
-
-                    continue;
-                }
-
-                try
-                {
-                    var transport = await _security.SecureTransport(socket, this);
-
-                    OnConnect(transport);
-                }
-                catch (Exception ex)
-                {
-                    //var socketEx = ex as SocketException;
-                    LoggerAdapter.Error(Name, ex.Message);
-
-                    try
-                    {
-                        await socket.DisconnectAsync(TaskQueue);
-                    }
-                    catch
-                    {
-                    }
-                }
-            }
-        }
     }
 }

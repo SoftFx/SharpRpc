@@ -10,4 +10,4 @@
 indent_style = space
 
 #header
-file_header_template = Copyright © 2021 Soft-Fx. All rights reserved.\nAuthor: Andrei Hilevich\n\nThis Source Code Form is subject to the terms of the Mozilla\nPublic License, v. 2.0. If a copy of the MPL was not distributed\nwith this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+file_header_template = Copyright Â© 2022 Soft-Fx. All rights reserved.\nAuthor: Andrei Hilevich\n\nThis Source Code Form is subject to the terms of the Mozilla\nPublic License, v. 2.0. If a copy of the MPL was not distributed\nwith this file, You can obtain one at http://mozilla.org/MPL/2.0/.
