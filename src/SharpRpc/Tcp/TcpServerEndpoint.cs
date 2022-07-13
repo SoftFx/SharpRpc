@@ -23,6 +23,8 @@ namespace SharpRpc
         private readonly TcpServerSecurity _security;
         private bool _ipv6Only = true;
 
+        public const int PickUnusedPort = 0;
+
         public TcpServerEndpoint(IPEndPoint ipEndpoint, TcpServerSecurity security)
         {
             _security = security ?? throw new ArgumentNullException("security");
@@ -74,6 +76,8 @@ namespace SharpRpc
             }
         }
 
+        public int EffectivePort { get; private set; }
+
         protected override void Start()
         {
             LoggerAdapter.Info(Name, "listening at {0}, security: {1}", _ipEndpoint, _security.Name);
@@ -81,6 +85,8 @@ namespace SharpRpc
             _socket.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.IPv6Only, _ipv6Only);
 
             _listener.Start(_ipEndpoint);
+
+            EffectivePort = ((IPEndPoint)_socket.LocalEndPoint).Port;
         }
 
         protected override Task StopAsync()
