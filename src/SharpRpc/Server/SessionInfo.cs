@@ -28,6 +28,14 @@ namespace SharpRpc
         public event EventHandler<SessionOpenedEventArgs> Opened;
         public event EventHandler<SessionClosedEventArgs> Closed;
 
+        /// <summary>
+        /// Triggers session close. It's safe to call this function from message/call handlers.
+        /// </summary>
+        public void BeginClose()
+        {
+            _ch.TriggerClose();
+        }
+
         internal void FireOpened(SessionOpenedEventArgs args)
         {
             Opened?.Invoke(this, args);

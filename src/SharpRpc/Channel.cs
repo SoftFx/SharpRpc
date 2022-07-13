@@ -125,6 +125,17 @@ namespace SharpRpc
 
         public Task CloseAsync()
         {
+            TriggerClose(out var completion);
+            return completion;
+        }
+
+        internal void TriggerClose()
+        {
+            TriggerClose(out _);
+        }
+
+        private void TriggerClose(out Task closeCompletion)
+        {
             lock (_stateSyncObj)
             {
                 _closeFlag = true;
@@ -132,19 +143,26 @@ namespace SharpRpc
                 if (State == ChannelState.Online)
                     State = ChannelState.Disconnecting;
                 else if (State == ChannelState.Disconnecting || State == ChannelState.Connecting)
-                    return _disconnectEvent.Task;
+                {
+                    closeCompletion = _disconnectEvent.Task;
+                    return;
+                }
                 else if (State == ChannelState.New)
                 {
                     State = ChannelState.Closed;
-                    return Task.CompletedTask;
+                    closeCompletion = Task.CompletedTask;
+                    return;
                 }
                 else
-                    return Task.CompletedTask;
+                {
+                    closeCompletion = Task.CompletedTask;
+                    return;
+                }
             }
 
             DoDisconnect(ChannelShutdownMode.Normal, LogoutOption.Immidiate);
 
-            return _disconnectEvent.Task;
+            closeCompletion = _disconnectEvent.Task;
         }
 
         internal void OnCommunicationError(RpcResult fault)
