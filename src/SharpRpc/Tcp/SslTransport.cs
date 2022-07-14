@@ -49,7 +49,7 @@ namespace SharpRpc
 
         public override RpcResult TranslateException(Exception ex)
         {
-            return TcpTransport.ToRpcResult(ex);
+            return SocketTransport.ToRpcResult(ex);
         }
 
         public override async Task Shutdown()

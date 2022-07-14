@@ -17,7 +17,7 @@ namespace TestCommon
     [DataContract]
     [ProtoContract]
     [MessagePackObject]
-    public class FooEntity : global::System.IDisposable
+    public class FooEntity
     {
         [ProtoMember(1)]
         [Key(1)]
@@ -43,11 +43,6 @@ namespace TestCommon
         [ProtoMember(6)]
         [Key(6)]
         public List<FooSubEntity> AskBook { get; set; } = new List<FooSubEntity>();
-
-        public void Dispose()
-        {
-
-        }
     }
 
     [ProtoContract]

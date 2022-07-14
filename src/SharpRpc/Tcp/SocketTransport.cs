@@ -1,4 +1,4 @@
-﻿// Copyright © 2021 Soft-Fx. All rights reserved.
+﻿// Copyright © 2022 Soft-Fx. All rights reserved.
 // Author: Andrei Hilevich
 //
 // This Source Code Form is subject to the terms of the Mozilla
@@ -14,17 +14,16 @@ using System.Threading.Tasks;
 
 namespace SharpRpc
 {
-    internal class TcpTransport : ByteTransport
+    internal class SocketTransport : ByteTransport
     {
         private readonly Socket _socket;
         private readonly NetworkStream _stream;
         private readonly TaskFactory _taskQueue;
         
-        public TcpTransport(Socket socket, TaskFactory taskQueue)
+        public SocketTransport(Socket socket, TaskFactory taskQueue)
         {
             _socket = socket;
             _taskQueue = taskQueue;
-            _socket.NoDelay = true;
             _stream = new NetworkStream(socket, false);
         }
 

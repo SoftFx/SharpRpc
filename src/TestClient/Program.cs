@@ -12,6 +12,7 @@ namespace TestClient
     {
         static void Main(string[] args)
         {
+            //var address = "c:\\temp\\shrpc.benchmark.uds"
             var address = args.FirstOrDefault() ?? "localhost";
 
             Console.Title = "#RPC Client";

@@ -36,7 +36,7 @@ namespace SharpRpc
             _endpoint = new UnixDomainSocketEndPoint(socketPath);
 
             _socket = new Socket(_endpoint.AddressFamily, SocketType.Stream, ProtocolType.IP);
-            _listener = new SocketListener(_socket, this, _security, OnConnect);
+            _listener = new SocketListener(_socket, this, _security, OnAccept, OnConnect);
         }
 
         protected override void Start()
@@ -49,6 +49,10 @@ namespace SharpRpc
         protected override Task StopAsync()
         {
             return _listener.Stop();
+        }
+
+        private void OnAccept(Socket scoket)
+        {
         }
     }
 }

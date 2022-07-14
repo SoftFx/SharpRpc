@@ -30,7 +30,7 @@ namespace SharpRpc
             _security = security ?? throw new ArgumentNullException("security");
             _ipEndpoint = ipEndpoint ?? throw new ArgumentNullException("security");
             _socket = new Socket(ipEndpoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
-            _listener = new SocketListener(_socket, this, security, OnConnect);
+            _listener = new SocketListener(_socket, this, security, OnAccept, OnConnect);
         }
 
         public TcpServerEndpoint(IPAddress address, int port, TcpServerSecurity security)
@@ -55,7 +55,7 @@ namespace SharpRpc
             _ipEndpoint = new IPEndPoint(ipAddress, port);
 
             _socket = new Socket(ipAddress.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
-            _listener = new SocketListener(_socket, this, _security, OnConnect);
+            _listener = new SocketListener(_socket, this, _security, OnAccept, OnConnect);
         }
 
         /// <summary>
@@ -94,15 +94,20 @@ namespace SharpRpc
             return _listener.Stop();
         }
 
+        private void OnAccept(Socket socket)
+        {
+            socket.NoDelay = true;
+        }
+
 #if NET5_0_OR_GREATER
         protected virtual ValueTask<ByteTransport> GetTransport(Socket socket)
         {
-            return new ValueTask<ByteTransport>(new TcpTransport(socket, TaskQueue));
+            return new ValueTask<ByteTransport>(new SocketTransport(socket, TaskQueue));
         }
 #else
         protected virtual Task<ByteTransport> GetTransport(Socket socket)
         {
-            return Task.FromResult<ByteTransport>(new TcpTransport(socket, TaskQueue));
+            return Task.FromResult<ByteTransport>(new SocketTransport(socket, TaskQueue));
         }
 #endif
     }

@@ -57,6 +57,14 @@ namespace TestServer
             var server = new RpcServer(BenchmarkContract_Gen.CreateBinding(() => new BenchmarkServiceImpl(multicaster)));
             server.AddEndpoint(tcpEndpoint);
             server.AddEndpoint(sslEndpoint);
+
+#if NET5_0_OR_GREATER
+            var udsEndpoint = new UdsServerEndpoint("c:\\temp\\shrpc.benchmark.uds", TcpServerSecurity.None);
+            BenchmarkContractCfg.ConfigureEndpoint(udsEndpoint);
+            udsEndpoint.Authenticator = new BasicAuthenticator(new AuthValidator());
+            server.AddEndpoint(udsEndpoint);
+#endif
+
             server.SetLogger(new ConsoleLogger(true, true));
             server.Start();
 

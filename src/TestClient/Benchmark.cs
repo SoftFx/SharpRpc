@@ -42,7 +42,7 @@ namespace TestClient
         {
             // one way
 
-            //DoOneWayTestSeries(address, 500000, 1,  multiplier, options);
+            DoOneWayTestSeries(address, 500000, 1,  multiplier, options);
             //DoOneWayTestSeries(address, 50000, 10, multiplier, options);
             DoOneWayTestSeries(address, 20000, 30, multiplier, options);
             //DoOneWayTestSeries(address, 10000, 50, multiplier, options);
@@ -438,6 +438,7 @@ namespace TestClient
 
         private static BenchmarkClient CreateClient(string address, bool secure)
         {
+            //return new BenchmarkClient(address, GetSecurity(secure));
             return new BenchmarkClient(address, BenchmarkContractCfg.GetPort(secure), GetSecurity(secure));
         }
 

@@ -26,6 +26,16 @@ namespace TestCommon
             Stub = BenchmarkContract_Gen.CreateClient(endpoint, _callback);
         }
 
+#if NET5_0_OR_GREATER
+        public BenchmarkClient(string udsUrl, TcpSecurity security)
+        {
+            var endpoint = new UdsClientEndpoint(udsUrl, security);
+            endpoint.Credentials = new BasicCredentials("Admin", "zzzz");
+            BenchmarkContractCfg.ConfigureEndpoint(endpoint);
+            Stub = BenchmarkContract_Gen.CreateClient(endpoint, _callback);
+        }
+#endif
+
         public BenchmarkContract_Gen.Client Stub { get; }
         public Channel Channel => Stub.Channel;
 
