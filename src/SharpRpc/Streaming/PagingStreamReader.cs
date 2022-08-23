@@ -95,7 +95,7 @@ namespace SharpRpc
 
         internal void Abort(RpcResult fault)
         {
-            CompleteStream(CompletionModes.Abort);
+            CompleteStream(CompletionModes.Abort, fault);
         }
 
         internal void Complete()
@@ -367,7 +367,7 @@ namespace SharpRpc
                 if (_completed)
                 {
                     if (_toThrow != null)
-                        throw _toThrow;
+                        eventCpy.SetException(_toThrow);
                     else
                         eventCpy.SetResult(false);
                 }
