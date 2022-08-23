@@ -45,6 +45,7 @@ namespace SharpRpc
         private readonly TxPipeline _tx;
         private readonly string _callId;
         private readonly IStreamMessageFactory<T> _factory;
+        private RpcResult _fault;
 
         internal PagingStreamReader(string callId, TxPipeline tx, IStreamMessageFactory<T> factory)
         {
@@ -92,7 +93,7 @@ namespace SharpRpc
             CompleteStream(CompletionModes.InitiatedByWriter);
         }
 
-        internal void Abort()
+        internal void Abort(RpcResult fault)
         {
             CompleteStream(CompletionModes.Abort);
         }
@@ -102,7 +103,7 @@ namespace SharpRpc
             CompleteStream(CompletionModes.InitiatedByReader);
         }
 
-        private void CompleteStream(CompletionModes mode)
+        private void CompleteStream(CompletionModes mode, RpcResult fault = default)
         {
             var wakeupListener = false;
             IStreamPageAck ack = null;
@@ -115,6 +116,7 @@ namespace SharpRpc
                     _currentPage = null;
                     _currentPageIndex = 0;
                     _isCompleted = true;
+                    _fault = fault;
                     wakeupListener = OnDataArrived(out ack);
                 }
                 else if (mode == CompletionModes.InitiatedByWriter)
@@ -217,6 +219,12 @@ namespace SharpRpc
         {
         }
 
+        private bool TryGetFault(out RpcResult fault)
+        {
+            fault = _fault;
+            return !fault.IsOk;
+        }
+
         public IStreamEnumerator<T> GetEnumerator(CancellationToken cancellationToken = default)
         {
             lock (_lockObj) return SetEnumerator(new AsyncEnumerator(this, cancellationToken));
@@ -244,7 +252,8 @@ namespace SharpRpc
         {
             Ok,
             NoItems,
-            Completed
+            Completed,
+            Aborted
         }
 
         private enum CompletionModes
@@ -270,6 +279,7 @@ namespace SharpRpc
             private TaskCompletionSource<bool> _itemWaitSrc;
             //private TaskCompletionSource<bool> _closeWaitSrc;
             private bool _completed;
+            private Exception _toThrow;
 
             public AsyncEnumerator(PagingStreamReader<T> stream, CancellationToken cancellationToken)
             {
@@ -314,7 +324,12 @@ namespace SharpRpc
                         result = FwAdapter.WrappResult(_itemWaitSrc.Task);
                     }
                     else //NextItemCode.Completed
+                    {
+                        if(_stream.TryGetFault(out var fault))
+                            throw fault.ToException();
+
                         result = FwAdapter.AsyncFalse;
+                    }
                 }
 
                 if (ack != null)
@@ -331,7 +346,11 @@ namespace SharpRpc
                     Current = nextItem;
 
                     if (code == NextItemCode.Completed)
+                    {
                         _completed = true;
+                        if (_stream.TryGetFault(out var fault))
+                            _toThrow = fault.ToException();
+                    }
 
                     return true;
                 }
@@ -344,7 +363,16 @@ namespace SharpRpc
             {
                 var eventCpy = _itemWaitSrc;
                 _itemWaitSrc = null;
-                eventCpy.SetResult(!_completed);
+
+                if (_completed)
+                {
+                    if (_toThrow != null)
+                        throw _toThrow;
+                    else
+                        eventCpy.SetResult(false);
+                }
+                else
+                    eventCpy.SetResult(true);
             }
 
             private void Cancel()

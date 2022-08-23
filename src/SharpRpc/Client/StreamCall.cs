@@ -145,7 +145,7 @@ namespace SharpRpc
         private void AbortStreams(RpcResult fault)
         {
             _writer?.Abort(fault);
-            _reader?.Abort();
+            _reader?.Abort(fault);
         }
 
         #region MessageDispatcherCore.IInteropOperation

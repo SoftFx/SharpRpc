@@ -62,7 +62,7 @@ namespace SharpRpc
         {
             //System.Diagnostics.Debug.WriteLine("CLOSE " + CallId);
 
-            InputStream?.Abort();
+            InputStream?.Abort(RpcResult.Ok);
 
             if (OutputStream != null)
                 await OutputStream.CompleteAsync();
@@ -110,7 +110,7 @@ namespace SharpRpc
             else if (auxMessage is ICancelRequestMessage)
             {
                 _cancelSrc?.Cancel();
-                InputStream?.Abort();
+                InputStream?.Abort(RpcResult.Ok);
             }
 
             return new RpcResult(RpcRetCode.ProtocolViolation, "");
