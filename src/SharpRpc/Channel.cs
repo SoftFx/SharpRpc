@@ -264,6 +264,8 @@ namespace SharpRpc
 
                 Closed?.Invoke(this, _channelDisplayFault);
 
+                Faulted?.Invoke(this, _channelDisplayFault);
+
                 _connectEvent.SetResult(_channelDisplayFault);
                 _disconnectEvent.SetResult(RpcResult.Ok);
             }

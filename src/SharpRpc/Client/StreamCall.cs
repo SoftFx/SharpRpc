@@ -60,7 +60,6 @@ namespace SharpRpc
         DuplexStreamCall<TInItem, TOutItem>, DuplexStreamCall<TInItem, TOutItem, TReturn>,
         MessageDispatcherCore.IInteropOperation
     {
-        //private object _stateLockObj = new object();
         private readonly TaskCompletionSource<RpcResult<TReturn>> _typedCompletion;
         private readonly TaskCompletionSource<RpcResult> _voidCompletion;
 
@@ -101,7 +100,7 @@ namespace SharpRpc
             if (regResult.IsOk)
             {
                 msgTransmitter.TrySendAsync(request, RequestSendCompleted);
-                cToken.Register(dispatcher.CancelOperation, this);
+                //_canelReg =  cToken.Register(dispatcher.CancelOperation, this);
             }
             else
                 EndCall(regResult, default(TReturn));
@@ -134,18 +133,19 @@ namespace SharpRpc
                 _typedCompletion.TrySetResult(result.ToValueResult(resultValue));
             else
                 _voidCompletion.TrySetResult(result);
-        }
 
-        private void CompleteStreams()
-        {
-            _writer?.Abort(new RpcResult(RpcRetCode.StreamCompleted, "Stream is closed due to call completion."));
-            _reader?.Complete();
-        }
+            //_canelReg.Dispose();
 
-        private void AbortStreams(RpcResult fault)
-        {
-            _writer?.Abort(fault);
-            _reader?.Abort(fault);
+            if (result.IsOk)
+            {
+                _writer?.Abort(new RpcResult(RpcRetCode.StreamCompleted, "Stream is closed due to call completion."));
+                _reader?.Complete();
+            }
+            else
+            {
+                _writer?.Abort(result);
+                _reader?.Abort(result);
+            }
         }
 
         #region MessageDispatcherCore.IInteropOperation
@@ -154,14 +154,12 @@ namespace SharpRpc
         {
             //System.Diagnostics.Debug.WriteLine("RX " + CallId + " RESP " + respMessage.GetType().Name);
 
-            CompleteStreams();
-
             if (ReturnsResult)
             {
                 var resp = respMessage as IResponseMessage<TReturn>;
                 if (resp != null)
                 {
-                    _typedCompletion.TrySetResult(new RpcResult<TReturn>(resp.Result));
+                    EndCall(RpcResult.Ok, resp.Result);
                     return RpcResult.Ok;
                 }
                 else
@@ -169,31 +167,19 @@ namespace SharpRpc
             }
             else
             {
-                _voidCompletion.TrySetResult(RpcResult.Ok);
+                EndCall(RpcResult.Ok, default(TReturn));
                 return RpcResult.Ok;
             }
         }
 
         void MessageDispatcherCore.IInteropOperation.OnFail(RpcResult result)
         {
-            AbortStreams(result);
-
-            if (ReturnsResult)
-                _typedCompletion.TrySetResult(result.ToValueResult<TReturn>());
-            else
-                _voidCompletion.TrySetResult(result);
+            EndCall(result, default(TReturn));
         }
 
         void MessageDispatcherCore.IInteropOperation.OnFail(IRequestFaultMessage faultMessage)
         {
-            var rpcResult = faultMessage.ToRpcResult();
-
-            AbortStreams(rpcResult);
-
-            if (ReturnsResult)
-                _typedCompletion.TrySetResult(rpcResult.ToValueResult<TReturn>());
-            else
-                _voidCompletion.TrySetResult(rpcResult);
+            EndCall(faultMessage.ToRpcResult(), default(TReturn));
         }
 
         RpcResult MessageDispatcherCore.IInteropOperation.OnUpdate(IInteropMessage auxMessage)
@@ -234,7 +220,7 @@ namespace SharpRpc
 
         void MessageDispatcherCore.IInteropOperation.StartCancellation()
         {
-            
+            throw new NotSupportedException("Stream calls do not support standard operation cancellation.");
         }
 
         #endregion

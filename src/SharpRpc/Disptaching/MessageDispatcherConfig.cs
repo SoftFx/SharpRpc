@@ -16,43 +16,43 @@ namespace SharpRpc
 {
     public class MessageDispatcherConfig : EndpointConfigElement
     {
-        private DispatcherConcurrencyMode _rxConcurrency = DispatcherConcurrencyMode.None;
+        //private DispatcherConcurrencyMode _rxConcurrency = DispatcherConcurrencyMode.None;
 
         internal MessageDispatcherConfig(IConfigHost host) : base(host)
         {
         }
 
-        public DispatcherConcurrencyMode RxConcurrencyMode
-        {
-            get => _rxConcurrency;
-            set
-            {
-                lock (Host.SyncObject)
-                {
-                    ThrowIfImmutable();
-                    _rxConcurrency = value;
-                }
-            }
-        }
+        //public DispatcherConcurrencyMode RxConcurrencyMode
+        //{
+        //    get => _rxConcurrency;
+        //    set
+        //    {
+        //        lock (Host.SyncObject)
+        //        {
+        //            ThrowIfImmutable();
+        //            _rxConcurrency = value;
+        //        }
+        //    }
+        //}
     }
 
-    public enum DispatcherConcurrencyMode
-    {
-        /// <summary>
-        /// No concurrency. In this mode the dispatcher calls service methods in the same thread it recives them.
-        /// Pros: Lower CPU usage. Cons: Low throughput.
-        /// This mode is usefull if all call handling is delegated to other threads/actors or call handling is really lightweight and takes no time.
-        /// </summary>
-        None,
+    //public enum DispatcherConcurrencyMode
+    //{
+    //    /// <summary>
+    //    /// No concurrency. In this mode the dispatcher calls service methods in the same thread it recives them.
+    //    /// Pros: Lower CPU usage. Cons: Low throughput.
+    //    /// This mode is usefull if all call handling is delegated to other threads/actors or call handling is really lightweight and takes no time.
+    //    /// </summary>
+    //    None,
 
-        /// <summary>
-        /// All call handlers are invoked in single dedicated thread. Default mode.
-        /// </summary>
-        Single,
+    //    /// <summary>
+    //    /// All call handlers are invoked in single dedicated thread. Default mode.
+    //    /// </summary>
+    //    Single,
 
-        /// <summary>
-        /// 
-        /// </summary>
-        //Multiple
-    }
+    //    /// <summary>
+    //    /// 
+    //    /// </summary>
+    //    //Multiple
+    //}
 }
