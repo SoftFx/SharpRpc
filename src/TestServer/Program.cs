@@ -18,6 +18,8 @@ namespace TestServer
 {
     class Program
     {
+        private const string CertThumbprint = "d58b3c94d39c43aecf1750280db0c4935ed53de8"; //"6e4c04ed965eb8d71a66b8e2b89e5767f2e076d8"
+
         static void Main(string[] args)
         {
             Console.Title = "#RPC Server";
@@ -46,7 +48,7 @@ namespace TestServer
             BenchmarkContractCfg.ConfigureEndpoint(tcpEndpoint);
             tcpEndpoint.Authenticator = new BasicAuthenticator(new AuthValidator());
 
-            var serverCert = new StoredCertificate(StoreLocation.LocalMachine, StoreName.My, X509FindType.FindByThumbprint, "6e4c04ed965eb8d71a66b8e2b89e5767f2e076d8");
+            var serverCert = new StoredCertificate(StoreLocation.LocalMachine, StoreName.My, X509FindType.FindByThumbprint, CertThumbprint);
             var sslEndpoint = new TcpServerEndpoint(IPAddress.IPv6Any, BenchmarkContractCfg.GetPort(true), new SslServerSecurity(serverCert));
             sslEndpoint.IPv6Only = false;
             BenchmarkContractCfg.ConfigureEndpoint(sslEndpoint);
@@ -76,8 +78,13 @@ namespace TestServer
             var tcpEndpoint = new TcpServerEndpoint(IPAddress.IPv6Any, 812, TcpServerSecurity.None);
             tcpEndpoint.IPv6Only = false;
 
+            var serverCert = new StoredCertificate(StoreLocation.LocalMachine, StoreName.My, X509FindType.FindByThumbprint, CertThumbprint);
+            var sslEndpoint = new TcpServerEndpoint(IPAddress.IPv6Any, 814, new SslServerSecurity(serverCert));
+            sslEndpoint.Authenticator = new BasicAuthenticator(new AuthValidator());
+
             var server = new RpcServer(FunctionTestContract_Gen.CreateBinding(() => new FunctionTestService()));
             server.AddEndpoint(tcpEndpoint);
+            server.AddEndpoint(sslEndpoint);
             server.SetLogger(new ConsoleLogger(true, true));
             server.Start();
 

@@ -5,6 +5,7 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+using SharpRpc.Server;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -18,18 +19,20 @@ namespace SharpRpc
         public static Authenticator None { get; } = new Null();
 
 #if NET5_0_OR_GREATER
-        internal virtual ValueTask<string> OnLogin(ILoginMessage login)
-        {
-            return ValueTask.FromResult<string>(null);
-        }
+        internal abstract ValueTask<string> OnLogin(ILoginMessage login, SessionContext context);
 #else
-        internal virtual Task<string> OnLogin(ILoginMessage login)
-        {
-            return Task.FromResult<string>(null);
-        }
+        internal abstract Task<string> OnLogin(ILoginMessage login, SessionContext context);
 #endif
         private class Null : Authenticator
         {
+#if NET5_0_OR_GREATER
+            internal override ValueTask<string> OnLogin(ILoginMessage login, SessionContext context)
+#else
+            internal override Task<string> OnLogin(ILoginMessage login, SessionContext context)
+#endif
+            {
+                return FwAdapter.WrappResult((string)null);
+            }
         }
     }
 }

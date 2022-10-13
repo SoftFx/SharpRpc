@@ -70,7 +70,7 @@ namespace SharpRpc
 
         public StreamCall(IOpenStreamRequest request, StreamOptions inputOptions, StreamOptions outputOptions, TxPipeline msgTransmitter,
             IOpDispatcher dispatcher, IStreamMessageFactory<TInItem> inFactory, IStreamMessageFactory<TOutItem> outFactory,
-            bool hasRetParam, CancellationToken cToken)
+            bool hasRetParam)
         {
             _requestMessage = request;
 
@@ -92,9 +92,6 @@ namespace SharpRpc
 
             request.CallId = CallId;
             request.WindowSize = outputOptions?.WindowSize ?? StreamOptions.DefaultWindowsSize;
-
-            if (cToken.CanBeCanceled)
-                request.Options |= RequestOptions.CancellationEnabled;
 
             var regResult = dispatcher.RegisterCallObject(CallId, this);
             if (regResult.IsOk)

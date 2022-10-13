@@ -19,6 +19,12 @@ namespace SharpRpc
             ErrorCode = errorCode;
         }
 
+        public RpcException(string message, RpcRetCode errorCode, Exception innerEx)
+            : base(message, innerEx)
+        {
+            ErrorCode = errorCode;
+        }
+
         public RpcRetCode ErrorCode { get; }
 
         public RpcResult ToRpcResult()

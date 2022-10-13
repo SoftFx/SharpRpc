@@ -67,12 +67,14 @@ namespace SharpRpc
     public interface StreamWriter<T>
     {
 #if NET5_0_OR_GREATER
-        ValueTask<RpcResult> WriteAsync(T item, CancellationToken cancellationToken = default);
+        ValueTask<RpcResult> WriteAsync(T item);
 #else
-        Task<RpcResult> WriteAsync(T item, CancellationToken cancellationToken = default);
+        Task<RpcResult> WriteAsync(T item);
 #endif
 
         Task<RpcResult> CompleteAsync();
+
+        void EnableCancellation(CancellationToken cancelToken);
     }
 
     //public interface IStreamRxAck

@@ -66,6 +66,7 @@ namespace SharpRpc.Builder
 
         public static readonly TypeString RpcServerClass = new TypeString("SharpRpc.RpcServer");
         public static readonly TypeString RpcCallHandlerClass = new TypeString("SharpRpc.RpcCallHandler");
+        public static readonly TypeString RpcServiceCallHandlerClass = new TypeString("SharpRpc.ServiceCallHandler");
 
         public static readonly TypeString RpcSerializerInterface = new TypeString("SharpRpc.IRpcSerializer");
         public static readonly TypeString RpcPreserializeTool = new TypeString("SharpRpc.PreserializeTool");

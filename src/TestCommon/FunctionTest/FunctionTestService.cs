@@ -252,5 +252,15 @@ namespace TestCommon
                 return true;
             }
         }
+
+#if NET5_0_OR_GREATER
+        public override ValueTask<string> GetSessionSharedProperty(CallContext context, string name)
+#else
+        public override Task<string> GetSessionSharedProperty(CallContext context, string name)
+#endif
+        {
+            Session.Properties.TryGetValue(name, out var propValue);
+            return FwAdapter.WrappResult(propValue?.ToString());
+        }
     }
 }

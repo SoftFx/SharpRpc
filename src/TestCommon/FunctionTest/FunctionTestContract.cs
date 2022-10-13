@@ -72,6 +72,9 @@ namespace TestCommon
 
         [RpcContract(15, RpcType.Call)]
         bool CancellableCall(TimeSpan delay);
+
+        [RpcContract(16, RpcType.Call)]
+        string GetSessionSharedProperty(string name);
     }
 
     public enum StreamTestOptions

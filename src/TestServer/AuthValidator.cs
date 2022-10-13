@@ -6,6 +6,7 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 using SharpRpc;
+using SharpRpc.Server;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -17,15 +18,18 @@ namespace TestServer
     internal class AuthValidator : PasswordValidator
     {
 #if NET5_0_OR_GREATER
-        public ValueTask<string> Validate(string userName, string password)
+        public ValueTask<string> Validate(string userName, string password, SessionContext context)
 #else
-        public Task<string> Validate(string userName, string password)
+        public Task<string> Validate(string userName, string password, SessionContext context)
 #endif
         {
             var valid = userName == "Admin" && password == "zzzz";
 
             if (!valid)
                 return FwAdapter.WrappResult("Invalid credentials.");
+
+            context.Properties["UserName"] = userName;
+            context.Properties["AuthToken"] = 15;
 
             return FwAdapter.WrappResult((string)null);
         }

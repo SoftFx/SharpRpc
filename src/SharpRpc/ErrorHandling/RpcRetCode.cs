@@ -48,6 +48,9 @@ namespace SharpRpc
         StreamCompleted = 53,
 
         // Exception in an event handler (event handlers should not throw exceptions)
-        EventHandlerCrash = 54
+        EventHandlerCrash = 54,
+
+        // Exception in the Init method (one-way handlers should not throw exceptions)
+        InitHanderCrash = 55
     }
 }

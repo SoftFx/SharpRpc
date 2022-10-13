@@ -5,6 +5,7 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+using SharpRpc.Server;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -20,6 +21,7 @@ namespace SharpRpc
         private RxPipeline _rx;
         private readonly Endpoint _endpoint;
         private readonly MessageDispatcher _dispatcher;
+        private readonly RpcCallHandler _callHandler;
         private readonly ContractDescriptor _descriptor;
         private readonly TaskCompletionSource<RpcResult> _connectEvent = new TaskCompletionSource<RpcResult>();
         private readonly TaskCompletionSource<RpcResult> _disconnectEvent = new TaskCompletionSource<RpcResult>();
@@ -52,6 +54,7 @@ namespace SharpRpc
 
             _endpoint = endpoint ?? throw new ArgumentNullException("endpoint");
             _descriptor = descriptor ?? throw new ArgumentNullException("descriptor");
+            _callHandler = msgHandler;
 
             if (!_isServerSide)
                 _endpoint.LockTo(this);
@@ -59,37 +62,64 @@ namespace SharpRpc
             Logger = endpoint.LoggerAdapter;
             Id = nameof(Channel) + Interlocked.Increment(ref idSeed);
 
-            msgHandler.InvokeInit(this);
-
             _tx = new TxPipeline_NoQueue(descriptor, endpoint, OnCommunicationError, OnConnectionRequested);
             //_tx = new TxPipeline_OneThread(descriptor, endpoint, OnCommunicationError, OnConnectionRequested);
             _dispatcher = MessageDispatcher.Create(endpoint.Dispatcher, _tx, msgHandler, serverSide);
 
             Logger.Verbose(Id, "Created. Endpoint '{0}'.", endpoint.Name);
+
+            if (!serverSide)
+                Init();
         }
 
-        internal void StartIncomingSession(ByteTransport transport)
+        internal void Init(ByteTransport existingTransaport = null)
         {
-            _isServerSide = true;
-            _transport = transport;
-            _coordinator = new ServerSideCoordinator();
+            _transport = existingTransaport;
 
-            lock (_stateSyncObj)
-                State = ChannelState.Connecting;
+            if (_isServerSide)
+            {
+                var sharedContex = new SessionContext(Id);
+                _coordinator = new ServerSideCoordinator(sharedContex);
 
-            DoConnect();
+                if (_callHandler is ServiceCallHandler sch)
+                    sch.Session.Init(this, sharedContex);
+            }
+            else
+            {
+                _coordinator = new ClientSideCoordinator();
+            }
+
+            try
+            {
+                _callHandler.InvokeInit(this);
+            }
+            catch (Exception ex)
+            {
+                lock (_stateSyncObj)
+                {
+                    State = ChannelState.Faulted;
+                    UpdateFault(new RpcResult(RpcRetCode.InitHanderCrash, "An unhandled exception has occurred in Init() method! " + ex.Message));
+                }
+
+                throw new RpcException("An unhandled exception has occurred in Init() method!", RpcRetCode.InitHanderCrash, ex);
+            }
+
+            if (_isServerSide)
+            {
+                lock (_stateSyncObj)
+                    State = ChannelState.Connecting;
+
+                DoConnect();
+            }
         }
 
         private void StartPipelines(ByteTransport transport)
         {
-            if (_coordinator == null)
-                _coordinator = new ClientSideCoordinator();
-
             _coordinator.Init(this);
 
-            if (_endpoint.AsyncMessageParsing)
-                _rx = new RxPipeline.OneThread(transport, _endpoint, _descriptor.SerializationAdapter, _dispatcher, _coordinator);
-            else
+            //if (_endpoint.AsyncMessageParsing)
+            //    _rx = new RxPipeline.OneThread(transport, _endpoint, _descriptor.SerializationAdapter, _dispatcher, _coordinator);
+            //else
                 _rx = new RxPipeline.NoThreading(transport, _endpoint, _descriptor.SerializationAdapter, _dispatcher, _coordinator);
 
             _rx.CommunicationFaulted += OnCommunicationError;
@@ -219,7 +249,6 @@ namespace SharpRpc
             }
             else
                 Logger.Info(Id, "Initializing connection...");
-
 
             if (_transport != null)
             {

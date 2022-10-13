@@ -5,6 +5,7 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+using SharpRpc.Server;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -23,9 +24,9 @@ namespace SharpRpc
         }
 
 #if NET5_0_OR_GREATER
-        internal override ValueTask<string> OnLogin(ILoginMessage login)
+        internal override ValueTask<string> OnLogin(ILoginMessage login, SessionContext context)
 #else
-        internal override Task<string> OnLogin(ILoginMessage login)
+        internal override Task<string> OnLogin(ILoginMessage login, SessionContext context)
 #endif
         {
             if (string.IsNullOrEmpty(login.UserName))
@@ -48,7 +49,7 @@ namespace SharpRpc
 #endif
             }
 
-            return _validator.Validate(login.UserName, login.Password);
+            return _validator.Validate(login.UserName, login.Password, context);
         }
     }
 }

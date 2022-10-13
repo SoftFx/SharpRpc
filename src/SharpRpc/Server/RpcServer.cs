@@ -152,7 +152,7 @@ namespace SharpRpc
                     var serviceImpl = _binding.CreateServiceImpl();
                     var session = new Channel(true, sender, _binding.Descriptor, serviceImpl);
                     session.Closed += Session_Closed;
-                    session.StartIncomingSession(transport);
+                    session.Init(transport);
                     _sessions.Add(session.Id, session);
                     Logger.Verbose(Name, "New session: " + session.Id);
                 }

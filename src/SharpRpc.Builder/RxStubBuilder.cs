@@ -68,9 +68,11 @@ namespace SharpRpc.Builder
                 .AddParameterListParameters(serviceImplParam)
                 .WithBody(constructorBody);
 
+            var handlerBaseType = _isCallbackStub ? Names.RpcCallHandlerClass.Full : Names.RpcServiceCallHandlerClass.Full;
+
             var handlerClass = SF.ClassDeclaration(handlerClassName.Short)
                 .AddModifiers(SF.Token(SyntaxKind.PrivateKeyword))
-                .AddBaseListTypes(SF.SimpleBaseType(SF.ParseTypeName(Names.RpcCallHandlerClass.Full)))
+                .AddBaseListTypes(SF.SimpleBaseType(SF.ParseTypeName(handlerBaseType)))
                 .AddMembers(serviceImplField, constructor)
                 .AddMembers(GenerateWrapMethods())
                 .AddMembers(GenerateOnMessageOverride(), GenerateOnRequestOverride());

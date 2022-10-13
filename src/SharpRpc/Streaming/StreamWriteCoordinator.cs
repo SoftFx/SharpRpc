@@ -19,13 +19,13 @@ namespace SharpRpc
     internal class StreamWriteCoordinator
     {
         private readonly object _lockObj;
-        private readonly int _windowSize;
+        private readonly int _max;
         private int _windowFill;
 
-        public StreamWriteCoordinator(object lockObj, int windowSize)
+        public StreamWriteCoordinator(object lockObj, int maxPageCount)
         {
             _lockObj = lockObj;
-            _windowSize = windowSize;
+            _max = maxPageCount;
         }
 
         public bool IsBlocked { get; private set; }
@@ -35,7 +35,7 @@ namespace SharpRpc
             Debug.Assert(Monitor.IsEntered(_lockObj));
 
             _windowFill += pageSize;
-            if (_windowFill >= _windowSize)
+            if (_windowFill >= _max)
                 IsBlocked = true;
         }
 
@@ -47,7 +47,7 @@ namespace SharpRpc
 
             // TO DO : check if _windowFill less than zero 
 
-            if (_windowFill < _windowSize)
+            if (_windowFill < _max)
                 IsBlocked = false;
         }
     }

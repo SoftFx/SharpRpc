@@ -66,7 +66,8 @@ namespace TestClient
             }
             else if (choice == "2")
             {
-                FunctionTest.Run(address);
+                FunctionTest.Run(address, false);
+                FunctionTest.Run(address, true);
                 Console.Read();
             }
             else if (choice == "3")

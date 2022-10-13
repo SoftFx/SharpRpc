@@ -5,6 +5,7 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+using SharpRpc.Server;
 using System;
 using System.Threading.Tasks;
 
@@ -13,8 +14,6 @@ namespace SharpRpc
     public abstract class RpcCallHandler : IUserMessageHandler
     {
         private Channel _ch;
-
-        public SessionInfo Session { get; } = new SessionInfo();
 
 #if NET5_0_OR_GREATER
         protected abstract ValueTask OnMessage(IMessage message);
@@ -69,7 +68,6 @@ namespace SharpRpc
         internal void InvokeInit(Channel channel)
         {
             _ch = channel;
-            Session.Init(channel);
             OnInit(channel);
         }
 

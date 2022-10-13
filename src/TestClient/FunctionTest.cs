@@ -20,27 +20,34 @@ namespace TestClient
 {
     public static class FunctionTest
     {
-        public static void Run(string address)
+        public static void Run(string address, bool ssl)
         {
-            ExecTest<Call1Test>(address);
-            ExecTest<Call2Test>(address);
-            ExecTest<ComplexDataTest>(address);
-            ExecTest<RegularFaultTest>(address);
-            ExecTest<CrashFaultTest>(address);
-            ExecTest<CustomFaultTest>(address);
-            ExecTest<CallbackTest1>(address);
-            ExecTest<CallbackTest2>(address);
-            ExecTest<InputStreamTest>(address);
-            ExecTest<OutputStreamTest>(address);
-            ExecTest<DuplexStreamTest>(address);
-            ExecTest<InputStreamCancellationTest>(address);
-            ExecTest<OutputStreamCancellationTest>(address);
-            ExecTest<DuplexStreamCancellationTest>(address);
+            Console.WriteLine("Functon test, ssl=" + ssl);
+            Console.WriteLine();
 
+            ExecTest<Call1Test>(address, ssl);
+            ExecTest<Call2Test>(address, ssl);
+            ExecTest<ComplexDataTest>(address, ssl);
+            ExecTest<RegularFaultTest>(address, ssl);
+            ExecTest<CrashFaultTest>(address, ssl);
+            ExecTest<CustomFaultTest>(address, ssl);
+            ExecTest<CallbackTest1>(address, ssl);
+            ExecTest<CallbackTest2>(address, ssl);
+            ExecTest<InputStreamTest>(address, ssl);
+            ExecTest<OutputStreamTest>(address, ssl);
+            ExecTest<DuplexStreamTest>(address, ssl);
+            ExecTest<InputStreamCancellationTest>(address, ssl);
+            ExecTest<OutputStreamCancellationTest>(address, ssl);
+            //ExecTest<DuplexStreamCancellationTest>(address, ssl);
+
+            if (ssl)
+                ExecTest<SessionPropertyTest>(address, ssl);
+
+            Console.WriteLine();
             Console.WriteLine("Done testing.");
         }
 
-        private static void ExecTest<T>(string address)
+        private static void ExecTest<T>(string address, bool ssl)
             where T : TestBase, new()
         {
             var test = new T();
@@ -60,19 +67,19 @@ namespace TestClient
                     caseInfoBuilder.Append(" ...");
 
                     Console.Write(caseInfoBuilder.ToString());
-                    ExecTestCase(address, tCase);
+                    ExecTestCase(address, tCase, ssl);
                 }
             }
             else
             {
                 Console.Write(test.Name + " ...");
-                ExecTestCase(address, cases[0]);
+                ExecTestCase(address, cases[0], ssl);
             }
         }
 
-        private static void ExecTestCase(string address, TestCase tCase)
+        private static void ExecTestCase(string address, TestCase tCase, bool ssl)
         {
-            if (RunTestCase(address, tCase, out var error))
+            if (RunTestCase(address, tCase, ssl, out var error))
                 Console.WriteLine(" Passed");
             else
             {
@@ -83,9 +90,15 @@ namespace TestClient
             }
         }
 
-        private static bool RunTestCase(string address, TestCase tCase, out string errorMessage)
+        private static bool RunTestCase(string address, TestCase tCase, bool ssl, out string errorMessage)
         {
-            var endpoint = new TcpClientEndpoint(address, 812, TcpSecurity.None);
+            var security = ssl ? new SslSecurity() : TcpSecurity.None;
+            var port = ssl ? 814 : 812;
+            var endpoint = new TcpClientEndpoint(address, port, security);
+
+            if (ssl)
+                endpoint.Credentials = new BasicCredentials("Admin", "zzzz");
+
             var callback = new CallbackHandler();
             var client = FunctionTestContract_Gen.CreateClient(endpoint, callback);
 
@@ -673,9 +686,45 @@ namespace TestClient
         {
             public override void RunTest(TestCase tCase, FunctionTestContract_Gen.Client client)
             {
+                var cancelSrc2 = new CancellationTokenSource(500);
+                var options = new StreamOptions();
+                var callObj2 = client.TestInStream(options, TimeSpan.FromMilliseconds(100), StreamTestOptions.InvokeCompletion);
+
+                callObj2.InputStream.EnableCancellation(cancelSrc2.Token);
+
+                var expectedSum = 0;
+
+                for (int i = 0; i < 1000; i++)
+                {
+                    var wResult = callObj2.InputStream.WriteAsync(i).Result;
+                    if (!wResult.IsOk)
+                        break;
+
+                    expectedSum += i;
+                }
+
+                var retVal2 = callObj2.AsyncResult.Result.Value;
+
+                if (retVal2 != expectedSum)
+                    throw new Exception("Stream call returned an unexpected result! Expected " + expectedSum + ", returned " + retVal2);
+            }
+        }
+
+        private class OutputStreamCancellationTest : TestBase
+        {
+            public override void RunTest(TestCase tCase, FunctionTestContract_Gen.Client client)
+            {
                 var cancelSrc = new CancellationTokenSource(500);
                 var options = new StreamOptions() { WindowSize = 10 };
-                var callObj = client.TestOutStream(options, TimeSpan.FromMilliseconds(100), 100, StreamTestOptions.InvokeCompletion, cancelSrc.Token);
+                var callObj = client.TestOutStream(options, TimeSpan.FromMilliseconds(100), 100, StreamTestOptions.InvokeCompletion);
+
+                var e = callObj.OutputStream.GetEnumerator(cancelSrc.Token);
+
+                while (true)
+                {
+                    if (!e.MoveNextAsync().Result)
+                        break;
+                }
 
                 var retVal = callObj.AsyncResult.Result.Value;
 
@@ -684,33 +733,33 @@ namespace TestClient
             }
         }
 
-        private class OutputStreamCancellationTest : TestBase
+        //private class DuplexStreamCancellationTest : TestBase
+        //{
+        //    public override void RunTest(TestCase tCase, FunctionTestContract_Gen.Client client)
+        //    {
+        //        var cancelSrc3 = new CancellationTokenSource(500);
+        //        var duplexOptions = new DuplexStreamOptions() { InputWindowSize = 10, OutputWindowSize = 10 };
+        //        var callObj3 = client.TestDuplexStream(duplexOptions, TimeSpan.FromMilliseconds(100), StreamTestOptions.InvokeCompletion);
+
+        //        var retVal3 = callObj3.AsyncResult.Result.Value;
+
+        //        if (retVal3 != -1)
+        //            throw new Exception("Stream call returned an unexpected result!");
+        //    }
+        //}
+
+        private class SessionPropertyTest : TestBase
         {
             public override void RunTest(TestCase tCase, FunctionTestContract_Gen.Client client)
             {
-                var cancelSrc2 = new CancellationTokenSource(500);
-                var options = new StreamOptions() { WindowSize = 10 };
-                var callObj2 = client.TestInStream(options, TimeSpan.FromMilliseconds(100), StreamTestOptions.InvokeCompletion, cancelSrc2.Token);
+                var userProp = client.GetSessionSharedProperty("UserName");
+                var tokenProp = client.GetSessionSharedProperty("AuthToken");
 
-                var retVal2 = callObj2.AsyncResult.Result.Value;
+                if (userProp != "Admin")
+                    throw new Exception("UserName property does not match!");
 
-                if (retVal2 != -1)
-                    throw new Exception("Stream call returned an unexpected result!");
-            }
-        }
-
-        private class DuplexStreamCancellationTest : TestBase
-        {
-            public override void RunTest(TestCase tCase, FunctionTestContract_Gen.Client client)
-            {
-                var cancelSrc3 = new CancellationTokenSource(500);
-                var duplexOptions = new DuplexStreamOptions() { InputWindowSize = 10, OutputWindowSize = 10 };
-                var callObj3 = client.TestDuplexStream(duplexOptions, TimeSpan.FromMilliseconds(100), StreamTestOptions.InvokeCompletion, cancelSrc3.Token);
-
-                var retVal3 = callObj3.AsyncResult.Result.Value;
-
-                if (retVal3 != -1)
-                    throw new Exception("Stream call returned an unexpected result!");
+                if (tokenProp != "15")
+                    throw new Exception("AuthToken property does not match!");
             }
         }
 

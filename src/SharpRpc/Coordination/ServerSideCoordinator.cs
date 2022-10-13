@@ -6,6 +6,7 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 using SharpRpc.Lib;
+using SharpRpc.Server;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -23,6 +24,12 @@ namespace SharpRpc
         private readonly TaskCompletionSource<ILoginMessage> _loginWaitHandle = new TaskCompletionSource<ILoginMessage>();
         //private readonly CancellationTokenSource _loginWaitCancel = new CancellationTokenSource();
         private TaskFactory _taskQueue;
+        private readonly SessionContext _sharedContextObj;
+
+        public ServerSideCoordinator(SessionContext sharedContext)
+        {
+            _sharedContextObj = sharedContext;
+        }
 
 #if DEBUG
         public override TimeSpan LoginTimeout => TimeSpan.FromMinutes(2);
@@ -67,7 +74,7 @@ namespace SharpRpc
             await _taskQueue.Dive();
 
             // check login/password
-            var authError = await _authPlugin.OnLogin(loginMsg);
+            var authError = await _authPlugin.OnLogin(loginMsg, _sharedContextObj);
 
             Channel.Logger.Verbose(Channel.Id, "Sending login responce...");
 

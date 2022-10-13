@@ -371,8 +371,8 @@ namespace SharpRpc.Builder
 
             methodParams.AddRange(GenerateMethodParams(callDec));
 
-            methodParams.Add(SH.Parameter("cancelToken", "System.Threading.CancellationToken")
-                .WithDefault(SF.EqualsValueClause(SF.DefaultExpression(SF.IdentifierName("System.Threading.CancellationToken")))));
+            //methodParams.Add(SH.Parameter("cancelToken", "System.Threading.CancellationToken")
+            //    .WithDefault(SF.EqualsValueClause(SF.DefaultExpression(SF.IdentifierName("System.Threading.CancellationToken")))));
 
             var msgClassName = _contract.GetRequestClassName(callDec);
 
@@ -391,7 +391,7 @@ namespace SharpRpc.Builder
                     SF.Argument(GenerateStreamFactoryCreationExp(_contract.GetOutputStreamFactoryClassName(callDec))));
             }
 
-            openStreamInvoke = openStreamInvoke.AddArgumentListArguments(SH.IdentifierArgument("cancelToken"));
+            //openStreamInvoke = openStreamInvoke.AddArgumentListArguments(SH.IdentifierArgument("cancelToken"));
 
             bodyStatements.AddRange(GenerateCreateAndFillMessageStatements(callDec, msgClassName));
             bodyStatements.Add(SF.ReturnStatement(openStreamInvoke));

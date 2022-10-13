@@ -74,7 +74,7 @@ namespace SharpRpc.MsTest
             var msgFactory = new MockStreamMessageFactory<TItem>();
 
             clientCallObj = new StreamCall<object, TItem, object>(openRequest, null, new StreamOptions(openRequest), clientCh.Tx, clientCh.Dispatcher,
-                null, msgFactory, false, CancellationToken.None);
+                null, msgFactory, false);
 
             serverCallObj = new ServiceStreamingCallContext<object, TItem>(openRequest, serverCh.Tx, serverCh.Dispatcher, null, msgFactory);
         }

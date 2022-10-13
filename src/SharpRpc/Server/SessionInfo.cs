@@ -5,6 +5,7 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+using SharpRpc.Server;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -17,13 +18,16 @@ namespace SharpRpc
     {
         private Channel _ch;
 
-        internal void Init(Channel channel)
+        internal void Init(Channel channel, SessionContext sharedContext)
         {
             _ch = channel;
             Id = _ch.Id;
+            Properties = sharedContext.Properties;
         }
 
         public string Id { get; private set; }
+
+        public CustomProperties Properties { get; private set; }
 
         public event EventHandler<SessionOpenedEventArgs> Opened;
         public event EventHandler<SessionClosedEventArgs> Closed;

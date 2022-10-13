@@ -5,6 +5,7 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+using SharpRpc.Server;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -22,9 +23,9 @@ namespace SharpRpc
         /// <param name="password">Password to validate.</param>
         /// <returns>Returns null if password is valid, otherwise error message.</returns>
 #if NET5_0_OR_GREATER
-        ValueTask<string> Validate(string userName, string password);
+        ValueTask<string> Validate(string userName, string password, SessionContext context);
 #else
-        Task<string> Validate(string userName, string password);
+        Task<string> Validate(string userName, string password, SessionContext context);
 #endif
     }
 }

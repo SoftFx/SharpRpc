@@ -87,7 +87,8 @@ namespace SharpRpc
         {
             try
             {
-                ((RpcCallHandler)MessageHandler).Session.FireOpened(new SessionOpenedEventArgs());
+                if (MessageHandler is ServiceCallHandler sch)
+                    sch.Session.FireOpened(new SessionOpenedEventArgs());
             }
             catch (Exception)
             {
@@ -102,7 +103,8 @@ namespace SharpRpc
         {
             try
             {
-                ((RpcCallHandler)MessageHandler).Session.FireClosed(new SessionClosedEventArgs());
+                if (MessageHandler is ServiceCallHandler sch)
+                    sch.Session.FireClosed(new SessionClosedEventArgs());
             }
             catch (Exception)
             {

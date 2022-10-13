@@ -30,10 +30,12 @@ namespace SharpRpc
         private bool _isSendingEnabled;
         private RpcResult _closeFault;
         private bool _isSedning;
-        private int _maxPageSize;
         private int _windowSize;
         private readonly IStreamMessageFactory<T> _factory;
         private readonly StreamWriteCoordinator _coordinator;
+        private CancellationTokenRegistration _cancelReg;
+        private bool _isCancellationEnabled;
+
 
         internal PagingStreamWriter(string callId, TxPipeline msgTransmitter, IStreamMessageFactory<T> factory, bool allowSendInitialValue, StreamOptions options)
         {
@@ -46,10 +48,11 @@ namespace SharpRpc
             if (_windowSize < 1)
                 _windowSize = StreamOptions.DefaultWindowsSize;
 
-            _maxPageSize = options.WindowSize / 8;
+            MaxPageCount = 8;
+            MaxPageSize = options.WindowSize / MaxPageCount;
 
-            if (_maxPageSize < 1)
-                _maxPageSize = 1;
+            if (MaxPageSize < 1)
+                MaxPageSize = 1;
 
             _isSendingEnabled = allowSendInitialValue;
 
@@ -59,13 +62,16 @@ namespace SharpRpc
             if (_canImmediatelyReusePages)
                 _pageToSend = CreatePage(); 
 
-            _coordinator = new StreamWriteCoordinator(_lockObj, _windowSize);
+            _coordinator = new StreamWriteCoordinator(_lockObj, MaxPageCount);
         }
 
         private bool DataIsAvailable => _queue.Items.Count > 0;
-        private bool HasSpaceInQueue => _queue.Items.Count < _maxPageSize;
+        private bool HasSpaceInQueue => _queue.Items.Count < MaxPageSize;
 
         public string CallId { get; }
+
+        public int MaxPageSize { get; }
+        public int MaxPageCount { get; }
 
         public Task<RpcResult> CompleteAsync()
         {
@@ -74,9 +80,9 @@ namespace SharpRpc
         }
 
 #if NET5_0_OR_GREATER
-        public ValueTask<RpcResult> WriteAsync(T item, CancellationToken cancellationToken = default)
+        public ValueTask<RpcResult> WriteAsync(T item)
 #else
-        public Task<RpcResult> WriteAsync(T item, CancellationToken cancellationToken = default)
+        public Task<RpcResult> WriteAsync(T item)
 #endif
         {
             bool sendNextPage = false;
@@ -85,9 +91,6 @@ namespace SharpRpc
             {
                 if (_isClosed)
                     return FwAdapter.WrappResult(_closeFault);
-
-                if (cancellationToken.IsCancellationRequested)
-                    return FwAdapter.WrappResult(RpcResult.OperationCanceled);
 
                 if (HasSpaceInQueue)
                 {
@@ -98,10 +101,6 @@ namespace SharpRpc
                 {
                     var waitHandler = new EnqueueAwaiter(item);
                     _enqueueAwaiters.Enqueue(waitHandler);
-
-                    if (cancellationToken.CanBeCanceled)
-                        cancellationToken.Register(CancelReadAwait, waitHandler);
-                        //cancellationToken.Register(waitHandler.Cancel, waitHandler);
 
                     return FwAdapter.WrappResult(waitHandler.Task);
                 }       
@@ -116,6 +115,18 @@ namespace SharpRpc
         public void MarkAsCompleted()
         {
             CloseStream(false, new RpcResult(RpcRetCode.StreamCompleted, "The stream is completed and does not accept additions."));
+        }
+
+        public void EnableCancellation(CancellationToken cancelToken)
+        {
+            lock (_lockObj)
+            {
+                if (_isCancellationEnabled)
+                    throw new InvalidOperationException("Cancellation has been already enabled!");
+
+                _isCancellationEnabled = true;
+                _cancelReg = cancelToken.Register(Cancel);
+            }
         }
 
         #region Control methods
@@ -150,7 +161,7 @@ namespace SharpRpc
 
         internal void Cancel()
         {
-            CloseStream(true, new RpcResult(RpcRetCode.OperationCanceled, "The operation was canceled by the user!"));
+            CloseStream(false, new RpcResult(RpcRetCode.OperationCanceled, "The operation was canceled by the user!"));
         }
 
         private void CloseStream(bool abortMode, RpcResult fault)
@@ -159,7 +170,7 @@ namespace SharpRpc
 
             lock (_lockObj)
             {
-                if (!_isClosed)
+                if (abortMode || !_isClosed) // allow abortion when normal completion is already being in the process
                     CloseStreamInternal(abortMode, fault, out sendComplMessage);
             }
 
@@ -295,14 +306,15 @@ namespace SharpRpc
             }
         }
 
-        private void CloseStreamInternal(bool abortMode, RpcResult fault, out bool sendCompletion)
+        private void CloseStreamInternal(bool abortMode, RpcResult fault, out bool sendCompletionMessage)
         {
             Debug.Assert(Monitor.IsEntered(_lockObj));
 
-            sendCompletion = false;
+            sendCompletionMessage = false;
 
             _closeFault = fault;
             _isClosed = true;
+            _cancelReg.Dispose();
 
             AbortAwaiters(_closeFault);
 
@@ -313,20 +325,14 @@ namespace SharpRpc
             }
 
             if (!_isSedning && !DataIsAvailable)
-                CompleteStream(out sendCompletion);
+                CompleteStream(out sendCompletionMessage);
         }
 
-        private void CompleteStream(out bool sendCompletion)
+        private void CompleteStream(out bool sendCompletionMessage)
         {
-            if (!_isAbroted)
-            {
-                sendCompletion = true;
-            }
-            else
-            {
-                Task.Factory.StartNew(FireCompletion);
-                sendCompletion = false;
-            }
+            sendCompletionMessage = !_isAbroted;
+            
+            Task.Factory.StartNew(FireCompletion);
         }
 
         private void SendCompletionMessage()
