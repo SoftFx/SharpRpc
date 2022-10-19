@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 
 namespace SharpRpc
 {
-    public abstract class RpcCallHandler : IUserMessageHandler
+    public abstract class RpcCallHandler
     {
         private Channel _ch;
 
@@ -64,11 +64,17 @@ namespace SharpRpc
         }
 
         protected virtual void OnInit(Channel channel) { }
+        protected virtual void OnClose() { }
 
         internal void InvokeInit(Channel channel)
         {
             _ch = channel;
             OnInit(channel);
+        }
+
+        internal void InvokeOnClose()
+        {
+            OnClose();
         }
 
         protected ServiceCallContext CreateCallContext(IRequestMessage requestMessage)
@@ -102,19 +108,20 @@ namespace SharpRpc
             context.Close(_ch);
         }
 
+
 #if NET5_0_OR_GREATER
-        ValueTask IUserMessageHandler.ProcessMessage(IMessage message)
+        internal ValueTask ProcessMessage(IMessage message)
 #else
-        Task IUserMessageHandler.ProcessMessage(IMessage message)
+        internal Task ProcessMessage(IMessage message)
 #endif
         {
             return OnMessage(message);
         }
 
 #if NET5_0_OR_GREATER
-        ValueTask<IResponseMessage> IUserMessageHandler.ProcessRequest(IRequestMessage message)
+        internal ValueTask<IResponseMessage> ProcessRequest(IRequestMessage message)
 #else
-        Task<IResponseMessage> IUserMessageHandler.ProcessRequest(IRequestMessage message)
+        internal Task<IResponseMessage> ProcessRequest(IRequestMessage message)
 #endif
         {
             return OnRequest(message);

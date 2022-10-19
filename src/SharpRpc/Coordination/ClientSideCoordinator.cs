@@ -32,9 +32,7 @@ namespace SharpRpc
         {
             var clientEndpoint = (ClientEndpoint)Channel.Endpoint;
             _creds = clientEndpoint.Credentials;
-            Channel.Dispatcher.Start();
         }
-
 
 #if NET5_0_OR_GREATER
         public override async ValueTask<RpcResult> OnConnect(CancellationToken cToken)
@@ -68,7 +66,7 @@ namespace SharpRpc
                 if (loginResp.ResultCode == LoginResult.Ok)
                 {
                     // enable message queue
-                    return Channel.Dispatcher.OnSessionEstablished();
+                    return Channel.Dispatcher.Start();
                 }
                 else if (loginResp.ResultCode == LoginResult.InvalidCredentials)
                     return new RpcResult(RpcRetCode.InvalidCredentials, "Login failed: " + loginResp.ErrorMessage);

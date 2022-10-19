@@ -22,10 +22,14 @@ namespace TestCommon
             _multicaster = multicaster;
         }
 
-        protected override void OnInit()
+        public override void OnInit()
         {
-            Session.Opened += (s, a) => _multicaster.Add(Client);
-            Session.Closed += (s, a) => _multicaster.Remove(Client);
+            _multicaster.Add(Client);
+        }
+
+        public override void OnClose()
+        {
+            _multicaster.Remove(Client);
         }
 
 #if NET5_0_OR_GREATER

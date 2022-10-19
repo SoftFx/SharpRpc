@@ -26,9 +26,12 @@ namespace SharpRpc
             private TaskCompletionSource<bool> _startedEvent = new TaskCompletionSource<bool>();
             private TaskCompletionSource<bool> _closeCompletion = new TaskCompletionSource<bool>();
 
-            public override void Start()
+            public override RpcResult Start()
             {
                 TaskCompletionSource<bool> _toFire = null;
+
+                if (!Core.TryInvokeInit(Channel, out var error))
+                    return error;
 
                 lock (_lockObj)
                 {
@@ -40,6 +43,7 @@ namespace SharpRpc
                 }
 
                 _toFire?.SetResult(true);
+                return RpcResult.Ok;
             }
 
             public override Task Stop(RpcResult fault)
@@ -63,11 +67,6 @@ namespace SharpRpc
                 Core.CompleteStop();
 
                 return _closeCompletion.Task;
-            }
-
-            public override RpcResult OnSessionEstablished()
-            {
-                return Core.FireOpened();
             }
 
 #if NET5_0_OR_GREATER
@@ -183,7 +182,7 @@ namespace SharpRpc
 
             private void InvokeOnStop()
             {
-                Core.FireClosed();
+                Core.InvokeOnClose();
 
                 _closeCompletion.SetResult(true);
             }

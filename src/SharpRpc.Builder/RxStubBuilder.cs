@@ -45,7 +45,7 @@ namespace SharpRpc.Builder
                 if (_contract.HasCallbacks)
                     stubClass = stubClass.AddMembers(GenerateClientStubProperty());
 
-                stubClass = stubClass.AddMembers(GenerateOnInitMethod(), GenerateStubInitServiceStubMethod());
+                stubClass = stubClass.AddMembers(GenerateOnInitMethod(), GenerateOnCloseMethod(), GenerateStubInitServiceStubMethod());
             }
 
             return stubClass;
@@ -78,7 +78,7 @@ namespace SharpRpc.Builder
                 .AddMembers(GenerateOnMessageOverride(), GenerateOnRequestOverride());
 
             if (!_isCallbackStub)
-                handlerClass = handlerClass.AddMembers(GenerateHandlerOnInitOverride());
+                handlerClass = handlerClass.AddMembers(GenerateHandlerOnInitOverride(), GenerateHandlerOnCloseMethod());
 
             return handlerClass;
         }
@@ -450,6 +450,16 @@ namespace SharpRpc.Builder
                .AddBodyStatements(SF.ExpressionStatement(stubInitInvoke));
         }
 
+        private MemberDeclarationSyntax GenerateHandlerOnCloseMethod()
+        {
+            var stubInitInvoke = SF.InvocationExpression(SH.MemberOfIdentifier("_stub", "OnClose"))
+                .AddArgumentListArguments();
+
+            return SF.MethodDeclaration(SH.VoidToken(), Names.RpcServiceBaseOnCloseMethod)
+               .AddModifiers(SF.Token(SyntaxKind.ProtectedKeyword), SF.Token(SyntaxKind.OverrideKeyword))
+               .AddBodyStatements(SF.ExpressionStatement(stubInitInvoke));
+        }
+
         private MemberDeclarationSyntax GenerateClientStubProperty()
         {
             var clientStubType = SH.ShortTypeName(_contract.CallbackClientStubClassName);
@@ -470,7 +480,14 @@ namespace SharpRpc.Builder
         private MemberDeclarationSyntax GenerateOnInitMethod()
         {
             return SF.MethodDeclaration(SH.VoidToken(), "OnInit")
-                .AddModifiers(SH.ProtectedToken(), SH.VirtualToken())
+                .AddModifiers(SH.PublicToken(), SH.VirtualToken())
+                .AddBodyStatements();
+        }
+
+        private MemberDeclarationSyntax GenerateOnCloseMethod()
+        {
+            return SF.MethodDeclaration(SH.VoidToken(), "OnClose")
+                .AddModifiers(SH.PublicToken(), SH.VirtualToken())
                 .AddBodyStatements();
         }
 
@@ -484,7 +501,7 @@ namespace SharpRpc.Builder
             var method = SF.MethodDeclaration(SH.VoidToken(), "InitServiceStub")
                 .AddModifiers(SH.PublicToken())
                 .AddParameterListParameters(sessionParam)
-                .AddBodyStatements(sessionInitStatement, onInitInvoke);
+                .AddBodyStatements(sessionInitStatement);
 
             if (_contract.HasCallbacks)
             {
@@ -495,7 +512,8 @@ namespace SharpRpc.Builder
                     .AddBodyStatements(callbackClientInitStatement);
             }
 
-            return method;
+            return method
+                .AddBodyStatements(onInitInvoke);
         }
 
         private List<OperationDeclaration> GetAffectedCalls()

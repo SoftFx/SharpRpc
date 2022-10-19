@@ -20,7 +20,7 @@ namespace SharpRpc
         private RpcResult _fault;
         private List<IInteropOperation> _tasksToCancel;
 
-        public MessageDispatcherCore(TxPipeline txNode, IUserMessageHandler msgHandler, Action<RpcRetCode, string> onErrorAction)
+        public MessageDispatcherCore(TxPipeline txNode, RpcCallHandler msgHandler, Action<RpcRetCode, string> onErrorAction)
         {
             Tx = txNode;
             MessageHandler = msgHandler;
@@ -28,7 +28,7 @@ namespace SharpRpc
         }
 
         public TxPipeline Tx { get; }
-        public IUserMessageHandler MessageHandler { get; }
+        public RpcCallHandler MessageHandler { get; }
         public Action<RpcRetCode, string> OnError { get; }
         
         public RpcResult TryRegisterOperation(string callId, IInteropOperation callTask)
@@ -83,32 +83,30 @@ namespace SharpRpc
                 task.OnFail(_fault);
         }
 
-        public RpcResult FireOpened()
+        public bool TryInvokeInit(Channel ch, out RpcResult error)
         {
             try
             {
-                if (MessageHandler is ServiceCallHandler sch)
-                    sch.Session.FireOpened(new SessionOpenedEventArgs());
+                MessageHandler.InvokeInit(ch);
+                error = RpcResult.Ok;
+                return true;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // TO DO : log or pass some more information about expcetion (stack trace)
-                return new RpcResult(RpcRetCode.RequestCrash, "An exception has been occured in ");
+                error = new RpcResult(RpcRetCode.InitHanderCrash, "An unhandled exception has occurred in Init() method! " + ex.Message);
+                return false;
             }
-
-            return RpcResult.Ok;
         }
 
-        public void FireClosed()
+        public void InvokeOnClose()
         {
             try
             {
-                if (MessageHandler is ServiceCallHandler sch)
-                    sch.Session.FireClosed(new SessionClosedEventArgs());
+                MessageHandler.InvokeOnClose();
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // TO DO : log or pass some more information about expcetion (stack trace)
+                // TO DO
             }
         }
 

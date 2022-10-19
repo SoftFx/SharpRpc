@@ -29,9 +29,6 @@ namespace SharpRpc
 
         public CustomProperties Properties { get; private set; }
 
-        public event EventHandler<SessionOpenedEventArgs> Opened;
-        public event EventHandler<SessionClosedEventArgs> Closed;
-
         /// <summary>
         /// Triggers session close. It's safe to call this function from message/call handlers.
         /// </summary>
@@ -40,29 +37,10 @@ namespace SharpRpc
             _ch.TriggerClose();
         }
 
-        internal void FireOpened(SessionOpenedEventArgs args)
-        {
-            Opened?.Invoke(this, args);
-        }
-
-        internal void FireClosed(SessionClosedEventArgs args)
-        {
-            Closed?.Invoke(this, args);
-        }
-
 #if PF_COUNTERS
         public int RxMessagePageCount => _ch.GetRxMessagePageCount();
         public double AverageRxChunkSize => _ch.GetAverageRxChunkSize();
         public double AverageRxMessagePageSize => _ch.GetAverageRxMessagePageSize();
 #endif
-    }
-
-
-    public class SessionOpenedEventArgs : EventArgs
-    {
-    }
-
-    public class SessionClosedEventArgs : EventArgs
-    {
     }
 }

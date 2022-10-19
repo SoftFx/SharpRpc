@@ -67,9 +67,6 @@ namespace SharpRpc
 
             Channel.Logger.Verbose(Channel.Id, "Login message has been received. Checking credentials...");
 
-            // enable message queue
-            Channel.Dispatcher.OnSessionEstablished();
-
             // exit lock
             await _taskQueue.Dive();
 
@@ -87,11 +84,15 @@ namespace SharpRpc
             if (authError == null)
             {
                 // start processing messages
-                Channel.Dispatcher.Start();
+                var startResult = Channel.Dispatcher.Start();
 
-                Channel.Logger.Verbose(Channel.Id, "Succesful login.");
-
-                return RpcResult.Ok;
+                if (startResult.IsOk)
+                {
+                    Channel.Logger.Verbose(Channel.Id, "Succesful login.");
+                    return RpcResult.Ok;
+                }
+                else
+                    return startResult;
             }
             else
                 return new RpcResult(RpcRetCode.InvalidCredentials, authError);

@@ -27,9 +27,9 @@ namespace SharpRpc
         private string _opIdPrefix;
         private int _opIdSeed;
 
-        public static MessageDispatcher Create(MessageDispatcherConfig config, TxPipeline sender, IUserMessageHandler handler, bool serverSide)
+        public static MessageDispatcher Create(MessageDispatcherConfig config, Channel ch, RpcCallHandler handler, bool serverSide)
         {
-            return new NoThreading().Init(serverSide, sender, handler);
+            return new NoThreading().Init(serverSide, ch, handler);
 
             //switch (config.RxConcurrencyMode)
             //{
@@ -39,18 +39,20 @@ namespace SharpRpc
             //}
         }
 
-        protected MessageDispatcher Init(bool serverSide, TxPipeline tx, IUserMessageHandler handler)
+        protected MessageDispatcher Init(bool serverSide, Channel ch, RpcCallHandler handler)
         {
-            Tx = tx;
+            Channel = ch;
+            Tx = ch.Tx;
             _opIdPrefix = serverSide ? "S" : "C";
             //MessageHandler = handler;
-            TaskQueue = tx.TaskQueue;
-            Core = new MessageDispatcherCore(tx, handler, OnError);
+            TaskQueue = Tx.TaskQueue;
+            Core = new MessageDispatcherCore(Tx, handler, OnError);
             return this;
         }
 
         //protected IUserMessageHandler MessageHandler { get; private set; }
         protected TxPipeline Tx { get; private set; }
+        protected Channel Channel { get; private set; }
         protected TaskFactory TaskQueue { get; private set; }
         protected MessageDispatcherCore Core { get; private set; }
 
@@ -63,8 +65,7 @@ namespace SharpRpc
             ErrorOccured?.Invoke(new RpcResult(code, message));
         }
 
-        public abstract void Start();
-        public abstract RpcResult OnSessionEstablished();
+        public abstract RpcResult Start();
 #if NET5_0_OR_GREATER
         public abstract ValueTask OnMessages();
 #else
@@ -119,16 +120,16 @@ namespace SharpRpc
         }
     }
 
-    internal interface IUserMessageHandler
-    {
-#if NET5_0_OR_GREATER
-        ValueTask ProcessMessage(IMessage message);
-        ValueTask<IResponseMessage> ProcessRequest(IRequestMessage message);
-#else
-        Task ProcessMessage(IMessage message);
-        Task<IResponseMessage> ProcessRequest(IRequestMessage message);
-#endif
-    }
+//    internal interface IUserMessageHandler
+//    {
+//#if NET5_0_OR_GREATER
+//        ValueTask ProcessMessage(IMessage message);
+//        ValueTask<IResponseMessage> ProcessRequest(IRequestMessage message);
+//#else
+//        Task ProcessMessage(IMessage message);
+//        Task<IResponseMessage> ProcessRequest(IRequestMessage message);
+//#endif
+//    }
 
     //public enum ConcurrencyMode
     //{
