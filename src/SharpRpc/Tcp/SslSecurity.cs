@@ -26,30 +26,21 @@ namespace SharpRpc
             _customCertValidator = serverCertValidator;
         }
 
+        public SslProtocols Protocols { get; set; } = SslProtocols.Tls11 | SslProtocols.Tls12;
+        public bool EnableRevocationCheck { get; set; } = true;
+
 #if NET5_0_OR_GREATER
         internal async override ValueTask<ByteTransport> SecureTransport(Socket socket, Endpoint endpoint, string targetHost)
 #else
         internal async override Task<ByteTransport> SecureTransport(Socket socket, Endpoint endpoint, string targetHost)
 #endif
         {
-            var stream = new NetworkStream(socket, true);
-            var sslStream = new SslStream(stream);
+            var netStream = new NetworkStream(socket, true);
+            var sslStream = new SslStream(netStream, false, _customCertValidator, null, EncryptionPolicy.RequireEncryption);
 
             try
             {
-#if NET5_0_OR_GREATER
-                var options = new SslClientAuthenticationOptions();
-                options.EncryptionPolicy = EncryptionPolicy.RequireEncryption;
-                options.EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13;
-                options.TargetHost = targetHost;
-
-                if (_customCertValidator != null)
-                    options.RemoteCertificateValidationCallback = _customCertValidator;
-
-                await sslStream.AuthenticateAsClientAsync(options);
-#else
-                await sslStream.AuthenticateAsClientAsync(targetHost, null, SslProtocols.Tls11 | SslProtocols.Tls12, false);
-#endif
+                await sslStream.AuthenticateAsClientAsync(targetHost, null, Protocols, EnableRevocationCheck);
             }
             catch (AuthenticationException aex)
             {
