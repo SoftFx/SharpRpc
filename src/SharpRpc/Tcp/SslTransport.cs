@@ -5,6 +5,7 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+using SharpRpc.Tcp;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -19,10 +20,12 @@ namespace SharpRpc
     internal class SslTransport : ByteTransport
     {
         private readonly SslStream _stream;
+        private readonly Socket _socket;
 
-        public SslTransport(SslStream stream)
+        public SslTransport(SslStream stream, Socket socket)
         {
             _stream = stream;
+            _socket = socket;
         }
 
 #if NET5_0_OR_GREATER
@@ -67,6 +70,11 @@ namespace SharpRpc
         public override void Dispose()
         {
             _stream.Dispose();
+        }
+
+        public override ITransportInfo GetInfo()
+        {
+            return SocketTransport.CreateInfobject(_socket);
         }
     }
 }

@@ -26,5 +26,11 @@ namespace SharpRpc
 
         public abstract Task Shutdown();
         public abstract void Dispose();
+
+        public abstract ITransportInfo GetInfo();
+    }
+
+    public interface ITransportInfo
+    {
     }
 }

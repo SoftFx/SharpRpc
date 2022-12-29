@@ -78,11 +78,13 @@ namespace SharpRpc
 
             if (_isServerSide)
             {
-                var sharedContex = new SessionContext(Id);
+                var tranportInfo = GetTransportInfo();
+
+                var sharedContex = new SessionContext(Id, tranportInfo);
                 _coordinator = new ServerSideCoordinator(sharedContex);
 
                 if (_callHandler is ServiceCallHandler sch)
-                    sch.Session.Init(this, sharedContex);
+                    sch.Session.Init(this, sharedContex, tranportInfo);
             }
             else
             {
@@ -374,6 +376,11 @@ namespace SharpRpc
 
             if (invokeConnect)
                 DoConnect();
+        }
+
+        internal ITransportInfo GetTransportInfo()
+        {
+            return _transport.GetInfo();
         }
 
 #if PF_COUNTERS

@@ -18,16 +18,18 @@ namespace SharpRpc
     {
         private Channel _ch;
 
-        internal void Init(Channel channel, SessionContext sharedContext)
+        internal void Init(Channel channel, SessionContext sharedContext, ITransportInfo transportInfo)
         {
             _ch = channel;
             Id = _ch.Id;
             Properties = sharedContext.Properties;
+            TransportInfo = transportInfo;
         }
 
         public string Id { get; private set; }
 
         public CustomProperties Properties { get; private set; }
+        public ITransportInfo TransportInfo { get; private set; }
 
         /// <summary>
         /// Triggers session close. It's safe to call this function from message/call handlers.
@@ -35,6 +37,15 @@ namespace SharpRpc
         public void BeginClose()
         {
             _ch.TriggerClose();
+        }
+
+        public T GetTransportInfo<T>()
+            where T : ITransportInfo
+        {
+            if (TransportInfo is T typedInfo)
+                return typedInfo;
+
+            return default(T);
         }
 
 #if PF_COUNTERS

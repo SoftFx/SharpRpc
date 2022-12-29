@@ -47,7 +47,7 @@ namespace SharpRpc
                 throw new RpcException(aex.Message, RpcRetCode.InvalidCredentials);
             }
 
-            return new SslTransport(sslStream);
+            return new SslTransport(sslStream, socket);
         }
     }
 }

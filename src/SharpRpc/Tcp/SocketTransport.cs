@@ -5,9 +5,11 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+using SharpRpc.Tcp;
 using System;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
@@ -106,6 +108,13 @@ namespace SharpRpc
         {
             _stream.Dispose();
             _socket.Dispose();
+        }
+
+        public override ITransportInfo GetInfo() => CreateInfobject(_socket);
+
+        internal static TcpConnectionInfo CreateInfobject(Socket socket)
+        {
+            return new TcpConnectionInfo(socket.RemoteEndPoint as IPEndPoint, socket.LocalEndPoint as IPEndPoint);
         }
     }
 }

@@ -59,7 +59,7 @@ namespace SharpRpc
             await sslStream.AuthenticateAsServerAsync(_cert, false, SslProtocols.Tls11 | SslProtocols.Tls12, false);
 #endif
 
-            return new SslTransport(sslStream);
+            return new SslTransport(sslStream, socket);
         }
 
         private X509Certificate2 LoadCertificate()
