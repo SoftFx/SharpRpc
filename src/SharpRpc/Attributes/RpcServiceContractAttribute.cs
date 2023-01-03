@@ -17,5 +17,11 @@ namespace SharpRpc
         /// by removing superfluous serilizations of same data. Affects only one-way messages.
         /// </summary>
         public bool EnablePrebuilder { get; set; }
+
+        /// <summary>
+        /// Generate additional methods in the service stub for every request-response call which are called right after a response is sent.
+        /// This allows to add of a custom disposal code for the response object.
+        /// </summary>
+        public bool GeneratePostResponseServiceMethods { get; set; }
     }
 }

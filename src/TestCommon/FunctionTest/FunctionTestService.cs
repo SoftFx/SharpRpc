@@ -41,6 +41,10 @@ namespace TestCommon
             return FwAdapter.WrappResult("123");
         }
 
+        public override void OnResponseSent_TestCall2(string responseValue)
+        {
+        }
+
 #if NET5_0_OR_GREATER
         public override ValueTask<string> TestCrash(CallContext context, int p1, string p2)
 #else

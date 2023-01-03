@@ -22,6 +22,7 @@ namespace SharpRpc
         protected abstract Task OnMessage(IMessage message);
         protected abstract Task<IResponseMessage> OnRequest(IRequestMessage message);
 #endif
+        protected virtual void OnResponseSent(IResponseMessage respMessage) { }
 
 #if NET5_0_OR_GREATER
         protected ValueTask OnUnknownMessage(IMessage message)
@@ -125,6 +126,11 @@ namespace SharpRpc
 #endif
         {
             return OnRequest(message);
+        }
+
+        internal void SignalResponseSent(IResponseMessage msg)
+        {
+            OnResponseSent(msg);
         }
     }
 }

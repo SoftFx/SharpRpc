@@ -81,11 +81,13 @@ namespace SharpRpc.Builder
         public static readonly string ResponseResultProperty = "Result";
 
         public static readonly string PrebuildCallOption = "EnablePrebuilder";
+        public static readonly string PostResponseOption = "GeneratePostResponseServiceMethods";
 
         public static readonly string RpcServiceBaseOnInitMethod = "OnInit";
         public static readonly string RpcServiceBaseOnCloseMethod = "OnClose";
         public static readonly string RpcServiceBaseOnMessageMethod = "OnMessage";
         public static readonly string RpcServiceBaseOnRequestMethod = "OnRequest";
+        public static readonly string RpcServiceBaseOnResponseSentMethod = "OnResponseSent";
         public static readonly string RpcServiceBaseOnUnknownMessage = "OnUnknownMessage";
         public static readonly string RpcServiceBaseOnUnknownRequest = "OnUnknownRequest";
 

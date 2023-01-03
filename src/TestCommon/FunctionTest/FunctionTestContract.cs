@@ -15,7 +15,7 @@ using SharpRpc;
 
 namespace TestCommon
 {
-    [RpcServiceContract]
+    [RpcServiceContract(GeneratePostResponseServiceMethods = true)]
     [RpcSerializer(SerializerChoice.MessagePack)]
     interface FunctionTestContract
     {

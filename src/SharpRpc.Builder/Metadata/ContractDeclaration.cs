@@ -73,6 +73,7 @@ namespace SharpRpc.Builder
         public List<OperationDeclaration> Operations { get; } = new List<OperationDeclaration>();
         public ContractCompatibility Compatibility { get; }
         public bool EnablePrebuild { get; set; }
+        public bool EnablePostResponseMethods { get; set; }
 
         public bool HasCallbacks => Operations.Any(c => c.IsCallback);
 

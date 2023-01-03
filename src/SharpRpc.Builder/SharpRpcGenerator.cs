@@ -213,6 +213,7 @@ namespace SharpRpc.Builder
             var contractInfo = new ContractDeclaration(fullyQualifiedName, compatibilityAdapter);
 
             contractInfo.EnablePrebuild = contractAttr.GetNamedArgumentOrDefault<bool>(Names.PrebuildCallOption);
+            contractInfo.EnablePostResponseMethods = contractAttr.GetNamedArgumentOrDefault<bool>(Names.PostResponseOption);
 
             foreach (var builder in CollectSerializersData(contractSmbInfo))
                 contractInfo.AddSerializer(builder);

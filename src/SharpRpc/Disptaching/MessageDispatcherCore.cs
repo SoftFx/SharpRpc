@@ -104,7 +104,7 @@ namespace SharpRpc
             {
                 MessageHandler.InvokeOnClose();
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 // TO DO
             }
@@ -142,6 +142,8 @@ namespace SharpRpc
             var respToSend = await MessageHandler.ProcessRequest(request);
             respToSend.CallId = request.CallId;
             await Tx.TrySendAsync(respToSend);
+
+            MessageHandler.SignalResponseSent(respToSend);
         }
 
         private void ProcessResponse(IResponseMessage resp)

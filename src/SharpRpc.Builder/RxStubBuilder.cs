@@ -38,6 +38,9 @@ namespace SharpRpc.Builder
                 .AddModifiers(SF.Token(SyntaxKind.PublicKeyword), SF.Token(SyntaxKind.AbstractKeyword))
                 .AddMembers(GenerateStubMethods());
 
+            if (_contract.EnablePostResponseMethods)
+                stubClass = stubClass.AddMembers(GeneratePostResponseMethods());
+
             if (!_isCallbackStub)
             {
                 stubClass = stubClass.AddMembers(GenerateSessionProperty());
@@ -76,6 +79,9 @@ namespace SharpRpc.Builder
                 .AddMembers(serviceImplField, constructor)
                 .AddMembers(GenerateWrapMethods())
                 .AddMembers(GenerateOnMessageOverride(), GenerateOnRequestOverride());
+
+            if (_contract.EnablePostResponseMethods)
+                handlerClass = handlerClass.AddMembers(GenerateOnReponseSentOverride());
 
             if (!_isCallbackStub)
                 handlerClass = handlerClass.AddMembers(GenerateHandlerOnInitOverride(), GenerateHandlerOnCloseMethod());
@@ -124,6 +130,19 @@ namespace SharpRpc.Builder
 
             foreach (var callDec in GetAffectedCalls())
                 methods.Add(GenerateStubMethod(callDec));
+
+            return methods.ToArray();
+        }
+
+        private MethodDeclarationSyntax[] GeneratePostResponseMethods()
+        {
+            var methods = new List<MethodDeclarationSyntax>();
+
+            foreach (var callDec in GetAffectedCalls())
+            {
+                if (callDec.IsRequestResponceCall && callDec.ReturnsData)
+                    methods.Add(GeneratePostResponseMethod(callDec));
+            }
 
             return methods.ToArray();
         }
@@ -188,6 +207,18 @@ namespace SharpRpc.Builder
                 .WithoutBody();
 
             return method;
+        }
+
+        private MethodDeclarationSyntax GeneratePostResponseMethod(OperationDeclaration callDec)
+        {
+            var methodName = "OnResponseSent_" + callDec.MethodName;
+            var retType = GetTypeSyntax(callDec.ReturnParam);
+            var param = SH.Parameter("responseValue", retType);
+
+            return SF.MethodDeclaration(SH.VoidToken(), methodName)
+                .AddModifiers(SF.Token(SyntaxKind.PublicKeyword), SF.Token(SyntaxKind.VirtualKeyword))
+                .AddParameterListParameters(param)
+                .AddBodyStatements();
         }
 
         private MethodDeclarationSyntax GenerateRequestWrapMethod(OperationDeclaration callDec)
@@ -374,6 +405,65 @@ namespace SharpRpc.Builder
                .AddModifiers(SF.Token(SyntaxKind.ProtectedKeyword), SF.Token(SyntaxKind.OverrideKeyword))
                .AddParameterListParameters(SH.Parameter("request", Names.RequestInterface.Full))
                .WithBody(SF.Block(ifRoot));
+        }
+
+        private MethodDeclarationSyntax GenerateOnReponseSentOverride()
+        {
+            StatementSyntax ifRoot = null;
+
+            var index = 0;
+
+            foreach (var call in GetAffectedCalls())
+            {
+                if (call.IsRequestResponceCall && call.ReturnsData)
+                {
+                    var messageType = _contract.GetResponseClassName(call);
+                    var typedMessageVarName = "r" + index++;
+                    var methodToInvoke = "OnResponseSent_" + call.MethodName;
+
+                    var respValueArg = SF.Argument(SH.MemberOfIdentifier(typedMessageVarName, "Result"));
+
+                    var rpcMethodCall = SF.ExpressionStatement(
+                        SF.InvocationExpression(SH.MemberOf(SF.IdentifierName("_stub"), methodToInvoke),
+                        SH.CallArguments(respValueArg)));
+
+                    ExpressionSyntax ifExpression;
+                    StatementSyntax ifBody;
+
+                    if (_contract.Compatibility.SupportsPatternMatching)
+                    {
+                        ifExpression = SF.IsPatternExpression(SF.IdentifierName("response"),
+                            SF.DeclarationPattern(SF.ParseTypeName(messageType.Full), SF.SingleVariableDesignation(SF.Identifier(typedMessageVarName))));
+
+                        ifBody = rpcMethodCall;
+                    }
+                    else
+                    {
+                        ifExpression = SF.BinaryExpression(SyntaxKind.IsExpression,
+                               SF.IdentifierName("response"), SF.ParseTypeName(messageType.Full));
+
+                        var castVariable = SH.LocalVarDeclaration(typedMessageVarName,
+                            SF.CastExpression(SF.ParseTypeName(messageType.Full), SF.IdentifierName("response")));
+
+                        ifBody = SF.Block(castVariable, rpcMethodCall);
+                    }
+
+                    if (ifRoot != null)
+                        ifRoot = SF.IfStatement(ifExpression, ifBody, SF.ElseClause(ifRoot));
+                    else
+                        ifRoot = SF.IfStatement(ifExpression, ifBody);
+                }
+            }
+
+            var body = SF.Block();
+
+            if (ifRoot != null)
+                body = body.AddStatements(ifRoot);
+
+            return SF.MethodDeclaration(SH.VoidToken(), Names.RpcServiceBaseOnResponseSentMethod)
+                .AddModifiers(SF.Token(SyntaxKind.ProtectedKeyword), SF.Token(SyntaxKind.OverrideKeyword))
+                .AddParameterListParameters(SH.Parameter("response", Names.ResponseInterface.Full))
+                .WithBody(body);
         }
 
         private ExpressionSyntax GenerateRpcInvocation(OperationDeclaration callDec, string typedMessageVarName)
