@@ -1,8 +1,8 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net5.0;net472</TargetFrameworks>
-    <Version>1.6.4</Version>
+    <TargetFrameworks>net6.0;net5.0;net472</TargetFrameworks>
+    <Version>1.6.5</Version>
     <Company>Soft-Fx</Company>
     <Authors>Andrei Hilevich</Authors>
     <PackageId>SharpRpc.Core</PackageId>
@@ -35,11 +35,6 @@
   <PropertyGroup Condition="'$(Configuration)'=='ReleasePfCounters'">
     <DefineConstants>TRACE;PF_COUNTERS</DefineConstants>
     <Optimize>true</Optimize>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)'=='Debug|net5.0'">
-    <DebugType>full</DebugType>
-    <DebugSymbols>true</DebugSymbols>
   </PropertyGroup>
 
 </Project>

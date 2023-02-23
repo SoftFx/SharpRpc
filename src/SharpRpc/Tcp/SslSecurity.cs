@@ -26,7 +26,7 @@ namespace SharpRpc
             _customCertValidator = serverCertValidator;
         }
 
-        public SslProtocols Protocols { get; set; } = SslProtocols.Tls11 | SslProtocols.Tls12;
+        public SslProtocols Protocols { get; set; } = SslProtocols.None;
         public bool EnableRevocationCheck { get; set; } = true;
 
 #if NET5_0_OR_GREATER

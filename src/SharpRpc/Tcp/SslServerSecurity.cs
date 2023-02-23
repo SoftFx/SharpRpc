@@ -32,6 +32,8 @@ namespace SharpRpc
             _certSrc = serverCertificate ?? throw new ArgumentNullException(nameof(serverCertificate));
         }
 
+        public SslProtocols Protocols { get; set; } = SslProtocols.None;
+
         internal override string Name => "SSL";
 
         internal override void Init()
@@ -52,11 +54,11 @@ namespace SharpRpc
             var sslOptions = new SslServerAuthenticationOptions();
             sslOptions.ServerCertificate = _cert;
             sslOptions.ClientCertificateRequired = false;
-            sslOptions.EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13;
+            sslOptions.EnabledSslProtocols = Protocols;
 
             await sslStream.AuthenticateAsServerAsync(sslOptions);
 #else
-            await sslStream.AuthenticateAsServerAsync(_cert, false, SslProtocols.Tls11 | SslProtocols.Tls12, false);
+            await sslStream.AuthenticateAsServerAsync(_cert, false, Protocols, false);
 #endif
 
             return new SslTransport(sslStream, socket);

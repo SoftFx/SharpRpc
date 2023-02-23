@@ -92,7 +92,7 @@ namespace TestClient
 
         private static bool RunTestCase(string address, TestCase tCase, bool ssl, out string errorMessage)
         {
-            var security = ssl ? new SslSecurity() : TcpSecurity.None;
+            var security = ssl ? new SslSecurity(TestBase.NullCertValidator) : TcpSecurity.None;
             var port = ssl ? 814 : 812;
             var endpoint = new TcpClientEndpoint(address, port, security);
 
