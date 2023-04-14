@@ -41,7 +41,7 @@ namespace SharpRpc
 
         protected override void Start()
         {
-            LoggerAdapter.Info(Name, "listening at {0}, security: {1}", _endpoint, _security.Name);
+            GetLogger().Info(Name, "listening at {0}, security: {1}", _endpoint, _security.Name);
 
             _listener.Start(_endpoint);
         }

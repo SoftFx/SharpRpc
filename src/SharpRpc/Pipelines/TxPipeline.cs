@@ -20,6 +20,7 @@ namespace SharpRpc
         TaskFactory TaskQueue { get; }
         IMessageFactory MessageFactory { get; }
         bool ImmediateSerialization { get; }
+        string ChannelId { get; }
 
         RpcResult TrySend(IMessage message);
         void Send(IMessage message);

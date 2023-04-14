@@ -109,7 +109,6 @@ namespace SharpRpc
             context.Close(_ch);
         }
 
-
 #if NET5_0_OR_GREATER
         internal ValueTask ProcessMessage(IMessage message)
 #else

@@ -201,9 +201,8 @@ namespace TestClient
                 }
                 else if (type == CallType.Try)
                 {
-                    var r2 = client.Try.TestCall2(10, "11");
-                    r2.ThrowIfNotOk();
-                    if (r2.Value != "123")
+                    var r2 = client.Try.TestCall2(10, "11").GetValueOrThrow();
+                    if (r2 != "123")
                         throw new Exception("TryTestCall2 returned unexpected result!");
                 }
                 else if (type == CallType.Async)
@@ -214,9 +213,8 @@ namespace TestClient
                 }
                 else
                 {
-                    var r4 = client.TryAsync.TestCall2(10, "11").Result;
-                    r4.ThrowIfNotOk();
-                    if (r4.Value != "123")
+                    var r4 = client.TryAsync.TestCall2(10, "11").Result.GetValueOrThrow();
+                    if (r4 != "123")
                         throw new Exception("TestCall2Async returned unexpected result!");
                 }
             }
@@ -496,7 +494,7 @@ namespace TestClient
 
                 var call = client.TestInStream(options, TimeSpan.Zero, testOptions);
 
-                var itemsCount = 100;
+                var itemsCount = 1000;
                 var expectedSumm = (1 + itemsCount) * itemsCount / 2;
                 var rWrite = RpcResult.Ok;
 
@@ -509,9 +507,9 @@ namespace TestClient
                 }
 
                 if ((testOptions == StreamTestOptions.None && rWrite.Code != RpcRetCode.Ok)
-                        || (testOptions == StreamTestOptions.JustExit && rWrite.Code != RpcRetCode.StreamCompleted)
-                        || (testOptions == StreamTestOptions.ImmediateFault && rWrite.Code != RpcRetCode.RequestFault))
-                    throw new Exception("WriteAsync() returned " + rWrite.Code);
+                        || (testOptions == StreamTestOptions.JustExit && rWrite.Code != RpcRetCode.OperationCanceled)
+                        || (testOptions == StreamTestOptions.ImmediateFault && rWrite.Code != RpcRetCode.OperationCanceled))
+                    throw new Exception("WriteAsync() returned " + rWrite.Code + "!");
 
                 var rCompletion = call.InputStream.CompleteAsync().Result;
 
@@ -529,9 +527,17 @@ namespace TestClient
                 {
                     var result = call.AsyncResult.Result.Value;
 
-                    if ((testOptions == StreamTestOptions.None && result != expectedSumm)
-                        || (testOptions == StreamTestOptions.JustExit && result != -2))
-                        throw new Exception("Stream call returned an unexpected result!");
+                    if (testOptions == StreamTestOptions.JustExit && result.ExitCode != StreamCallExitCode.ImmediateExit)
+                        throw new Exception("Exit code does not match expected!");
+
+                    if (testOptions == StreamTestOptions.None)
+                    {
+                        if (result.ItemSum != expectedSumm)
+                            throw new Exception("Returned sum does not macth!");
+
+                        if (result.ExitCode != StreamCallExitCode.StreamCompleted)
+                            throw new Exception("Exit code does not match expected!");
+                    }
                 }
             }
         }
@@ -581,8 +587,8 @@ namespace TestClient
 
                 var ret = call.AsyncResult.Result;
 
-                if (ret.Value != 0)
-                    throw new Exception("Returned value does not match expected!");
+                if (ret.Value.ExitCode != StreamCallExitCode.StreamCompleted)
+                    throw new Exception("Exit code does not match expected!");
             }
         }
 
@@ -703,10 +709,10 @@ namespace TestClient
                     expectedSum += i;
                 }
 
-                var retVal2 = callObj2.AsyncResult.Result.Value;
+                var callResult = callObj2.AsyncResult.Result.GetValueOrThrow();
 
-                if (retVal2 != expectedSum)
-                    throw new Exception("Stream call returned an unexpected result! Expected " + expectedSum + ", returned " + retVal2);
+                if (callResult.ItemSum != expectedSum)
+                    throw new Exception("Stream call returned an unexpected result! Expected " + expectedSum + ", returned " + callResult.ItemSum);
             }
         }
 
@@ -716,19 +722,27 @@ namespace TestClient
             {
                 var cancelSrc = new CancellationTokenSource(500);
                 var options = new StreamOptions() { WindowSize = 10 };
-                var callObj = client.TestOutStream(options, TimeSpan.FromMilliseconds(100), 100, StreamTestOptions.InvokeCompletion);
+                var itemCount = 100;
+                var callObj = client.TestOutStream(options, TimeSpan.FromMilliseconds(100), itemCount, StreamTestOptions.InvokeCompletion);
 
                 var e = callObj.OutputStream.GetEnumerator(cancelSrc.Token);
+                var receivedItemsSum = 0;
+                var totalSum = (itemCount + 1) * itemCount / 2;
 
                 while (true)
                 {
                     if (!e.MoveNextAsync().Result)
                         break;
+
+                    receivedItemsSum += e.Current;
                 }
 
-                var retVal = callObj.AsyncResult.Result.Value;
+                var result = callObj.AsyncResult.Result.GetValueOrThrow();
 
-                if (retVal != -1)
+                if (receivedItemsSum >= totalSum)
+                    throw new Exception("Stream call returned an unexpected result!");
+
+                if (result.ExitCode != StreamCallExitCode.StreamWriteCancelled)
                     throw new Exception("Stream call returned an unexpected result!");
             }
         }

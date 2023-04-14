@@ -80,7 +80,7 @@ namespace SharpRpc
 
         protected override void Start()
         {
-            LoggerAdapter.Info(Name, "listening at {0}, security: {1}", _ipEndpoint, _security.Name);
+            GetLogger().Info(Name, "listening at {0}, security: {1}", _ipEndpoint, _security.Name);
 
             _socket.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.IPv6Only, _ipv6Only);
 

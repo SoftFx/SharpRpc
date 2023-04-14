@@ -31,11 +31,11 @@ namespace SharpRpc.Builder
             LogoutMessageClassName = new TypeString(MessageBundleClassName.Short, "Logout");
             FaultMessageClassName = new TypeString(MessageBundleClassName.Short, "RequestFault");
             StreamPageAckMessageClassName = new TypeString(MessageBundleClassName.Short, "PageAcknowledgement");
-            StreamCompletionMessageClassName = new TypeString(MessageBundleClassName.Short, "StreamCompletion");
-            StreamCompletionRequestMessageClassName = new TypeString(MessageBundleClassName.Short, "StreamCompletionRequest");
+            StreamCloseMessageClassName = new TypeString(MessageBundleClassName.Short, "CloseStream");
+            StreamCloseAckMessageClassName = new TypeString(MessageBundleClassName.Short, "CloseStreamAck");
+            StreamCancelMessageClassName = new TypeString(MessageBundleClassName.Short, "CancelStream");
             HeartbeatMessageClassName = new TypeString(MessageBundleClassName.Short, "Heartbeat");
             CancelRequestMessageClassName = new TypeString(MessageBundleClassName.Short, "CancelRequest");
-            CancelStreamingMessageClassName = new TypeString(MessageBundleClassName.Short, "CancelStreaming");
 
             ClientStubClassName = new TypeString(FacadeClassName.Full, "Client");
             ServiceStubClassName = new TypeString(FacadeClassName.Full, "ServiceBase");
@@ -63,12 +63,11 @@ namespace SharpRpc.Builder
         public TypeString LogoutMessageClassName { get; }
         public TypeString FaultMessageClassName { get; }
         public TypeString StreamPageAckMessageClassName { get; }
-        public TypeString StreamCompletionMessageClassName { get; }
-        public TypeString StreamCompletionRequestMessageClassName { get; }
+        public TypeString StreamCloseMessageClassName { get; }
+        public TypeString StreamCloseAckMessageClassName { get; }
+        public TypeString StreamCancelMessageClassName { get; }
         public TypeString HeartbeatMessageClassName { get; }
-
         public TypeString CancelRequestMessageClassName { get; }
-        public TypeString CancelStreamingMessageClassName { get; }
 
         public List<OperationDeclaration> Operations { get; } = new List<OperationDeclaration>();
         public ContractCompatibility Compatibility { get; }

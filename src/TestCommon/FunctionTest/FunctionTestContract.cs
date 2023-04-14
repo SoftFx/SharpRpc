@@ -59,11 +59,11 @@ namespace TestCommon
 
         [RpcContract(12, RpcType.Call)]
         [RpcStreamOutput(typeof(int))]
-        int TestOutStream(TimeSpan delay, int count, StreamTestOptions options);
+        StreamCallResult TestOutStream(TimeSpan delay, int count, StreamTestOptions options);
 
         [RpcContract(13, RpcType.Call)]
         [RpcStreamInput(typeof(int))]
-        int TestInStream(TimeSpan delay, StreamTestOptions options);
+        StreamCallResult TestInStream(TimeSpan delay, StreamTestOptions options);
 
         [RpcContract(14, RpcType.Call)]
         [RpcStreamInput(typeof(int))]
@@ -87,6 +87,31 @@ namespace TestCommon
         ImmediateCustomFault,
         FollowingFault,
         FollowingCustomFault
+    }
+
+    [MessagePackObject]
+    public struct StreamCallResult
+    {
+        [SerializationConstructor]
+        public StreamCallResult(StreamCallExitCode code, int sum)
+        {
+            ExitCode = code;
+            ItemSum = sum;
+        }
+
+        [Key(0)]
+        public StreamCallExitCode ExitCode { get; }
+
+        [Key(1)]
+        public int ItemSum { get; }
+    }
+
+    public enum StreamCallExitCode
+    {
+        ImmediateExit,
+        StreamCompleted,
+        StreamWriteCancelled,
+        Error
     }
 
     [MessagePackObject]

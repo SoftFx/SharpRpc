@@ -5,6 +5,7 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+using SharpRpc.Disptaching;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -20,7 +21,7 @@ namespace SharpRpc
         CancellationToken CancellationToken { get; }
     }
 
-    public class ServiceCallContext : CallContext, MessageDispatcherCore.IInteropOperation
+    public class ServiceCallContext : CallContext, IDispatcherOperation
     {
         private readonly CancellationTokenSource _cancelSrc;
 
@@ -33,7 +34,7 @@ namespace SharpRpc
             {
                 _cancelSrc = new CancellationTokenSource();
                 CancellationToken = _cancelSrc.Token;
-                dispatcher.RegisterCallObject(CallId, this);
+                dispatcher.Register(this);
             }
             else
                 CancellationToken = CancellationToken.None;
@@ -43,26 +44,17 @@ namespace SharpRpc
         public IRequestMessage RequestMessage { get; }
         public CancellationToken CancellationToken { get; }
 
+        string IDispatcherOperation.CallId => throw new NotImplementedException();
+
+        IRequestMessage IDispatcherOperation.RequestMessage => throw new NotImplementedException();
+
         public void StartCancellation() { }
 
         public void Close(Channel ch)
         {
         }
 
-        RpcResult MessageDispatcherCore.IInteropOperation.OnResponse(IResponseMessage respMessage)
-        {
-            return new RpcResult(RpcRetCode.UnexpectedMessage, "");
-        }
-
-        void MessageDispatcherCore.IInteropOperation.OnFail(RpcResult result)
-        {
-        }
-
-        void MessageDispatcherCore.IInteropOperation.OnFail(IRequestFaultMessage faultMessage)
-        {
-        }
-
-        RpcResult MessageDispatcherCore.IInteropOperation.OnUpdate(IInteropMessage auxMessage)
+        RpcResult IDispatcherOperation.OnUpdate(IInteropMessage auxMessage)
         {
             if (auxMessage is ICancelRequestMessage)
             {
@@ -77,5 +69,15 @@ namespace SharpRpc
             else
                 return new RpcResult(RpcRetCode.UnexpectedMessage, "");
         }
+
+        void IDispatcherOperation.OnRequestCancelled() { }
+
+        RpcResult IDispatcherOperation.OnResponse(IResponseMessage respMessage)
+            => RpcResult.UnexpectedMessage(typeof(IResponseMessage), typeof(CallContext));
+
+        void IDispatcherOperation.OnFault(RpcResult result) { }
+        void IDispatcherOperation.OnFaultResponse(IRequestFaultMessage faultMessage) { }
+
+        void IDispatcherOperation.Abort(RpcResult fault) { }
     }
 }

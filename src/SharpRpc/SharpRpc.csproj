@@ -1,8 +1,8 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net6.0;net5.0;net472</TargetFrameworks>
-    <Version>1.6.5</Version>
+    <TargetFrameworks>net6.0;net472</TargetFrameworks>
+    <Version>1.7.0</Version>
     <Company>Soft-Fx</Company>
     <Authors>Andrei Hilevich</Authors>
     <PackageId>SharpRpc.Core</PackageId>

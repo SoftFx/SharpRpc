@@ -31,6 +31,7 @@ namespace SharpRpc
         OtherConnectionError = 21,
         SerializationError = 22,
         DeserializationError = 23,
+        MessageMarkupError = 24,
         
         UnexpectedMessage = 25,
 

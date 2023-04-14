@@ -5,6 +5,8 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+using System;
+
 namespace SharpRpc
 {
     public struct RpcResult
@@ -48,6 +50,12 @@ namespace SharpRpc
             else
                 return new RpcResult<T>(Code, FaultMessage, CustomFaultData);
         }
+
+        internal static RpcResult UnexpectedMessage(Type msgType, Type receiverType)
+        {
+            return new RpcResult(RpcRetCode.ProtocolViolation,
+                $"A received message of type '{msgType.Name} is not expected/supported by communication object '{receiverType.Name}'!");
+        }
     }
 
     public struct RpcResult<T>
@@ -78,10 +86,18 @@ namespace SharpRpc
             return new RpcResult(Code, FaultMessage, CustomFaultData);
         }
 
-        public void ThrowIfNotOk()
+        public T GetValueOrThrow()
         {
             if (Code != RpcRetCode.Ok)
                 throw new RpcException(FaultMessage, Code);
+
+            return Value;
         }
+
+        //public void ThrowIfNotOk()
+        //{
+        //    if (Code != RpcRetCode.Ok)
+        //        throw new RpcException(FaultMessage, Code);
+        //}
     }
 }

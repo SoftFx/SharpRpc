@@ -35,8 +35,10 @@ namespace SharpRpc
         private readonly TxTransportFeed _feed;
         private readonly bool _useDelayedWorker = false;
 
-        public TxPipeline_OneThread(ContractDescriptor descriptor, Endpoint config, Action<RpcResult> commErrorHandler, Action connectionRequestHandler)
+        public TxPipeline_OneThread(string channelId, ContractDescriptor descriptor, Endpoint config, Action<RpcResult> commErrorHandler, Action connectionRequestHandler)
         {
+            ChannelId = channelId;
+
             _commErrorHandler = commErrorHandler;
             _connectionRequestHandler = connectionRequestHandler;
 
@@ -68,6 +70,8 @@ namespace SharpRpc
         private bool CanEnqueueSystemMessage => _isStarted && HasRoomInQueue;
         private bool HasRoomInQueue => _queue.Count < 220;
         private bool HasRoomInBuffer => _buffer.DataSize < _bufferSizeThreshold;
+
+        public string ChannelId { get; }
 
         #region Consumer impl
 

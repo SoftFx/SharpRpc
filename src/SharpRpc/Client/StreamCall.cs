@@ -5,6 +5,7 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+using SharpRpc.Disptaching;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -57,8 +58,7 @@ namespace SharpRpc
     internal class StreamCall<TInItem, TOutItem, TReturn> :
         OutputStreamCall<TOutItem>, OutputStreamCall<TOutItem, TReturn>,
         InputStreamCall<TInItem>, InputStreamCall<TInItem, TReturn>,
-        DuplexStreamCall<TInItem, TOutItem>, DuplexStreamCall<TInItem, TOutItem, TReturn>,
-        MessageDispatcherCore.IInteropOperation
+        DuplexStreamCall<TInItem, TOutItem>, DuplexStreamCall<TInItem, TOutItem, TReturn>, IDispatcherOperation
     {
         private readonly TaskCompletionSource<RpcResult<TReturn>> _typedCompletion;
         private readonly TaskCompletionSource<RpcResult> _voidCompletion;
@@ -67,21 +67,25 @@ namespace SharpRpc
         private readonly PagingStreamReader<TOutItem> _reader;
 
         private readonly IOpenStreamRequest _requestMessage;
+        private readonly IDispatcher _dispatcher;
+
+        private string _name;
 
         public StreamCall(IOpenStreamRequest request, StreamOptions inputOptions, StreamOptions outputOptions, TxPipeline msgTransmitter,
-            IOpDispatcher dispatcher, IStreamMessageFactory<TInItem> inFactory, IStreamMessageFactory<TOutItem> outFactory,
+            IDispatcher dispatcher, IStreamMessageFactory<TInItem> inFactory, IStreamMessageFactory<TOutItem> outFactory,
             bool hasRetParam)
         {
             _requestMessage = request;
+            _dispatcher = dispatcher;
 
             CallId = dispatcher.GenerateOperationId();
 
             if (inFactory != null)
-                _writer = new PagingStreamWriter<TInItem>(CallId, msgTransmitter, inFactory, false, inputOptions);
+                _writer = new PagingStreamWriter<TInItem>(CallId, msgTransmitter, inFactory, false, inputOptions, dispatcher.Logger);
 
             if (outFactory != null)
             {
-                _reader = new PagingStreamReader<TOutItem>(CallId, msgTransmitter, outFactory);
+                _reader = new PagingStreamReader<TOutItem>(CallId, msgTransmitter, outFactory, dispatcher.Logger);
                 _requestMessage.WindowSize = inputOptions?.WindowSize ?? StreamOptions.DefaultWindowsSize;
             }
 
@@ -93,14 +97,14 @@ namespace SharpRpc
             request.CallId = CallId;
             request.WindowSize = outputOptions?.WindowSize ?? StreamOptions.DefaultWindowsSize;
 
-            var regResult = dispatcher.RegisterCallObject(CallId, this);
+            var regResult = dispatcher.Register(this);
             if (regResult.IsOk)
             {
                 msgTransmitter.TrySendAsync(request, RequestSendCompleted);
                 //_canelReg =  cToken.Register(dispatcher.CancelOperation, this);
             }
             else
-                EndCall(regResult, default(TReturn));
+                Abort(regResult);
         }
 
         public string CallId { get; }
@@ -119,35 +123,46 @@ namespace SharpRpc
             if (result.IsOk)
                 _writer?.AllowSend();
             else
-                EndCall(result, default(TReturn));
+                Abort(result);
+        }
+
+        public void Abort(RpcResult fault)
+        {
+            _writer?.Abort(fault);
+            _reader?.Abort(fault);
         }
 
         private void EndCall(RpcResult result, TReturn resultValue)
         {
-            _writer?.Close(result);
-
             if (ReturnsResult)
                 _typedCompletion.TrySetResult(result.ToValueResult(resultValue));
             else
                 _voidCompletion.TrySetResult(result);
 
-            //_canelReg.Dispose();
+            EnsureStreamCloseAndUnregister();
+        }
 
-            if (result.IsOk)
+        private async void EnsureStreamCloseAndUnregister()
+        {
+            try
             {
-                _writer?.Abort(new RpcResult(RpcRetCode.StreamCompleted, "Stream is closed due to call completion."));
-                _reader?.Complete();
+                if (_reader != null)
+                    await _reader.Closed;
+
+                if (_writer != null)
+                    await _writer.Closed;
+
+                _dispatcher.Unregister(this);
             }
-            else
+            catch (Exception ex)
             {
-                _writer?.Abort(result);
-                _reader?.Abort(result);
+                _dispatcher.Logger.Error(GetName(), ex, "EnsureStreamCloseAndUnregister() failed!");
             }
         }
 
         #region MessageDispatcherCore.IInteropOperation
 
-        RpcResult MessageDispatcherCore.IInteropOperation.OnResponse(IResponseMessage respMessage)
+        RpcResult IDispatcherOperation.OnResponse(IResponseMessage respMessage)
         {
             //System.Diagnostics.Debug.WriteLine("RX " + CallId + " RESP " + respMessage.GetType().Name);
 
@@ -169,57 +184,65 @@ namespace SharpRpc
             }
         }
 
-        void MessageDispatcherCore.IInteropOperation.OnFail(RpcResult result)
+        void IDispatcherOperation.OnFault(RpcResult result)
         {
             EndCall(result, default(TReturn));
         }
 
-        void MessageDispatcherCore.IInteropOperation.OnFail(IRequestFaultMessage faultMessage)
+        void IDispatcherOperation.OnFaultResponse(IRequestFaultMessage faultMessage)
         {
             EndCall(faultMessage.ToRpcResult(), default(TReturn));
         }
 
-        RpcResult MessageDispatcherCore.IInteropOperation.OnUpdate(IInteropMessage auxMessage)
-        {
-            //System.Diagnostics.Debug.WriteLine("RX " + CallId + " A.MSG " + auxMessage.GetType().Name);
+        void IDispatcherOperation.OnRequestCancelled() { }
 
+        RpcResult IDispatcherOperation.OnUpdate(IInteropMessage auxMessage)
+        {
             if (auxMessage is IStreamPage<TOutItem> page)
             {
                 if (_reader == null)
-                    return new RpcResult(RpcRetCode.ProtocolViolation, "");
+                    return RpcResult.UnexpectedMessage(auxMessage.GetType(), GetType());
                 _reader.OnRx(page);
                 return RpcResult.Ok;
             }
-            else if (auxMessage is IStreamCompletionMessage compl)
+            else if (auxMessage is IStreamCloseMessage closeMsg)
             {
                 if (_reader == null)
-                    return new RpcResult(RpcRetCode.ProtocolViolation, "");
-                _reader.OnRx(compl);
+                    return RpcResult.UnexpectedMessage(auxMessage.GetType(), GetType());
+                _reader.OnRx(closeMsg);
                 return RpcResult.Ok;
             }
-            else if (auxMessage is IStreamCompletionRequestMessage complRequest)
+            else if (auxMessage is IStreamCloseAckMessage closeAckMsg)
             {
                 if (_writer == null)
-                    return new RpcResult(RpcRetCode.ProtocolViolation, "");
+                    return RpcResult.UnexpectedMessage(auxMessage.GetType(), GetType());
+                return _writer.OnRx(closeAckMsg);
+            }
+            else if (auxMessage is IStreamCancelMessage complRequest)
+            {
+                if (_writer == null)
+                    return RpcResult.UnexpectedMessage(auxMessage.GetType(), GetType());
                 _writer.OnRx(complRequest);
                 return RpcResult.Ok;
             }
             else if (auxMessage is IStreamPageAck ack)
             {
                 if (_writer == null)
-                    return new RpcResult(RpcRetCode.ProtocolViolation, "");
+                    return RpcResult.UnexpectedMessage(auxMessage.GetType(), GetType());
                 _writer.OnRx(ack);
                 return RpcResult.Ok;
             }
 
-            return new RpcResult(RpcRetCode.ProtocolViolation, "");
-        }
-
-        void MessageDispatcherCore.IInteropOperation.StartCancellation()
-        {
-            throw new NotSupportedException("Stream calls do not support standard operation cancellation.");
+            return RpcResult.UnexpectedMessage(auxMessage.GetType(), GetType());
         }
 
         #endregion
+
+        private string GetName()
+        {
+            if (_name == null)
+                _name = "StreamCall(" + CallId + ")";
+            return _name;
+        }
     }
 }

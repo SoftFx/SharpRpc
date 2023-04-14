@@ -42,7 +42,7 @@ namespace SharpRpc
             return this;
         }
 
-        internal LoggerFacade Logger { get; } = new LoggerFacade();
+        internal IRpcLogger Logger { get; private set; } = NullLogger.Instance;
 
         public string Name { get; }
 
@@ -51,7 +51,7 @@ namespace SharpRpc
             lock (_stateLock)
             {
                 ThrowIfConfigProhibited();
-                Logger.SetExtLogger(logger);
+                Logger = logger ?? throw new ArgumentNullException(nameof(logger));
             }
 
             return this;

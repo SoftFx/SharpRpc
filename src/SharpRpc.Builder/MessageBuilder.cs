@@ -36,8 +36,9 @@ namespace SharpRpc.Builder
         public const int CancelStreamMessageKey = 5;
         public const int ConfirmResponseMessageKey = 6;
         public const int StreamAckMessageKey = 7;
-        public const int StreamCompletionMessageKey = 8;
-        public const int StreamCompletionRequestMessageKey = 9;
+        public const int StreamCloseMessageKey = 8;
+        public const int StreamCancelMessageKey = 9;
+        public const int StreamCloseAckMessageKey = 10;
 
         internal MessageBuilder(ContractDeclaration contract, OperationDeclaration callDec, MessageType type)
         {
@@ -110,11 +111,11 @@ namespace SharpRpc.Builder
             yield return GenerateLoginMessage(contract);
             yield return GenerateLogoutMessage(contract);
             yield return GenerateHeartbeatMessage(contract);
-            yield return GenerateStreamAcknowledgementMessage(contract);
-            yield return GenerateStreamCompletionMessage(contract);
-            yield return GenerateStreamCompletionRequestMessage(contract);
+            yield return GenerateStreamPageAckMessage(contract);
+            yield return GenerateStreamCancelMessage(contract);
+            yield return GenerateStreamCloseMessage(contract);
+            yield return GenerateStreamCloseAckMessage(contract);
             yield return GenerateCancelRequestMessage(contract);
-            yield return GenerateCancelStreamingMessage(contract);
         }
 
         private static IEnumerable<ClassBuildNode> GenerateUserMessages(ContractDeclaration contract, SerializerFixture sRegistry, MetadataDiagnostics diagnostics)
@@ -155,7 +156,6 @@ namespace SharpRpc.Builder
             yield return GenerateFactoryMethod("CreateLogoutMessage", Names.LogoutMessageInterface, contractInfo.LogoutMessageClassName);
             yield return GenerateFactoryMethod("CreateHeartBeatMessage", Names.HeartbeatMessageInterface, contractInfo.HeartbeatMessageClassName);
             yield return GenerateFactoryMethod("CreateCancelRequestMessage", Names.CancelRequestMessageInterface, contractInfo.CancelRequestMessageClassName);
-            yield return GenerateFactoryMethod("CreateCancelStreamMessage", Names.CancelStreamingMessageInterface, contractInfo.CancelStreamingMessageClassName);
         }
 
         private static MethodDeclarationSyntax GenerateFactoryMethod(string methodName, TypeString retType, TypeString messageType)
@@ -262,23 +262,6 @@ namespace SharpRpc.Builder
                 .AddBaseListTypes(msgBase, iCancelRequestBase);
 
             return new ClassBuildNode(CancelRequestMessageKey, messageClassName, messageClassDeclaration)
-                .AddProperties(callIdProperty);
-        }
-
-        private static ClassBuildNode GenerateCancelStreamingMessage(ContractDeclaration contractInfo)
-        {
-            var messageClassName = contractInfo.CancelStreamingMessageClassName;
-
-            var msgBase = SyntaxFactory.SimpleBaseType(SyntaxHelper.FullTypeName(contractInfo.BaseMessageClassName));
-            var iCancelStreamBase = SyntaxFactory.SimpleBaseType(SyntaxHelper.FullTypeName(Names.CancelStreamingMessageInterface));
-
-            var callIdProperty = GenerateMessageProperty("string", "CallId");
-
-            var messageClassDeclaration = SyntaxFactory.ClassDeclaration(messageClassName.Short)
-                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
-                .AddBaseListTypes(msgBase, iCancelStreamBase);
-
-            return new ClassBuildNode(CancelStreamMessageKey, messageClassName, messageClassDeclaration)
                 .AddProperties(callIdProperty);
         }
 
@@ -517,7 +500,7 @@ namespace SharpRpc.Builder
                 .AddProperties(streamIdProperty, itemsProperty);
         }
 
-        private static ClassBuildNode GenerateStreamAcknowledgementMessage(ContractDeclaration contractInfo)
+        private static ClassBuildNode GenerateStreamPageAckMessage(ContractDeclaration contractInfo)
         {
             var messageClassName = contractInfo.StreamPageAckMessageClassName;
 
@@ -552,9 +535,9 @@ namespace SharpRpc.Builder
                 .AddProperties(streamIdProperty, pagesConsumedProperty);
         }
 
-        private static ClassBuildNode GenerateStreamCompletionMessage(ContractDeclaration contractInfo)
+        private static ClassBuildNode GenerateStreamCancelMessage(ContractDeclaration contractInfo)
         {
-            var messageClassName = contractInfo.StreamCompletionMessageClassName;
+            var messageClassName = contractInfo.StreamCancelMessageClassName;
 
             var streamIdParam = SyntaxHelper.Parameter("streamId", "string");
             var streamIdInitStatement = SyntaxHelper.AssignmentStatement(SyntaxFactory.IdentifierName("CallId"), SyntaxFactory.IdentifierName("streamId"));
@@ -569,21 +552,62 @@ namespace SharpRpc.Builder
                 .AddAutoGetter()
                 .AddAutoSetter();
 
+            var optionsProperty = SyntaxFactory
+                .PropertyDeclaration(SyntaxFactory.ParseTypeName("SharpRpc.StreamCancelOptions"), "Options")
+                .AddModifiers(SyntaxHelper.PublicToken())
+                .AddAutoGetter()
+                .AddAutoSetter();
+
             var msgBase = SyntaxFactory.SimpleBaseType(SyntaxHelper.FullTypeName(contractInfo.BaseMessageClassName));
-            var iStreamComplBase = SyntaxFactory.SimpleBaseType(SyntaxHelper.FullTypeName(Names.StreamCompletionMessageInterface));
+            var iStreamComplBase = SyntaxFactory.SimpleBaseType(SyntaxHelper.FullTypeName(Names.StreamCancelMessageInterface));
 
             var messageClassDeclaration = SyntaxFactory.ClassDeclaration(messageClassName.Short)
                 .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
                 .AddBaseListTypes(msgBase, iStreamComplBase)
                 .AddMembers(constructor);
 
-            return new ClassBuildNode(StreamCompletionMessageKey, messageClassName, messageClassDeclaration)
-                .AddProperties(streamIdProperty);
+            return new ClassBuildNode(StreamCancelMessageKey, messageClassName, messageClassDeclaration)
+                .AddProperties(streamIdProperty, optionsProperty);
         }
 
-        private static ClassBuildNode GenerateStreamCompletionRequestMessage(ContractDeclaration contractInfo)
+        private static ClassBuildNode GenerateStreamCloseMessage(ContractDeclaration contractInfo)
         {
-            var messageClassName = contractInfo.StreamCompletionRequestMessageClassName;
+            var messageClassName = contractInfo.StreamCloseMessageClassName;
+
+            var streamIdParam = SyntaxHelper.Parameter("streamId", "string");
+            var streamIdInitStatement = SyntaxHelper.AssignmentStatement(SyntaxFactory.IdentifierName("CallId"), SyntaxFactory.IdentifierName("streamId"));
+            var constructor = SyntaxFactory.ConstructorDeclaration(messageClassName.Short)
+                .AddModifiers(SyntaxHelper.PublicToken())
+                .AddParameterListParameters(streamIdParam)
+                .AddBodyStatements(streamIdInitStatement);
+
+            var streamIdProperty = SyntaxFactory
+                .PropertyDeclaration(SyntaxFactory.ParseTypeName("string"), "CallId")
+                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+                .AddAutoGetter()
+                .AddAutoSetter();
+
+            var optionsProperty = SyntaxFactory
+                .PropertyDeclaration(SyntaxFactory.ParseTypeName("SharpRpc.StreamCloseOptions"), "Options")
+                .AddModifiers(SyntaxHelper.PublicToken())
+                .AddAutoGetter()
+                .AddAutoSetter();
+
+            var msgBase = SyntaxFactory.SimpleBaseType(SyntaxHelper.FullTypeName(contractInfo.BaseMessageClassName));
+            var iStreamComplBase = SyntaxFactory.SimpleBaseType(SyntaxHelper.FullTypeName(Names.StreamCloseMessageInterface));
+
+            var messageClassDeclaration = SyntaxFactory.ClassDeclaration(messageClassName.Short)
+                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+                .AddBaseListTypes(msgBase, iStreamComplBase)
+                .AddMembers(constructor);
+
+            return new ClassBuildNode(StreamCloseMessageKey, messageClassName, messageClassDeclaration)
+                .AddProperties(streamIdProperty, optionsProperty);
+        }
+
+        private static ClassBuildNode GenerateStreamCloseAckMessage(ContractDeclaration contractInfo)
+        {
+            var messageClassName = contractInfo.StreamCloseAckMessageClassName;
 
             var streamIdParam = SyntaxHelper.Parameter("streamId", "string");
             var streamIdInitStatement = SyntaxHelper.AssignmentStatement(SyntaxFactory.IdentifierName("CallId"), SyntaxFactory.IdentifierName("streamId"));
@@ -599,14 +623,14 @@ namespace SharpRpc.Builder
                 .AddAutoSetter();
 
             var msgBase = SyntaxFactory.SimpleBaseType(SyntaxHelper.FullTypeName(contractInfo.BaseMessageClassName));
-            var iStreamComplBase = SyntaxFactory.SimpleBaseType(SyntaxHelper.FullTypeName(Names.StreamCompletionRequestMessageInterface));
+            var iStreamComplBase = SyntaxFactory.SimpleBaseType(SyntaxHelper.FullTypeName(Names.StreamCloseAckMessageInterface));
 
             var messageClassDeclaration = SyntaxFactory.ClassDeclaration(messageClassName.Short)
                 .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
                 .AddBaseListTypes(msgBase, iStreamComplBase)
                 .AddMembers(constructor);
 
-            return new ClassBuildNode(StreamCompletionRequestMessageKey, messageClassName, messageClassDeclaration)
+            return new ClassBuildNode(StreamCloseAckMessageKey, messageClassName, messageClassDeclaration)
                 .AddProperties(streamIdProperty);
         }
 
@@ -643,38 +667,51 @@ namespace SharpRpc.Builder
                 .AddParameterListParameters(streamIdParam)
                 .AddBodyStatements(ackCreationStatement);
 
-            // completion factory method
+            // close message factory method
 
-            var completionMessageType = SyntaxHelper.ShortTypeName(contractInfo.StreamCompletionMessageClassName);
-            var completionCreationStatement = SyntaxFactory.ReturnStatement(
-                SyntaxFactory.ObjectCreationExpression(completionMessageType)
+            var closeMessageType = SyntaxHelper.ShortTypeName(contractInfo.StreamCloseMessageClassName);
+            var closeMessageCreationStatement = SyntaxFactory.ReturnStatement(
+                SyntaxFactory.ObjectCreationExpression(closeMessageType)
                     .AddArgumentListArguments(SyntaxHelper.IdentifierArgument("streamId")));
 
-            var createCompletionRetType = SyntaxFactory.IdentifierName(Names.StreamCompletionMessageInterface.Full);
-            var createCompletionMethod = SyntaxFactory.MethodDeclaration(createCompletionRetType, "CreateCompletionMessage")
+            var createCloseMsgRetType = SyntaxFactory.IdentifierName(Names.StreamCloseMessageInterface.Full);
+            var createCloseMsgMethod = SyntaxFactory.MethodDeclaration(createCloseMsgRetType, "CreateCloseMessage")
                 .AddModifiers(SyntaxHelper.PublicToken())
                 .AddParameterListParameters(streamIdParam)
-                .AddBodyStatements(completionCreationStatement);
+                .AddBodyStatements(closeMessageCreationStatement);
 
-            // completion request factory method
+            // close ack message factory method
 
-            var completionRequestMessageType = SyntaxHelper.ShortTypeName(contractInfo.StreamCompletionRequestMessageClassName);
-            var completionRequestCreationStatement = SyntaxFactory.ReturnStatement(
-                SyntaxFactory.ObjectCreationExpression(completionRequestMessageType)
+            var closeAckMessageType = SyntaxHelper.ShortTypeName(contractInfo.StreamCloseAckMessageClassName);
+            var closeAckMessageCreationStatement = SyntaxFactory.ReturnStatement(
+                SyntaxFactory.ObjectCreationExpression(closeAckMessageType)
                     .AddArgumentListArguments(SyntaxHelper.IdentifierArgument("streamId")));
 
-            var createCompletionRequestRetType = SyntaxFactory.IdentifierName(Names.StreamCompletionRequestMessageInterface.Full);
-            var createCompletionRequestMethod = SyntaxFactory.MethodDeclaration(createCompletionRequestRetType, "CreateCompletionRequestMessage")
+            var createCloseAckMsgRetType = SyntaxFactory.IdentifierName(Names.StreamCloseAckMessageInterface.Full);
+            var createCloseAckMsgMethod = SyntaxFactory.MethodDeclaration(createCloseAckMsgRetType, "CreateCloseAcknowledgement")
                 .AddModifiers(SyntaxHelper.PublicToken())
                 .AddParameterListParameters(streamIdParam)
-                .AddBodyStatements(completionRequestCreationStatement);
+                .AddBodyStatements(closeAckMessageCreationStatement);
+
+            // cancel message factory method
+
+            var cancelRequestMessageType = SyntaxHelper.ShortTypeName(contractInfo.StreamCancelMessageClassName);
+            var cancelMessageCreationStatement = SyntaxFactory.ReturnStatement(
+                SyntaxFactory.ObjectCreationExpression(cancelRequestMessageType)
+                    .AddArgumentListArguments(SyntaxHelper.IdentifierArgument("streamId")));
+
+            var createCancelMsgRetType = SyntaxFactory.IdentifierName(Names.StreamCancelMessageInterface.Full);
+            var createCancelMsgMethod = SyntaxFactory.MethodDeclaration(createCancelMsgRetType, "CreateCancelMessage")
+                .AddModifiers(SyntaxHelper.PublicToken())
+                .AddParameterListParameters(streamIdParam)
+                .AddBodyStatements(cancelMessageCreationStatement);
 
             // class declaration
 
             var classDec = SyntaxFactory.ClassDeclaration(factoryClassName.Short)
                 .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
                 .AddBaseListTypes(SyntaxFactory.SimpleBaseType(factoryInterface))
-                .AddMembers(createPageMethod, createCompletionMethod, createCompletionRequestMethod, createAckMethod);
+                .AddMembers(createPageMethod, createCloseMsgMethod, createCloseAckMsgMethod, createCancelMsgMethod, createAckMethod);
 
             return new ClassBuildNode(0, factoryClassName, classDec);
         }

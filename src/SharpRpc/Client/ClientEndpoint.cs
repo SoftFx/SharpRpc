@@ -15,6 +15,7 @@ namespace SharpRpc
     public abstract class ClientEndpoint : Endpoint
     {
         private Credentials _creds = Credentials.None;
+        private IRpcLogger _logger = NullLogger.Instance;
 
         public abstract Task<RpcResult<ByteTransport>> ConnectAsync();
 
@@ -31,16 +32,17 @@ namespace SharpRpc
             }
         }
 
-        internal override LoggerFacade LoggerAdapter { get; } = new LoggerFacade();
+        internal override IRpcLogger GetLogger() => _logger;
 
         public IRpcLogger Logger
         {
+            get => _logger;
             set
             {
                 lock (_stateLockObj)
                 {
                     ThrowIfImmutable();
-                    LoggerAdapter.SetExtLogger(value);
+                    _logger = value ?? throw new ArgumentNullException(nameof(value));
                 }
             }
         }

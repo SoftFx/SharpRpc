@@ -40,8 +40,9 @@ namespace SharpRpc.Builder
         public static readonly TypeString StreamRequestInterface = new TypeString("SharpRpc.IOpenStreamRequest");
         public static readonly TypeString StreamPageInterface = new TypeString("SharpRpc.IStreamPage");
         public static readonly TypeString StreamFactoryInterface = new TypeString("SharpRpc.IStreamMessageFactory");
-        public static readonly TypeString StreamCompletionMessageInterface = new TypeString("SharpRpc.IStreamCompletionMessage");
-        public static readonly TypeString StreamCompletionRequestMessageInterface = new TypeString("SharpRpc.IStreamCompletionRequestMessage");
+        public static readonly TypeString StreamCloseMessageInterface = new TypeString("SharpRpc.IStreamCloseMessage");
+        public static readonly TypeString StreamCloseAckMessageInterface = new TypeString("SharpRpc.IStreamCloseAckMessage");
+        public static readonly TypeString StreamCancelMessageInterface = new TypeString("SharpRpc.IStreamCancelMessage");
         public static readonly TypeString StreamPageAckInterface = new TypeString("SharpRpc.IStreamPageAck");
 
         public static readonly TypeString RpcInputStreamCallClass = new TypeString("SharpRpc.InputStreamCall");
@@ -55,7 +56,6 @@ namespace SharpRpc.Builder
         public static readonly TypeString LogoutMessageInterface = new TypeString("SharpRpc.ILogoutMessage");
         public static readonly TypeString HeartbeatMessageInterface = new TypeString("SharpRpc.IHeartbeatMessage");
         public static readonly TypeString CancelRequestMessageInterface = new TypeString("SharpRpc.ICancelRequestMessage");
-        public static readonly TypeString CancelStreamingMessageInterface = new TypeString("SharpRpc.ICancelStreamingMessage");
        
         public static readonly TypeString MessageFactoryInterface = new TypeString("SharpRpc.IMessageFactory");
         public static readonly TypeString RpcPrebuiltMessage = new TypeString("SharpRpc.PrebuiltMessage");

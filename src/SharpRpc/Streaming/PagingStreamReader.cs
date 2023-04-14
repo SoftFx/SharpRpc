@@ -34,28 +34,43 @@ namespace SharpRpc
     public class PagingStreamReader<T> : StreamReader<T>
 #endif
     {
+        public enum States { Online, Cancellation, Completed  }
+
         private object _lockObj = new object();
+        private readonly IRpcLogger _logger;
         private readonly Queue<IList<T>> _pages = new Queue<IList<T>>();
         private IList<T> _currentPage;
         private int _currentPageIndex;
         private INestedEnumerator _enumerator;
-        private bool _isCompleted;
-        private bool _isCompletionRequested;
         private readonly StreamReadCoordinator _coordinator;
         private readonly TxPipeline _tx;
         private readonly string _callId;
         private readonly IStreamMessageFactory<T> _factory;
         private RpcResult _fault;
+        private readonly TaskCompletionSource<bool> _closed = new TaskCompletionSource<bool>();
+        private string _name;
 
-        internal PagingStreamReader(string callId, TxPipeline tx, IStreamMessageFactory<T> factory)
+        internal PagingStreamReader(string callId, TxPipeline tx, IStreamMessageFactory<T> factory, IRpcLogger logger)
         {
             _callId = callId;
             _tx = tx;
             _factory = factory;
+            _logger = logger;
             _coordinator = new StreamReadCoordinator(_lockObj, callId, factory);
+
+            if (_logger.VerboseEnabled)
+                _logger.Verbose(GetName(), "[Opened]");
         }
 
         private bool HasData => _currentPage != null;
+
+        public States State {get; private set; }
+        public Task Closed => _closed.Task;
+
+        private void ChangeState(States newState)
+        {
+            State = newState;
+        }
 
         internal void OnRx(IStreamPage<T> page)
         {
@@ -67,7 +82,7 @@ namespace SharpRpc
 
             lock (_lockObj)
             {
-                if (_isCompleted)
+                if (State == States.Completed)
                     return; // TO DO : signal protocol violation
 
                 if (_currentPage == null)
@@ -88,58 +103,71 @@ namespace SharpRpc
                 _enumerator.WakeUpListener();
         }
 
-        internal void OnRx(IStreamCompletionMessage msg)
+        // graceful close
+        internal void OnRx(IStreamCloseMessage msg)
         {
-            CompleteStream(CompletionModes.InitiatedByWriter);
-        }
-
-        internal void Abort(RpcResult fault)
-        {
-            CompleteStream(CompletionModes.Abort, fault);
-        }
-
-        internal void Complete()
-        {
-            CompleteStream(CompletionModes.InitiatedByReader);
-        }
-
-        private void CompleteStream(CompletionModes mode, RpcResult fault = default)
-        {
+            IStreamCloseAckMessage closeAck = null;
             var wakeupListener = false;
-            IStreamPageAck ack = null;
 
             lock (_lockObj)
             {
-                if (mode == CompletionModes.Abort)
+                if (State == States.Completed) // TO DO : signal protocol violation if already completed
+                    return;
+
+                State = States.Completed;
+                //_isCloseAckRequested = (msg.Options & StreamCloseOptions.SendAcknowledgment) != 0;
+
+                if (_logger.VerboseEnabled)
+                    _logger.Verbose(GetName(), "Received a close message. [Completed]");
+
+                if (!HasData)
                 {
-                    _pages.Clear();
-                    _currentPage = null;
-                    _currentPageIndex = 0;
-                    _isCompleted = true;
-                    _fault = fault;
-                    wakeupListener = OnDataArrived(out ack);
-                }
-                else if (mode == CompletionModes.InitiatedByWriter)
-                {
-                    if (!_isCompleted) // TO DO : signal protocol violation if already completed
-                    {
-                        _isCompleted = true;
-                        if (!HasData)
-                            wakeupListener = OnDataArrived(out ack);
-                    }
-                }
-                else if (mode == CompletionModes.InitiatedByReader)
-                {
-                    if (!_isCompletionRequested)
-                    {
-                        _isCompletionRequested = true;
-                        SendCompletionMessage();
-                    }
+                    wakeupListener = OnDataArrived(out _);
+                    closeAck = _factory.CreateCloseAcknowledgement(_callId);
                 }
             }
 
-            if (ack != null) SendAck(ack);
+            if (closeAck != null) SendCloseAck(closeAck);
             if (wakeupListener) _enumerator.WakeUpListener();
+        }
+
+        // The call ended (may happen before the stream is gracefully closed).
+        internal void Abort(RpcResult fault)
+        {
+            var wakeupListener = false;
+
+            lock (_lockObj)
+            {
+                _pages.Clear();
+                _currentPage = null;
+                _currentPageIndex = 0;
+                ChangeState(States.Completed);
+                _fault = fault;
+                wakeupListener = OnDataArrived(out _);
+
+                if (_logger.VerboseEnabled)
+                    _logger.Verbose(GetName(), $"[Aborted]");
+            }
+
+            if (wakeupListener) _enumerator.WakeUpListener();
+        }
+
+        internal void Cancel(bool dropRemItems)
+        {
+            //CompleteStream(CompletionModes.InitiatedByReader);
+
+            lock (_lockObj)
+            {
+                if (State == States.Online)
+                {
+                    ChangeState(States.Cancellation);
+
+                    if (_logger.VerboseEnabled)
+                        _logger.Verbose(GetName(), $"Cancellation is requested.{(dropRemItems ? "[Drop] " : " ")} [Cancellation]");
+
+                    SendCancelMessage(dropRemItems);
+                }
+            }
         }
 
         private bool OnDataArrived(out IStreamPageAck ack)
@@ -174,18 +202,18 @@ namespace SharpRpc
             return item;
         }
 
-        private NextItemCode TryGetNextItem(out T item, out IStreamPageAck ack)
+        private NextItemCode TryGetNextItem(out T item, out IStreamPageAck pageAck)
         {
             if (_currentPage != null)
             {
-                item = GetNextItem(out ack);
+                item = GetNextItem(out pageAck);
                 return NextItemCode.Ok;
             }
 
             item = default(T);
-            ack = null;
-
-            if (_isCompleted)
+            pageAck = null;
+            
+            if (State == States.Completed)
                 return NextItemCode.Completed;
 
             return NextItemCode.NoItems;
@@ -209,13 +237,24 @@ namespace SharpRpc
                 SendAck(nextAck);
         }
 
-        private void SendCompletionMessage()
+        private void SendCancelMessage(bool dropRemItems)
         {
-            var complMessage = _factory.CreateCompletionRequestMessage(_callId);
-            _tx.TrySendAsync(complMessage, OnCompletionMessageSent);
+            var canelMessage = _factory.CreateCancelMessage(_callId);
+            if (dropRemItems)
+                canelMessage.Options |= StreamCancelOptions.DropRemainingItems;
+            _tx.TrySendAsync(canelMessage, OnCompletionMessageSent);
+        }
+
+        private void SendCloseAck(IStreamCloseAckMessage msg)
+        {
+            _tx.TrySendAsync(msg, OnCloseAckMessageSent);
         }
 
         private void OnCompletionMessageSent(RpcResult result)
+        {
+        }
+
+        private void OnCloseAckMessageSent(RpcResult result)
         {
         }
 
@@ -223,6 +262,13 @@ namespace SharpRpc
         {
             fault = _fault;
             return !fault.IsOk;
+        }
+
+        private string GetName()
+        {
+            if (_name == null)
+                _name = $"{_tx.ChannelId}-SR-{_callId}";
+            return _name;
         }
 
         public IStreamEnumerator<T> GetEnumerator(CancellationToken cancellationToken = default)
@@ -256,13 +302,6 @@ namespace SharpRpc
             Aborted
         }
 
-        private enum CompletionModes
-        {
-            Abort,
-            InitiatedByReader,
-            InitiatedByWriter
-        }
-
         private interface INestedEnumerator
         {
             bool OnDataArrived(out IStreamPageAck ack);
@@ -280,11 +319,12 @@ namespace SharpRpc
             //private TaskCompletionSource<bool> _closeWaitSrc;
             private bool _completed;
             private Exception _toThrow;
+            private CancellationTokenRegistration _cancelReg;
 
             public AsyncEnumerator(PagingStreamReader<T> stream, CancellationToken cancellationToken)
             {
                 _stream = stream;
-                cancellationToken.Register(Cancel);
+                _cancelReg = cancellationToken.Register(Cancel);
             }
 
             public T Current { get; private set; }
@@ -294,6 +334,7 @@ namespace SharpRpc
             {
                 // close stream ??? 
                 //_stream.Abort();
+                _cancelReg.Dispose();
                 return new ValueTask();
             }
 #endif
@@ -304,7 +345,9 @@ namespace SharpRpc
             public Task<bool> MoveNextAsync()
 #endif
             {
-                IStreamPageAck ack = null;
+                IStreamPageAck pageAck = null;
+                IStreamCloseAckMessage closeAck = null;
+                Exception toThrow = null;
 #if NET5_0_OR_GREATER
                 ValueTask<bool> result;
 #else
@@ -313,7 +356,7 @@ namespace SharpRpc
 
                 lock (_stream._lockObj)
                 {
-                    var code = _stream.TryGetNextItem(out var nextItem, out ack);
+                    var code = _stream.TryGetNextItem(out var nextItem, out pageAck);
                     Current = nextItem;
 
                     if (code == NextItemCode.Ok)
@@ -325,15 +368,18 @@ namespace SharpRpc
                     }
                     else //NextItemCode.Completed
                     {
-                        if(_stream.TryGetFault(out var fault))
-                            throw fault.ToException();
+                        closeAck = _stream._factory.CreateCloseAcknowledgement(_stream._callId);
+
+                        if (_stream.TryGetFault(out var fault))
+                            toThrow = fault.ToException();
 
                         result = FwAdapter.AsyncFalse;
                     }
                 }
 
-                if (ack != null)
-                    _stream.SendAck(ack);
+                if (pageAck != null) _stream.SendAck(pageAck);
+                if (closeAck != null) _stream.SendCloseAck(closeAck);
+                if (toThrow != null) throw toThrow;
 
                 return result;
             }
@@ -377,7 +423,8 @@ namespace SharpRpc
 
             private void Cancel()
             {
-                _stream.Complete();
+                // Notify the stream writer to stop. Keep all already enqueued items to process.
+                _stream.Cancel(false);
             }
         }
     }

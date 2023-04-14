@@ -5,6 +5,7 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+using SharpRpc.Disptaching;
 using SharpRpc.Lib;
 using System;
 using System.Collections.Generic;
@@ -14,15 +15,7 @@ using System.Threading.Tasks;
 
 namespace SharpRpc
 {
-    internal interface IOpDispatcher
-    {
-        string GenerateOperationId();
-        RpcResult RegisterCallObject(string callId, MessageDispatcherCore.IInteropOperation callObject);
-        void UnregisterCallObject(string callId);
-        void CancelOperation(object state);
-    }
-
-    internal abstract partial class MessageDispatcher : IOpDispatcher
+    internal abstract partial class MessageDispatcher : IDispatcher
     {
         private string _opIdPrefix;
         private int _opIdSeed;
@@ -43,6 +36,7 @@ namespace SharpRpc
         {
             Channel = ch;
             Tx = ch.Tx;
+            Logger = ch.Logger;
             _opIdPrefix = serverSide ? "S" : "C";
             //MessageHandler = handler;
             TaskQueue = Tx.TaskQueue;
@@ -55,6 +49,8 @@ namespace SharpRpc
         protected Channel Channel { get; private set; }
         protected TaskFactory TaskQueue { get; private set; }
         protected MessageDispatcherCore Core { get; private set; }
+
+        public IRpcLogger Logger { get; private set; }
 
         public List<IMessage> IncomingMessages { get; protected set; } = new List<IMessage>();
 
@@ -72,19 +68,19 @@ namespace SharpRpc
         public abstract Task OnMessages();
 #endif
         public abstract Task Stop(RpcResult fault);
-        public abstract RpcResult RegisterCallObject(string callId, MessageDispatcherCore.IInteropOperation callObject);
-        public abstract void UnregisterCallObject(string callId);
-        protected abstract void CancelOperation(MessageDispatcherCore.IInteropOperation opObject);
-        protected abstract void DoCall(IRequestMessage requestMsg, MessageDispatcherCore.IInteropOperation callOp, CancellationToken cToken);
+        public abstract RpcResult Register(IDispatcherOperation operation);
+        public abstract void Unregister(IDispatcherOperation operation);
+        protected abstract void CancelOutgoingCall(IDispatcherOperation callObj);
+        protected abstract void DoCall(IRequestMessage requestMsg, IDispatcherOperation callObj, CancellationToken cToken);
 
         public string GenerateOperationId()
         {
             return _opIdPrefix + Interlocked.Increment(ref _opIdSeed);
         }
 
-        public void CancelOperation(object state)
+        public void CancelOutgoingCall(object state)
         {
-            CancelOperation((MessageDispatcherCore.IInteropOperation)state);
+            CancelOutgoingCall((IDispatcherOperation)state);
         }
 
         public Task Call<TResp>(IRequestMessage requestMsg, CancellationToken cToken)

@@ -5,6 +5,7 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -13,8 +14,9 @@ namespace SharpRpc
 {
     public interface IStreamMessageFactory
     {
-        IStreamCompletionMessage CreateCompletionMessage(string streamId);
-        IStreamCompletionRequestMessage CreateCompletionRequestMessage(string streamId);
+        IStreamCloseMessage CreateCloseMessage(string streamId);
+        IStreamCancelMessage CreateCancelMessage(string streamId);
+        IStreamCloseAckMessage CreateCloseAcknowledgement(string streamId);
         IStreamPageAck CreatePageAcknowledgement(string streamId);
     }
 
@@ -42,12 +44,40 @@ namespace SharpRpc
         List<T> Items { get; set; }
     }
 
-    public interface IStreamCompletionMessage : IStreamAuxMessage
+    // The writer sends this message when the queue is empty and completed to additions. 
+    // Not further message should be sent to the reader after this one.
+    public interface IStreamCloseMessage : IStreamAuxMessage
+    {
+        StreamCloseOptions Options { get; set; }
+    }
+
+    public interface IStreamCloseAckMessage : IStreamAuxMessage
     {
     }
 
-    public interface IStreamCompletionRequestMessage : IStreamAuxMessage
+    [Flags]
+    public enum StreamCloseOptions
     {
+        None = 0,
+        SendAcknowledgment = 1
+    }
+
+    // The reader may send this message when the read was canceled.
+    // In response to this message the writer should:
+    //      1) forbid additions to the queue;
+    //      2) send all previously enqueued data;
+    //      3) send StreamCloseMessage;
+    //      4) wait for StreamCloseAcknowledgmentMessage (if requested);
+    public interface IStreamCancelMessage : IStreamAuxMessage
+    {
+        StreamCancelOptions Options { get; set; }
+    }
+
+    [Flags]
+    public enum StreamCancelOptions
+    {
+        None = 0,
+        DropRemainingItems = 1
     }
 
     public interface IStreamPageAck : IStreamAuxMessage
@@ -76,11 +106,4 @@ namespace SharpRpc
 
         void EnableCancellation(CancellationToken cancelToken);
     }
-
-    //public interface IStreamRxAck
-    //{
-    //    string StreamId { get; }
-    //    int ConsumedItems { get; set; }
-    //    int ConsumedBytes { get; set; }
-    //}
 }

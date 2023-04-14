@@ -5,6 +5,7 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+using SharpRpc.Disptaching;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,7 +15,7 @@ using static SharpRpc.MessageDispatcherCore;
 
 namespace SharpRpc.MsTest.MockObjects
 {
-    internal class MockMessageDispatcher : IOpDispatcher
+    internal class MockMessageDispatcher : IDispatcher
     {
         private readonly MessageDispatcherCore _core;
 
@@ -31,17 +32,17 @@ namespace SharpRpc.MsTest.MockObjects
             return "C5";
         }
 
-        public RpcResult RegisterCallObject(string callId, IInteropOperation callObject)
+        public RpcResult Register(IDispatcherOperation callObject)
         {
-            return _core.TryRegisterOperation(callId, callObject);
+            return _core.TryRegisterOperation(callObject);
         }
 
-        public void UnregisterCallObject(string callId)
+        public void Unregister(IDispatcherOperation callObject)
         {
-            _core.UnregisterOperation(callId);
+            _core.UnregisterOperation(callObject);
         }
 
-        public void CancelOperation(object state)
+        public void CancelOutgoingCall(object state)
         {
         }
 

@@ -15,15 +15,27 @@ namespace SharpRpc.MsTest.MockObjects
 {
     internal class MockStreamMessageFactory<T> : IStreamMessageFactory<T>
     {
-        public IStreamCompletionMessage CreateCompletionMessage(string streamId) => new MockStreamCompletionMessage(streamId);
-        public IStreamCompletionRequestMessage CreateCompletionRequestMessage(string streamId) => new MockStreamCompletionRequestMessage(streamId);
+        public IStreamCancelMessage CreateCancelMessage(string streamId) => new MockStreamCancelMessage(streamId);
         public IStreamPage<T> CreatePage(string streamId) => new MockStreamPageMessage<T>(streamId);
         public IStreamPageAck CreatePageAcknowledgement(string streamId) => new MockStreamPageAck(streamId);
+        public IStreamCloseMessage CreateCloseMessage(string streamId) => new MockStreamCloseMessage(streamId);
+        public IStreamCloseAckMessage CreateCloseAcknowledgement(string streamId) => new MockStreamCloseAckMessage(streamId);
     }
 
-    internal class MockStreamCompletionMessage : IStreamCompletionMessage
+    internal class MockStreamCloseMessage : IStreamCloseMessage
     {
-        public MockStreamCompletionMessage(string callId)
+        public MockStreamCloseMessage(string callId)
+        {
+            CallId = callId;
+        }
+
+        public string CallId { get; set; }
+        public StreamCloseOptions Options { get; set; }
+    }
+
+    internal class MockStreamCloseAckMessage : IStreamCloseAckMessage
+    {
+        public MockStreamCloseAckMessage(string callId)
         {
             CallId = callId;
         }
@@ -31,14 +43,15 @@ namespace SharpRpc.MsTest.MockObjects
         public string CallId { get; set; }
     }
 
-    internal class MockStreamCompletionRequestMessage : IStreamCompletionRequestMessage
+    internal class MockStreamCancelMessage : IStreamCancelMessage
     {
-        public MockStreamCompletionRequestMessage(string callId)
+        public MockStreamCancelMessage(string callId)
         {
             CallId = callId;
         }
 
         public string CallId { get; set; }
+        public StreamCancelOptions Options { get; set; }
     }
 
     internal class MockStreamPageMessage<T> : IStreamPage<T>, ICloneOnSendMessage

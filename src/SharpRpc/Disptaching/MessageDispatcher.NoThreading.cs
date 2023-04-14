@@ -5,6 +5,7 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+using SharpRpc.Disptaching;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -116,7 +117,7 @@ namespace SharpRpc
                 }
             }
 
-            protected override async void DoCall(IRequestMessage requestMsg, MessageDispatcherCore.IInteropOperation callTask, CancellationToken cToken)
+            protected override async void DoCall(IRequestMessage requestMsg, IDispatcherOperation callTask, CancellationToken cToken)
             {
                 var callId = GenerateOperationId(); // Guid.NewGuid().ToString();
 
@@ -125,56 +126,55 @@ namespace SharpRpc
                 if (cToken.CanBeCanceled)
                     requestMsg.Options |= RequestOptions.CancellationEnabled;
 
-                var result = Core.TryRegisterOperation(callId, callTask);
+                var result = Core.TryRegisterOperation(callTask);
 
                 if (result.Code == RpcRetCode.Ok)
                 {
                     var sendTask = Tx.TrySendAsync(requestMsg);
 
-                    cToken.Register(CancelOperation, callTask);
+                    cToken.Register(CancelOutgoingCall, callTask);
 
                     result = await sendTask;
 
                     if (result.Code != RpcRetCode.Ok)
                     {
-                        if (!Core.UnregisterOperation(callId))
+                        if (!Core.UnregisterOperation(callTask))
                             return; // do not need to call Task.Fail() in this case, because it was called in Close() method
                     }
                 }
 
                 if (result.Code != RpcRetCode.Ok)
-                    callTask.OnFail(result);
+                    callTask.OnFault(result);
             }
 
-            public override RpcResult RegisterCallObject(string callId, MessageDispatcherCore.IInteropOperation callTask)
+            public override RpcResult Register(IDispatcherOperation operation)
             {
                 lock (_lockObj)
-                    return Core.TryRegisterOperation(callId, callTask);
+                    return Core.TryRegisterOperation(operation);
             }
 
-            public override void UnregisterCallObject(string callId)
+            public override void Unregister(IDispatcherOperation operation)
             {
                 lock (_lockObj)
-                    Core.UnregisterOperation(callId);
+                    Core.UnregisterOperation(operation);
             }
 
-            protected override void CancelOperation(MessageDispatcherCore.IInteropOperation opObject)
+            protected override void CancelOutgoingCall(IDispatcherOperation callObj)
             {
                 var sendWasCanceled = true;
 
                 lock (_lockObj)
                 {
-                    sendWasCanceled = Core.Tx.TryCancelSend(opObject.RequestMessage);
+                    sendWasCanceled = Core.Tx.TryCancelSend(callObj.RequestMessage);
                 }
 
+                // OnFault(new RpcResult(RpcRetCode.OperationCanceled, "Canceled by user."));
                 if (sendWasCanceled)
-                    opObject.OnFail(new RpcResult(RpcRetCode.OperationCanceled, "Canceled by user."));
+                    callObj.OnRequestCancelled();
                 else
                 {
                     var cancelMessage = Tx.MessageFactory.CreateCancelRequestMessage();
-                    cancelMessage.CallId = opObject.RequestMessage.CallId;
-
-                    opObject.StartCancellation();
+                    cancelMessage.CallId = callObj.RequestMessage.CallId;
 
                     Tx.TrySendAsync(cancelMessage);
                 }

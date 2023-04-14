@@ -17,14 +17,13 @@ namespace SharpRpc
     {
         //private ServerCredentials _creds = ServerCredentials.None;
         private Authenticator _authenticator = Authenticator.None;
-        private LoggerFacade _logger;
+        private RpcServer _serverObj;
 
         public ServerEndpoint()
         {
-            
         }
 
-        internal override LoggerFacade LoggerAdapter => _logger;
+        internal override IRpcLogger GetLogger() => _serverObj.Logger;
 
         public Authenticator Authenticator
         {
@@ -42,7 +41,7 @@ namespace SharpRpc
         internal void Init(RpcServer server)
         {
             LockTo(server);
-            _logger = server.Logger;
+            _serverObj = server;
         }
 
         protected abstract void Start();
@@ -50,7 +49,8 @@ namespace SharpRpc
 
         protected void OnConnect(ByteTransport newConnection)
         {
-            LoggerAdapter.Verbose(Name, "Incoming connection");
+            if (GetLogger().VerboseEnabled)
+                GetLogger().Verbose(Name, "Incoming connection");
 
             ClientConnected.Invoke(this, newConnection);
         }
@@ -76,7 +76,7 @@ namespace SharpRpc
             }
             catch (Exception ex)
             {
-                _logger.Error(Name, ex, "Stop failed! " + ex.Message);
+                GetLogger().Error(Name, ex, "Stop failed! " + ex.Message);
             }
 
             //Logger.Verbose(Name, "Stopped.");

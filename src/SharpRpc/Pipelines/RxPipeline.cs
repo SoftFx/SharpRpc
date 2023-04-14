@@ -163,7 +163,7 @@ namespace SharpRpc
                     _reader.Clear();
                 }
                 else
-                    return new RpcResult(RpcRetCode.ProtocolViolation, "A violation of message markup protocol has been detected! Code: " + pCode);
+                    return new RpcResult(RpcRetCode.MessageMarkupError, "A violation of message markup has been detected! Code: " + pCode);
             }
 
             RegisterMessagePage(container.Count);

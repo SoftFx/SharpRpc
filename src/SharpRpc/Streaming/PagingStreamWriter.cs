@@ -15,7 +15,10 @@ namespace SharpRpc
 {
     public sealed class PagingStreamWriter<T> : StreamWriter<T>
     {
+        public enum States { Online, Completed, Closed  }
+
         private readonly object _lockObj = new object();
+        private readonly IRpcLogger _logger;
         //private readonly Queue<IStreamPage<T>> _queueCompletePages = new Queue<IStreamPage<T>>();
         private readonly Queue<IStreamPage<T>> _unsuedPagesCache = new Queue<IStreamPage<T>>();
         private IStreamPage<T> _queue;
@@ -24,9 +27,9 @@ namespace SharpRpc
         private readonly TxPipeline _msgTransmitter;
         private readonly Queue<EnqueueAwaiter> _enqueueAwaiters = new Queue<EnqueueAwaiter>();
         //private readonly List<EnqueueAwaiter> _awaitersToRelease = new List<EnqueueAwaiter>();
-        private readonly TaskCompletionSource<RpcResult> _completionEventSrc = new TaskCompletionSource<RpcResult>();
-        private bool _isClosed;
-        private bool _isAbroted;
+        private readonly TaskCompletionSource<RpcResult> _closedEventSrc = new TaskCompletionSource<RpcResult>();
+        //private bool _isClosed;
+        //private bool _isAbroted;
         private bool _isSendingEnabled;
         private RpcResult _closeFault;
         private bool _isSedning;
@@ -35,11 +38,13 @@ namespace SharpRpc
         private readonly StreamWriteCoordinator _coordinator;
         private CancellationTokenRegistration _cancelReg;
         private bool _isCancellationEnabled;
+        private string _name;
 
-
-        internal PagingStreamWriter(string callId, TxPipeline msgTransmitter, IStreamMessageFactory<T> factory, bool allowSendInitialValue, StreamOptions options)
+        internal PagingStreamWriter(string callId, TxPipeline msgTransmitter, IStreamMessageFactory<T> factory,
+            bool allowSending, StreamOptions options, IRpcLogger logger)
         {
             CallId = callId;
+            _logger = logger;
             _msgTransmitter = msgTransmitter;
             _factory = factory;
             //_maxPageSize = maxPageSize;
@@ -54,7 +59,7 @@ namespace SharpRpc
             if (MaxPageSize < 1)
                 MaxPageSize = 1;
 
-            _isSendingEnabled = allowSendInitialValue;
+            _isSendingEnabled = allowSending;
 
             _canImmediatelyReusePages = _msgTransmitter.ImmediateSerialization;
             
@@ -63,20 +68,26 @@ namespace SharpRpc
                 _pageToSend = CreatePage(); 
 
             _coordinator = new StreamWriteCoordinator(_lockObj, MaxPageCount);
+
+            if (_logger.VerboseEnabled)
+                _logger.Verbose(GetName(), $"[opened] options={options}");
         }
 
         private bool DataIsAvailable => _queue.Items.Count > 0;
         private bool HasSpaceInQueue => _queue.Items.Count < MaxPageSize;
 
         public string CallId { get; }
+        public States State { get; private set; }
 
         public int MaxPageSize { get; }
         public int MaxPageCount { get; }
 
+        public Task Closed => _closedEventSrc.Task;
+
         public Task<RpcResult> CompleteAsync()
         {
             MarkAsCompleted();
-            return _completionEventSrc.Task;
+            return _closedEventSrc.Task;
         }
 
 #if NET5_0_OR_GREATER
@@ -89,7 +100,7 @@ namespace SharpRpc
 
             lock (_lockObj)
             {
-                if (_isClosed)
+                if (State != States.Online)
                     return FwAdapter.WrappResult(_closeFault);
 
                 if (HasSpaceInQueue)
@@ -114,7 +125,8 @@ namespace SharpRpc
 
         public void MarkAsCompleted()
         {
-            CloseStream(false, new RpcResult(RpcRetCode.StreamCompleted, "The stream is completed and does not accept additions."));
+            CloseStream(false, false, new RpcResult(RpcRetCode.StreamCompleted, "The stream is completed and does not accept additions."),
+                "Completion is requested.");
         }
 
         public void EnableCancellation(CancellationToken cancelToken)
@@ -149,36 +161,44 @@ namespace SharpRpc
             SendNextPage();
         }
 
-        internal void Close(RpcResult fault)
-        {
-            CloseStream(false, fault);
-        }
+        // Complete writes and close communication gracefully (send Close -> wait for CloseAck);
+        //internal void Close(RpcResult fault)
+        //{
+        //    CloseStream(false, false, fault);
+        //}
 
+        // Close the writer immediately without any further messaging.
         internal void Abort(RpcResult fault)
         {
-            CloseStream(true, fault);
+            CloseStream(true, true, fault, "Aborted.");
         }
 
         internal void Cancel()
         {
-            CloseStream(false, new RpcResult(RpcRetCode.OperationCanceled, "The operation was canceled by the user!"));
+            CloseStream(false, false, new RpcResult(RpcRetCode.OperationCanceled, "The operation was canceled by the user!"),
+                "Cancellation is requested.");
         }
 
-        private void CloseStream(bool abortMode, RpcResult fault)
+        private void CloseStream(bool abort, bool dropQueue, RpcResult fault, string closeReason)
         {
-            var sendComplMessage = false;
+            var sendCloseMessage = false;
 
             lock (_lockObj)
             {
-                if (abortMode || !_isClosed) // allow abortion when normal completion is already being in the process
-                    CloseStreamInternal(abortMode, fault, out sendComplMessage);
+                if (State == States.Online || abort) // allow abortion when normal completion is already being in the process
+                    CloseStreamInternal(abort, dropQueue, fault, closeReason, out sendCloseMessage);
             }
 
-            if (sendComplMessage)
-                SendCompletionMessage();
+            if (sendCloseMessage)
+                SendCloseMessage();
         }
 
         #endregion
+
+        private void ChangeState(States newState)
+        {
+            State = newState;
+        }
 
         internal void OnRx(IStreamPageAck ack)
         {
@@ -198,9 +218,26 @@ namespace SharpRpc
             SendNextPage();
         }
 
-        internal void OnRx(IStreamCompletionRequestMessage complMsg)
+        internal void OnRx(IStreamCancelMessage cancelMsg)
         {
-            MarkAsCompleted();
+            CloseStream(false, cancelMsg.Options.HasFlag(StreamCancelOptions.DropRemainingItems), RpcResult.OperationCanceled,
+                "Received a cancel message.");
+        }
+
+        internal RpcResult OnRx(IStreamCloseAckMessage closeAckMsg)
+        {
+            lock (_lockObj)
+            {
+                if (State != States.Completed)
+                    return RpcResult.UnexpectedMessage(closeAckMsg.GetType(), GetType()); // signal protocol violation
+
+                ChangeState(States.Closed);
+
+                if (_logger.VerboseEnabled)
+                    _logger.Verbose(GetName(), "Received a close acknowledgment. [Closed]");
+
+                return RpcResult.Ok;
+            }
         }
 
         private void EnqueueItem(T item)
@@ -222,10 +259,10 @@ namespace SharpRpc
 
         private void SendNextPage()
         {
-            _msgTransmitter.TrySendAsync(_pageToSend, OnSendCompleted);
+            _msgTransmitter.TrySendAsync(_pageToSend, OnPageSendCompleted);
         }
 
-        private void OnSendCompleted(RpcResult sendResult)
+        private void OnPageSendCompleted(RpcResult sendResult)
         {
             bool sendNextPage = false;
             bool sendCompletion = false;
@@ -242,12 +279,12 @@ namespace SharpRpc
                     else
                         _pageToSend = null;
                 }
-                
+
                 if (sendResult.IsOk)
                 {
                     _coordinator.OnPageSent(pageSize);
 
-                    if(_enqueueAwaiters.Count > 0)
+                    if (_enqueueAwaiters.Count > 0)
                         ProcessAwaiters();
 
                     if (DataIsAvailable)
@@ -264,19 +301,19 @@ namespace SharpRpc
                     {
                         _isSedning = false;
 
-                        if (_isClosed)
-                            CompleteStream(out sendCompletion);
+                        if (State == States.Completed)
+                            sendCompletion = true;
                     }
                 }
                 else
-                    CloseStreamInternal(true, sendResult, out sendCompletion);
+                    CloseStreamInternal(true, true, sendResult, "Communication is faulted.", out sendCompletion);
             }
 
             if (sendNextPage)
                 SendNextPage();
 
             if (sendCompletion)
-                SendCompletionMessage();
+                SendCloseMessage();
         }
 
         private void ProcessAwaiters()
@@ -306,52 +343,60 @@ namespace SharpRpc
             }
         }
 
-        private void CloseStreamInternal(bool abortMode, RpcResult fault, out bool sendCompletionMessage)
+        private void CloseStreamInternal(bool abort, bool dropItems, RpcResult fault, string closeReason, out bool sendCompletionMessage)
         {
             Debug.Assert(Monitor.IsEntered(_lockObj));
 
             sendCompletionMessage = false;
 
             _closeFault = fault;
-            _isClosed = true;
             _cancelReg.Dispose();
 
             AbortAwaiters(_closeFault);
 
-            if (abortMode)
-            {
+            if (abort || dropItems)
                 _queue.Items.Clear();
-                _isAbroted = true;
+
+            if (abort)
+            {
+                OnClosed();
+
+                if (_logger.VerboseEnabled)
+                    _logger.Verbose(GetName(), $"Aborted. [Closed]");
             }
+            else
+            {
+                ChangeState(States.Completed);
+                sendCompletionMessage = !_isSedning && !DataIsAvailable;
 
-            if (!_isSedning && !DataIsAvailable)
-                CompleteStream(out sendCompletionMessage);
+                if (_logger.VerboseEnabled)
+                    _logger.Verbose(GetName(), $"{closeReason} [Completed]");
+            }
         }
 
-        private void CompleteStream(out bool sendCompletionMessage)
+        private void OnClosed()
         {
-            sendCompletionMessage = !_isAbroted;
-            
-            Task.Factory.StartNew(FireCompletion);
+            ChangeState(States.Closed);
+            Task.Factory.StartNew(FireOnClose);
         }
 
-        private void SendCompletionMessage()
+        private void SendCloseMessage()
         {
             if (DataIsAvailable || _isSedning)
                 Debugger.Break();
 
-            var complMessage = _factory.CreateCompletionMessage(CallId);
-            _msgTransmitter.TrySendAsync(complMessage, OnCompletionMessageSent);
+            var closeMessage = _factory.CreateCloseMessage(CallId);
+            _msgTransmitter.TrySendAsync(closeMessage, OnCompletionMessageSent);
         }
 
         private void OnCompletionMessageSent(RpcResult result)
         {
-            FireCompletion();
+            FireOnClose();
         }
 
-        private void FireCompletion()
+        private void FireOnClose()
         {
-            _completionEventSrc.TrySetResult(RpcResult.Ok);
+            _closedEventSrc.TrySetResult(RpcResult.Ok);
         }
 
         private IStreamPage<T> CreatePage()
@@ -389,6 +434,13 @@ namespace SharpRpc
         private void CancelReadAwait(object param)
         {
             lock (_lockObj) ((EnqueueAwaiter)param).Cancel();
+        }
+
+        private string GetName()
+        {
+            if (_name == null)
+                _name = $"{_msgTransmitter.ChannelId}-SW-{CallId}";
+            return _name;
         }
 
         private class EnqueueAwaiter : TaskCompletionSource<RpcResult>

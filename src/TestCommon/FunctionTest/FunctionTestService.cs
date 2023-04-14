@@ -122,13 +122,13 @@ namespace TestCommon
         }
 
 #if NET5_0_OR_GREATER
-        public override async ValueTask<int> TestInStream(CallContext context, StreamReader<int> inputStream, TimeSpan delay, StreamTestOptions options)
+        public override async ValueTask<StreamCallResult> TestInStream(CallContext context, StreamReader<int> inputStream, TimeSpan delay, StreamTestOptions options)
 #else
-        public override async Task<int> TestInStream(CallContext context, StreamReader<int> inputStream, TimeSpan delay, StreamTestOptions options)
+        public override async Task<StreamCallResult> TestInStream(CallContext context, StreamReader<int> inputStream, TimeSpan delay, StreamTestOptions options)
 #endif
         {
             if (options == StreamTestOptions.JustExit)
-                return -2;
+                return new StreamCallResult(StreamCallExitCode.ImmediateExit, 0);
             else if (options == StreamTestOptions.ImmediateFault)
                 throw new RpcFaultException("Test fault");
             else if (options == StreamTestOptions.ImmediateCustomFault)
@@ -156,20 +156,17 @@ namespace TestCommon
             }
 #endif
 
-            if (context.CancellationToken.IsCancellationRequested)
-                return -1;
-
-            return sum;
+            return new StreamCallResult(StreamCallExitCode.StreamCompleted, sum);
         }
 
 #if NET5_0_OR_GREATER
-        public override async ValueTask<int> TestOutStream(CallContext context, StreamWriter<int> outputStream, TimeSpan delay, int count, StreamTestOptions options)
+        public override async ValueTask<StreamCallResult> TestOutStream(CallContext context, StreamWriter<int> outputStream, TimeSpan delay, int count, StreamTestOptions options)
 #else
-        public override async Task<int> TestOutStream(CallContext context, StreamWriter<int> outputStream, TimeSpan delay, int count, StreamTestOptions options)
+        public override async Task<StreamCallResult> TestOutStream(CallContext context, StreamWriter<int> outputStream, TimeSpan delay, int count, StreamTestOptions options)
 #endif
         {
             if (options == StreamTestOptions.JustExit)
-                return -2;
+                return new StreamCallResult(StreamCallExitCode.ImmediateExit, 0);
             else if (options == StreamTestOptions.ImmediateFault)
                 throw new RpcFaultException("Test fault");
             else if (options == StreamTestOptions.ImmediateCustomFault)
@@ -182,12 +179,15 @@ namespace TestCommon
                 if (!wResult.IsOk)
                 {
                     if (wResult.Code == RpcRetCode.OperationCanceled)
-                        return -1;
-                    return -2;
+                        return new StreamCallResult(StreamCallExitCode.StreamWriteCancelled, 0);
+                    else if (wResult.Code == RpcRetCode.StreamCompleted)
+                        return new StreamCallResult(StreamCallExitCode.StreamCompleted, 0);
+                    else
+                        return new StreamCallResult(StreamCallExitCode.Error, 0);
                 }
 
                 if (context.CancellationToken.IsCancellationRequested)
-                    return -1;
+                    return new StreamCallResult(StreamCallExitCode.StreamWriteCancelled, 0);
 
                 if (delay > TimeSpan.Zero)
                     await Task.Delay(delay);
@@ -196,7 +196,7 @@ namespace TestCommon
             if (options == StreamTestOptions.InvokeCompletion)
                 await outputStream.CompleteAsync();
 
-            return context.CancellationToken.IsCancellationRequested ? -1 : 0;
+            return new StreamCallResult(StreamCallExitCode.StreamCompleted, 0);
         }
 
 #if NET5_0_OR_GREATER

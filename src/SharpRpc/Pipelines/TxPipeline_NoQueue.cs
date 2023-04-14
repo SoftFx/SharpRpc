@@ -38,8 +38,10 @@ namespace SharpRpc
         private readonly Action _connectionRequestHandler;
         private readonly TxTransportFeed _feed;
 
-        public TxPipeline_NoQueue(ContractDescriptor descriptor, Endpoint config, Action<RpcResult> commErrorHandler, Action connectionRequestHandler)
+        public TxPipeline_NoQueue(string channeldId, ContractDescriptor descriptor, Endpoint config, Action<RpcResult> commErrorHandler, Action connectionRequestHandler)
         {
+            ChannelId = channeldId;
+
             _commErrorHandler = commErrorHandler;
             _connectionRequestHandler = connectionRequestHandler;
 
@@ -65,6 +67,7 @@ namespace SharpRpc
         private bool CanProcessSystemMessage => _isStarted && !_isProcessingItem && HasRoomForNextMessage;
         private bool HasRoomForNextMessage => _buffer.DataSize < _bufferSizeThreshold;
 
+        public string ChannelId { get; }
         public TaskFactory TaskQueue { get; }
         public IMessageFactory MessageFactory { get; }
         public bool ImmediateSerialization => true;

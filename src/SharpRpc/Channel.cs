@@ -42,7 +42,7 @@ namespace SharpRpc
         internal Endpoint Endpoint => _endpoint;
         internal TxPipeline Tx => _tx;
         internal ContractDescriptor Contract => _descriptor;
-        internal LoggerFacade Logger { get; }
+        internal IRpcLogger Logger { get; }
 
         internal event Action<Channel, RpcResult> Closed;
 
@@ -59,10 +59,10 @@ namespace SharpRpc
             if (!_isServerSide)
                 _endpoint.LockTo(this);
 
-            Logger = endpoint.LoggerAdapter;
+            Logger = endpoint.GetLogger();
             Id = nameof(Channel) + Interlocked.Increment(ref idSeed);
 
-            _tx = new TxPipeline_NoQueue(descriptor, endpoint, OnCommunicationError, OnConnectionRequested);
+            _tx = new TxPipeline_NoQueue(Id, descriptor, endpoint, OnCommunicationError, OnConnectionRequested);
             //_tx = new TxPipeline_OneThread(descriptor, endpoint, OnCommunicationError, OnConnectionRequested);
             _dispatcher = MessageDispatcher.Create(endpoint.Dispatcher, this, msgHandler, serverSide);
 
@@ -201,7 +201,10 @@ namespace SharpRpc
                     return;
             }
 
-            Logger.Info(Id, "Communication error: " + fault.Code);
+            if (fault.Code != RpcRetCode.LogoutRequest)
+                Logger.Info(Id, "Communication error: " + fault.Code);
+            else
+                Logger.Info(Id, "Received a logout request.");
 
             DoDisconnect(ChannelShutdownMode.Abort, LogoutOption.Immidiate);
         }
@@ -342,7 +345,7 @@ namespace SharpRpc
 
             lock (_stateSyncObj)
             {
-                if (_channelDisplayFault.Code != RpcRetCode.Ok)
+                if (_channelDisplayFault.Code != RpcRetCode.LogoutRequest)
                 {
                     State = ChannelState.Faulted;
                     faultToRise = _channelDisplayFault;

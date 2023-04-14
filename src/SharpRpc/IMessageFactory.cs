@@ -19,7 +19,6 @@ namespace SharpRpc
         ILogoutMessage CreateLogoutMessage();
         IHeartbeatMessage CreateHeartBeatMessage();
         ICancelRequestMessage CreateCancelRequestMessage();
-        ICancelStreamingMessage CreateCancelStreamMessage();
     }
 
     public interface ILoginMessage : ISystemMessage

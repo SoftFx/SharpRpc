@@ -38,7 +38,7 @@ namespace SharpRpc.Tcp
             _onConnect = onConnect ?? throw new ArgumentNullException(nameof(onConnect));
         }
 
-        private LoggerFacade Log => _endpoint.LoggerAdapter;
+        private IRpcLogger Logger => _endpoint.GetLogger();
 
         public void Start(EndPoint socketEndpoint)
         {
@@ -74,7 +74,7 @@ namespace SharpRpc.Tcp
                     var socketEx = ex as SocketException;
 
                     if (!_stopFlag || socketEx == null || socketEx.SocketErrorCode != SocketError.OperationAborted)
-                        Log.Error(_logId, ex.Message);
+                        Logger.Error(_logId, ex.Message, null);
 
                     continue;
                 }
@@ -87,7 +87,7 @@ namespace SharpRpc.Tcp
                 }
                 catch (Exception ex)
                 {
-                    Log.Error(_logId, ex.Message);
+                    Logger.Error(_logId, ex.Message);
 
                     try
                     {

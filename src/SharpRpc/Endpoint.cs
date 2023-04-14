@@ -112,7 +112,7 @@ namespace SharpRpc
         internal TimeSpan KeepAliveThreshold { get; private set; }
         internal TaskFactory TaskQueue { get; private set; }
 
-        internal abstract LoggerFacade LoggerAdapter { get; }
+        internal abstract IRpcLogger GetLogger();
 
         public void EnableKeepAlive(TimeSpan threashold)
         {
