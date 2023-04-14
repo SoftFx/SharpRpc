@@ -27,6 +27,8 @@ namespace SharpRpc.MsTest.MockObjects
         //private readonly Dictionary<string, IInteropOperation> _canceledOperations = new Dictionary<string, IInteropOperation>();
         //public IEnumerable<IInteropOperation> CanceledOperations => _canceledOperations.Values;
 
+        public IRpcLogger Logger => NullLogger.Instance;
+ 
         public string GenerateOperationId()
         {
             return "C5";

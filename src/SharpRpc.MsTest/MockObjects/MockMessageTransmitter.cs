@@ -22,6 +22,7 @@ namespace SharpRpc.MsTest.MockObjects
             //MessageFactory = msgFactory;
         }
 
+        public string ChannelId { get; } = "Ch1";
         public IMessageFactory MessageFactory { get; }
         public bool ImmediateSerialization => true;
         public Queue<IMessage> MessagesToSend { get; } = new Queue<IMessage>(); 
