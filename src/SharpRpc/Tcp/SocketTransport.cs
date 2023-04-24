@@ -21,12 +21,18 @@ namespace SharpRpc
         private readonly Socket _socket;
         private readonly NetworkStream _stream;
         private readonly TaskFactory _taskQueue;
+        private string _channelId;
         
         public SocketTransport(Socket socket, TaskFactory taskQueue)
         {
             _socket = socket;
             _taskQueue = taskQueue;
             _stream = new NetworkStream(socket, false);
+        }
+
+        public override void Init(Channel channel)
+        {
+            _channelId = channel.Id;
         }
 
 #if NET5_0_OR_GREATER
@@ -84,7 +90,6 @@ namespace SharpRpc
         {
             try
             {
-
                 _socket.Shutdown(SocketShutdown.Both);
             }
             catch (Exception)

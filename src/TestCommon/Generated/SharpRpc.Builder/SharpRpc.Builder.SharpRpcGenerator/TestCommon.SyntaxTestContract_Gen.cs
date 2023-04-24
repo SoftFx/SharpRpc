@@ -118,12 +118,12 @@
 
         public abstract class ServiceBase
         {
-            public abstract System.Threading.Tasks.Task<int> OutStreamCall(SharpRpc.CallContext context, SharpRpc.StreamWriter<System.Int32> outputStream, System.TimeSpan delay, int count, TestCommon.StreamTestOptions options);
-            public abstract System.Threading.Tasks.Task OutStreamCallNoRet(SharpRpc.CallContext context, SharpRpc.StreamWriter<System.Int32> outputStream, System.TimeSpan delay, int count, TestCommon.StreamTestOptions options);
-            public abstract System.Threading.Tasks.Task<int> InStreamCall(SharpRpc.CallContext context, SharpRpc.StreamReader<System.Int32> inputStream, System.TimeSpan delay, TestCommon.StreamTestOptions options);
-            public abstract System.Threading.Tasks.Task InStreamCallNoRet(SharpRpc.CallContext context, SharpRpc.StreamReader<System.Int32> inputStream, System.TimeSpan delay, TestCommon.StreamTestOptions options);
-            public abstract System.Threading.Tasks.Task<int> DuplexStreamCall(SharpRpc.CallContext context, SharpRpc.StreamReader<System.Int32> inputStream, SharpRpc.StreamWriter<System.Int64> outputStream, System.TimeSpan delay, TestCommon.StreamTestOptions options);
-            public abstract System.Threading.Tasks.Task tDuplexStreamCallNoRet(SharpRpc.CallContext context, SharpRpc.StreamReader<System.Int32> inputStream, SharpRpc.StreamWriter<System.Int64> outputStream, System.TimeSpan delay, TestCommon.StreamTestOptions options);
+            public abstract System.Threading.Tasks.ValueTask<int> OutStreamCall(SharpRpc.CallContext context, SharpRpc.StreamWriter<System.Int32> outputStream, System.TimeSpan delay, int count, TestCommon.StreamTestOptions options);
+            public abstract System.Threading.Tasks.ValueTask OutStreamCallNoRet(SharpRpc.CallContext context, SharpRpc.StreamWriter<System.Int32> outputStream, System.TimeSpan delay, int count, TestCommon.StreamTestOptions options);
+            public abstract System.Threading.Tasks.ValueTask<int> InStreamCall(SharpRpc.CallContext context, SharpRpc.StreamReader<System.Int32> inputStream, System.TimeSpan delay, TestCommon.StreamTestOptions options);
+            public abstract System.Threading.Tasks.ValueTask InStreamCallNoRet(SharpRpc.CallContext context, SharpRpc.StreamReader<System.Int32> inputStream, System.TimeSpan delay, TestCommon.StreamTestOptions options);
+            public abstract System.Threading.Tasks.ValueTask<int> DuplexStreamCall(SharpRpc.CallContext context, SharpRpc.StreamReader<System.Int32> inputStream, SharpRpc.StreamWriter<System.Int64> outputStream, System.TimeSpan delay, TestCommon.StreamTestOptions options);
+            public abstract System.Threading.Tasks.ValueTask tDuplexStreamCallNoRet(SharpRpc.CallContext context, SharpRpc.StreamReader<System.Int32> inputStream, SharpRpc.StreamWriter<System.Int64> outputStream, System.TimeSpan delay, TestCommon.StreamTestOptions options);
             public SharpRpc.SessionInfo Session { get; private set; }
 
             public virtual void OnInit()
@@ -149,7 +149,7 @@
                 _stub = serviceImpl;
             }
 
-            private async System.Threading.Tasks.Task<SharpRpc.IResponseMessage> InvokeOutStreamCall(Messages.C1_Request request)
+            private async System.Threading.Tasks.ValueTask<SharpRpc.IResponseMessage> InvokeOutStreamCall(Messages.C1_Request request)
             {
                 var context = CreateOutputStreamContext<System.Int32>(request, new Messages.C1_OutputStreamFactory());
                 try
@@ -174,7 +174,7 @@
                 }
             }
 
-            private async System.Threading.Tasks.Task<SharpRpc.IResponseMessage> InvokeOutStreamCallNoRet(Messages.C2_Request request)
+            private async System.Threading.Tasks.ValueTask<SharpRpc.IResponseMessage> InvokeOutStreamCallNoRet(Messages.C2_Request request)
             {
                 var context = CreateOutputStreamContext<System.Int32>(request, new Messages.C2_OutputStreamFactory());
                 try
@@ -198,7 +198,7 @@
                 }
             }
 
-            private async System.Threading.Tasks.Task<SharpRpc.IResponseMessage> InvokeInStreamCall(Messages.C3_Request request)
+            private async System.Threading.Tasks.ValueTask<SharpRpc.IResponseMessage> InvokeInStreamCall(Messages.C3_Request request)
             {
                 var context = CreateInputStreamContext<System.Int32>(request, new Messages.C3_InputStreamFactory());
                 try
@@ -223,7 +223,7 @@
                 }
             }
 
-            private async System.Threading.Tasks.Task<SharpRpc.IResponseMessage> InvokeInStreamCallNoRet(Messages.C4_Request request)
+            private async System.Threading.Tasks.ValueTask<SharpRpc.IResponseMessage> InvokeInStreamCallNoRet(Messages.C4_Request request)
             {
                 var context = CreateInputStreamContext<System.Int32>(request, new Messages.C4_InputStreamFactory());
                 try
@@ -247,7 +247,7 @@
                 }
             }
 
-            private async System.Threading.Tasks.Task<SharpRpc.IResponseMessage> InvokeDuplexStreamCall(Messages.C5_Request request)
+            private async System.Threading.Tasks.ValueTask<SharpRpc.IResponseMessage> InvokeDuplexStreamCall(Messages.C5_Request request)
             {
                 var context = CreateDuplexStreamContext<System.Int32, System.Int64>(request, new Messages.C5_InputStreamFactory(), new Messages.C5_OutputStreamFactory());
                 try
@@ -272,7 +272,7 @@
                 }
             }
 
-            private async System.Threading.Tasks.Task<SharpRpc.IResponseMessage> InvoketDuplexStreamCallNoRet(Messages.C6_Request request)
+            private async System.Threading.Tasks.ValueTask<SharpRpc.IResponseMessage> InvoketDuplexStreamCallNoRet(Messages.C6_Request request)
             {
                 var context = CreateDuplexStreamContext<System.Int32, System.Int64>(request, new Messages.C6_InputStreamFactory(), new Messages.C6_OutputStreamFactory());
                 try
@@ -296,43 +296,25 @@
                 }
             }
 
-            protected override System.Threading.Tasks.Task OnMessage(SharpRpc.IMessage message)
+            protected override System.Threading.Tasks.ValueTask OnMessage(SharpRpc.IMessage message)
             {
                 return OnUnknownMessage(message);
             }
 
-            protected override System.Threading.Tasks.Task<SharpRpc.IResponseMessage> OnRequest(SharpRpc.IRequestMessage request)
+            protected override System.Threading.Tasks.ValueTask<SharpRpc.IResponseMessage> OnRequest(SharpRpc.IRequestMessage request)
             {
-                if (request is Messages.C6_Request)
-                {
-                    var r5 = (Messages.C6_Request)request;
+                if (request is Messages.C6_Request r5)
                     return InvoketDuplexStreamCallNoRet(r5);
-                }
-                else if (request is Messages.C5_Request)
-                {
-                    var r4 = (Messages.C5_Request)request;
+                else if (request is Messages.C5_Request r4)
                     return InvokeDuplexStreamCall(r4);
-                }
-                else if (request is Messages.C4_Request)
-                {
-                    var r3 = (Messages.C4_Request)request;
+                else if (request is Messages.C4_Request r3)
                     return InvokeInStreamCallNoRet(r3);
-                }
-                else if (request is Messages.C3_Request)
-                {
-                    var r2 = (Messages.C3_Request)request;
+                else if (request is Messages.C3_Request r2)
                     return InvokeInStreamCall(r2);
-                }
-                else if (request is Messages.C2_Request)
-                {
-                    var r1 = (Messages.C2_Request)request;
+                else if (request is Messages.C2_Request r1)
                     return InvokeOutStreamCallNoRet(r1);
-                }
-                else if (request is Messages.C1_Request)
-                {
-                    var r0 = (Messages.C1_Request)request;
+                else if (request is Messages.C1_Request r0)
                     return InvokeOutStreamCall(r0);
-                }
                 else
                     return OnUnknownRequest(request);
             }
@@ -352,12 +334,12 @@
         {
             public void Serialize(SharpRpc.IMessage message, SharpRpc.MessageWriter writer)
             {
-                MessagePack.MessagePackSerializer.Serialize<TestCommon.SyntaxTestContract_Gen.Messages.MessageBase>(writer.ByteStream, (TestCommon.SyntaxTestContract_Gen.Messages.MessageBase)message);
+                MessagePack.MessagePackSerializer.Serialize<TestCommon.SyntaxTestContract_Gen.Messages.MessageBase>(writer.ByteBuffer, (TestCommon.SyntaxTestContract_Gen.Messages.MessageBase)message);
             }
 
             public SharpRpc.IMessage Deserialize(SharpRpc.MessageReader reader)
             {
-                return MessagePack.MessagePackSerializer.Deserialize<TestCommon.SyntaxTestContract_Gen.Messages.MessageBase>(reader.ByteStream);
+                return MessagePack.MessagePackSerializer.Deserialize<TestCommon.SyntaxTestContract_Gen.Messages.MessageBase>(reader.ByteBuffer);
             }
         }
 

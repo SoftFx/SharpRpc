@@ -18,8 +18,7 @@ namespace SharpRpc
 {
     internal class ServerSideCoordinator : SessionCoordinator
     {
-        private object _lockObj = new object();
-        private States _state = States.PendingLogin;
+        //private States _state = States.PendingLogin;
         private Authenticator _authPlugin;
         private readonly TaskCompletionSource<ILoginMessage> _loginWaitHandle = new TaskCompletionSource<ILoginMessage>();
         //private readonly CancellationTokenSource _loginWaitCancel = new CancellationTokenSource();
@@ -44,13 +43,12 @@ namespace SharpRpc
             _taskQueue = serverEndpoint.TaskQueue;
         }
 
-#if NET5_0_OR_GREATER
-        public override async ValueTask<RpcResult> OnConnect(CancellationToken cToken)
-#else
         public override async Task<RpcResult> OnConnect(CancellationToken cToken)
-#endif
         {
             ILoginMessage loginMsg;
+
+            lock (LockObj)
+                State = SessionState.PendingLogin;
 
             Channel.Logger.Verbose(Channel.Id, "Waiting for login message...");
 
@@ -83,6 +81,9 @@ namespace SharpRpc
 
             if (authError == null)
             {
+                lock (LockObj)
+                    State = SessionState.LoggedIn;
+
                 // start processing messages
                 var startResult = Channel.Dispatcher.Start();
 
@@ -98,55 +99,23 @@ namespace SharpRpc
                 return new RpcResult(RpcRetCode.InvalidCredentials, authError);
         }
 
-#if NET5_0_OR_GREATER
-        public override async ValueTask<RpcResult> OnDisconnect(LogoutOption option)
-#else
-        public override async Task<RpcResult> OnDisconnect(LogoutOption option)
-#endif
+        protected override RpcResult OnLoginMessage(ILoginMessage loginMsg)
         {
-            if (option == LogoutOption.EnsureCompletion)
-                throw new NotSupportedException("LogoutOption.EnsureCompletion is not supported on server side! (yet)");
-
-            lock (_lockObj)
+            lock (LockObj)
             {
-                // the session has been already closed
-                if (_state == States.LoggedOut)
-                    return RpcResult.Ok;
+                if (State != SessionState.PendingLogin)
+                    return new RpcResult(RpcRetCode.ProtocolViolation, "Unexpected login message!");
 
-                _state = States.LoggedOut;
+                //State = SessionState.OpeningEvent;
+
+                _loginWaitHandle.TrySetResult(loginMsg);
+                return RpcResult.Ok;
             }
-
-            Channel.Logger.Verbose(Channel.Id, "Sending logout message...");
-
-            var logoutMsg = Channel.Contract.SystemMessages.CreateLogoutMessage();
-            //logoutMsg.Mode = option;
-
-            return  await Channel.Tx.SendSystemMessage(logoutMsg);
         }
 
-        public override RpcResult OnMessage(ISystemMessage message)
+        protected override Task RiseClosingEvent(bool isFaulted)
         {
-            lock (_lockObj)
-            {
-                if (message is ILoginMessage loginMsg)
-                {
-                    if (_state != States.PendingLogin)
-                        return new RpcResult(RpcRetCode.ProtocolViolation, "Unexpected login message!");
-
-                    _state = States.LoginInProgress;
-
-                    _loginWaitHandle.TrySetResult(loginMsg);
-                }
-                else if (message is ILogoutMessage logoutMsg)
-                {
-                    Channel.Logger.Verbose(Channel.Id, "A logout message has been received.");
-
-                    _state = States.LoggedOut;
-                    return new RpcResult(RpcRetCode.LogoutRequest, "Connection is closed by client side.");
-                }
-            }
-
-            return RpcResult.Ok;
+            return Task.FromResult(true);
         }
 
         private void OnLoginCanceled()

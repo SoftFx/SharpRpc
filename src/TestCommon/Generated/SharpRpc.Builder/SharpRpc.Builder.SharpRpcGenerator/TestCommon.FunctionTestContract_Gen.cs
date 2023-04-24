@@ -154,7 +154,7 @@
                 {
                 }
 
-                public System.Threading.Tasks.Task TestNotify1(int p1, string p2)
+                public System.Threading.Tasks.ValueTask TestNotify1(int p1, string p2)
                 {
                     Messages.C0_Message message = new Messages.C0_Message();
                     message.Arg1 = p1;
@@ -326,7 +326,7 @@
                 {
                 }
 
-                public System.Threading.Tasks.Task<SharpRpc.RpcResult> TestNotify1(int p1, string p2)
+                public System.Threading.Tasks.ValueTask<SharpRpc.RpcResult> TestNotify1(int p1, string p2)
                 {
                     Messages.C0_Message message = new Messages.C0_Message();
                     message.Arg1 = p1;
@@ -409,19 +409,19 @@
 
         public abstract class ServiceBase
         {
-            public abstract System.Threading.Tasks.Task TestNotify1(int p1, string p2);
-            public abstract System.Threading.Tasks.Task TestCall1(SharpRpc.CallContext context, int p1, string p2);
-            public abstract System.Threading.Tasks.Task<string> TestCall2(SharpRpc.CallContext context, int p1, string p2);
-            public abstract System.Threading.Tasks.Task<string> TestCrash(SharpRpc.CallContext context, int p1, string p2);
-            public abstract System.Threading.Tasks.Task<string> TestRpcException(SharpRpc.CallContext context, int p1, string p2);
-            public abstract System.Threading.Tasks.Task TestCallFault(SharpRpc.CallContext context, int faultNo);
-            public abstract System.Threading.Tasks.Task<string> InvokeCallback(SharpRpc.CallContext context, int callbackNo, int p1, string p2);
-            public abstract System.Threading.Tasks.Task<System.Collections.Generic.List<System.Tuple<int>>> ComplexTypesCall(SharpRpc.CallContext context, System.Collections.Generic.List<System.DateTime> list, System.Collections.Generic.List<System.Collections.Generic.List<System.DateTime>> listOfLists, System.Collections.Generic.Dictionary<int, int> dictionary);
-            public abstract System.Threading.Tasks.Task<TestCommon.StreamCallResult> TestOutStream(SharpRpc.CallContext context, SharpRpc.StreamWriter<System.Int32> outputStream, System.TimeSpan delay, int count, TestCommon.StreamTestOptions options);
-            public abstract System.Threading.Tasks.Task<TestCommon.StreamCallResult> TestInStream(SharpRpc.CallContext context, SharpRpc.StreamReader<System.Int32> inputStream, System.TimeSpan delay, TestCommon.StreamTestOptions options);
-            public abstract System.Threading.Tasks.Task<int> TestDuplexStream(SharpRpc.CallContext context, SharpRpc.StreamReader<System.Int32> inputStream, SharpRpc.StreamWriter<System.Int32> outputStream, System.TimeSpan delay, TestCommon.StreamTestOptions options);
-            public abstract System.Threading.Tasks.Task<bool> CancellableCall(SharpRpc.CallContext context, System.TimeSpan delay);
-            public abstract System.Threading.Tasks.Task<string> GetSessionSharedProperty(SharpRpc.CallContext context, string name);
+            public abstract System.Threading.Tasks.ValueTask TestNotify1(int p1, string p2);
+            public abstract System.Threading.Tasks.ValueTask TestCall1(SharpRpc.CallContext context, int p1, string p2);
+            public abstract System.Threading.Tasks.ValueTask<string> TestCall2(SharpRpc.CallContext context, int p1, string p2);
+            public abstract System.Threading.Tasks.ValueTask<string> TestCrash(SharpRpc.CallContext context, int p1, string p2);
+            public abstract System.Threading.Tasks.ValueTask<string> TestRpcException(SharpRpc.CallContext context, int p1, string p2);
+            public abstract System.Threading.Tasks.ValueTask TestCallFault(SharpRpc.CallContext context, int faultNo);
+            public abstract System.Threading.Tasks.ValueTask<string> InvokeCallback(SharpRpc.CallContext context, int callbackNo, int p1, string p2);
+            public abstract System.Threading.Tasks.ValueTask<System.Collections.Generic.List<System.Tuple<int>>> ComplexTypesCall(SharpRpc.CallContext context, System.Collections.Generic.List<System.DateTime> list, System.Collections.Generic.List<System.Collections.Generic.List<System.DateTime>> listOfLists, System.Collections.Generic.Dictionary<int, int> dictionary);
+            public abstract System.Threading.Tasks.ValueTask<TestCommon.StreamCallResult> TestOutStream(SharpRpc.CallContext context, SharpRpc.StreamWriter<System.Int32> outputStream, System.TimeSpan delay, int count, TestCommon.StreamTestOptions options);
+            public abstract System.Threading.Tasks.ValueTask<TestCommon.StreamCallResult> TestInStream(SharpRpc.CallContext context, SharpRpc.StreamReader<System.Int32> inputStream, System.TimeSpan delay, TestCommon.StreamTestOptions options);
+            public abstract System.Threading.Tasks.ValueTask<int> TestDuplexStream(SharpRpc.CallContext context, SharpRpc.StreamReader<System.Int32> inputStream, SharpRpc.StreamWriter<System.Int32> outputStream, System.TimeSpan delay, TestCommon.StreamTestOptions options);
+            public abstract System.Threading.Tasks.ValueTask<bool> CancellableCall(SharpRpc.CallContext context, System.TimeSpan delay);
+            public abstract System.Threading.Tasks.ValueTask<string> GetSessionSharedProperty(SharpRpc.CallContext context, string name);
             public virtual void OnResponseSent_TestCall2(string responseValue)
             {
             }
@@ -490,7 +490,7 @@
                 _stub = serviceImpl;
             }
 
-            private async System.Threading.Tasks.Task<SharpRpc.IResponseMessage> InvokeTestCall1(Messages.C1_Request request)
+            private async System.Threading.Tasks.ValueTask<SharpRpc.IResponseMessage> InvokeTestCall1(Messages.C1_Request request)
             {
                 var context = CreateCallContext(request);
                 try
@@ -514,7 +514,7 @@
                 }
             }
 
-            private async System.Threading.Tasks.Task<SharpRpc.IResponseMessage> InvokeTestCall2(Messages.C2_Request request)
+            private async System.Threading.Tasks.ValueTask<SharpRpc.IResponseMessage> InvokeTestCall2(Messages.C2_Request request)
             {
                 var context = CreateCallContext(request);
                 try
@@ -539,7 +539,7 @@
                 }
             }
 
-            private async System.Threading.Tasks.Task<SharpRpc.IResponseMessage> InvokeTestCrash(Messages.C3_Request request)
+            private async System.Threading.Tasks.ValueTask<SharpRpc.IResponseMessage> InvokeTestCrash(Messages.C3_Request request)
             {
                 var context = CreateCallContext(request);
                 try
@@ -564,7 +564,7 @@
                 }
             }
 
-            private async System.Threading.Tasks.Task<SharpRpc.IResponseMessage> InvokeTestRpcException(Messages.C4_Request request)
+            private async System.Threading.Tasks.ValueTask<SharpRpc.IResponseMessage> InvokeTestRpcException(Messages.C4_Request request)
             {
                 var context = CreateCallContext(request);
                 try
@@ -589,7 +589,7 @@
                 }
             }
 
-            private async System.Threading.Tasks.Task<SharpRpc.IResponseMessage> InvokeTestCallFault(Messages.C5_Request request)
+            private async System.Threading.Tasks.ValueTask<SharpRpc.IResponseMessage> InvokeTestCallFault(Messages.C5_Request request)
             {
                 var context = CreateCallContext(request);
                 try
@@ -633,7 +633,7 @@
                 }
             }
 
-            private async System.Threading.Tasks.Task<SharpRpc.IResponseMessage> InvokeInvokeCallback(Messages.C6_Request request)
+            private async System.Threading.Tasks.ValueTask<SharpRpc.IResponseMessage> InvokeInvokeCallback(Messages.C6_Request request)
             {
                 var context = CreateCallContext(request);
                 try
@@ -658,7 +658,7 @@
                 }
             }
 
-            private async System.Threading.Tasks.Task<SharpRpc.IResponseMessage> InvokeComplexTypesCall(Messages.C11_Request request)
+            private async System.Threading.Tasks.ValueTask<SharpRpc.IResponseMessage> InvokeComplexTypesCall(Messages.C11_Request request)
             {
                 var context = CreateCallContext(request);
                 try
@@ -683,7 +683,7 @@
                 }
             }
 
-            private async System.Threading.Tasks.Task<SharpRpc.IResponseMessage> InvokeTestOutStream(Messages.C12_Request request)
+            private async System.Threading.Tasks.ValueTask<SharpRpc.IResponseMessage> InvokeTestOutStream(Messages.C12_Request request)
             {
                 var context = CreateOutputStreamContext<System.Int32>(request, new Messages.C12_OutputStreamFactory());
                 try
@@ -708,7 +708,7 @@
                 }
             }
 
-            private async System.Threading.Tasks.Task<SharpRpc.IResponseMessage> InvokeTestInStream(Messages.C13_Request request)
+            private async System.Threading.Tasks.ValueTask<SharpRpc.IResponseMessage> InvokeTestInStream(Messages.C13_Request request)
             {
                 var context = CreateInputStreamContext<System.Int32>(request, new Messages.C13_InputStreamFactory());
                 try
@@ -733,7 +733,7 @@
                 }
             }
 
-            private async System.Threading.Tasks.Task<SharpRpc.IResponseMessage> InvokeTestDuplexStream(Messages.C14_Request request)
+            private async System.Threading.Tasks.ValueTask<SharpRpc.IResponseMessage> InvokeTestDuplexStream(Messages.C14_Request request)
             {
                 var context = CreateDuplexStreamContext<System.Int32, System.Int32>(request, new Messages.C14_InputStreamFactory(), new Messages.C14_OutputStreamFactory());
                 try
@@ -758,7 +758,7 @@
                 }
             }
 
-            private async System.Threading.Tasks.Task<SharpRpc.IResponseMessage> InvokeCancellableCall(Messages.C15_Request request)
+            private async System.Threading.Tasks.ValueTask<SharpRpc.IResponseMessage> InvokeCancellableCall(Messages.C15_Request request)
             {
                 var context = CreateCallContext(request);
                 try
@@ -783,7 +783,7 @@
                 }
             }
 
-            private async System.Threading.Tasks.Task<SharpRpc.IResponseMessage> InvokeGetSessionSharedProperty(Messages.C16_Request request)
+            private async System.Threading.Tasks.ValueTask<SharpRpc.IResponseMessage> InvokeGetSessionSharedProperty(Messages.C16_Request request)
             {
                 var context = CreateCallContext(request);
                 try
@@ -808,135 +808,66 @@
                 }
             }
 
-            protected override System.Threading.Tasks.Task OnMessage(SharpRpc.IMessage message)
+            protected override System.Threading.Tasks.ValueTask OnMessage(SharpRpc.IMessage message)
             {
-                if (message is Messages.C0_Message)
-                {
-                    var m0 = (Messages.C0_Message)message;
+                if (message is Messages.C0_Message m0)
                     return _stub.TestNotify1(m0.Arg1, m0.Arg2);
-                }
                 else
                     return OnUnknownMessage(message);
             }
 
-            protected override System.Threading.Tasks.Task<SharpRpc.IResponseMessage> OnRequest(SharpRpc.IRequestMessage request)
+            protected override System.Threading.Tasks.ValueTask<SharpRpc.IResponseMessage> OnRequest(SharpRpc.IRequestMessage request)
             {
-                if (request is Messages.C16_Request)
-                {
-                    var r11 = (Messages.C16_Request)request;
+                if (request is Messages.C16_Request r11)
                     return InvokeGetSessionSharedProperty(r11);
-                }
-                else if (request is Messages.C15_Request)
-                {
-                    var r10 = (Messages.C15_Request)request;
+                else if (request is Messages.C15_Request r10)
                     return InvokeCancellableCall(r10);
-                }
-                else if (request is Messages.C14_Request)
-                {
-                    var r9 = (Messages.C14_Request)request;
+                else if (request is Messages.C14_Request r9)
                     return InvokeTestDuplexStream(r9);
-                }
-                else if (request is Messages.C13_Request)
-                {
-                    var r8 = (Messages.C13_Request)request;
+                else if (request is Messages.C13_Request r8)
                     return InvokeTestInStream(r8);
-                }
-                else if (request is Messages.C12_Request)
-                {
-                    var r7 = (Messages.C12_Request)request;
+                else if (request is Messages.C12_Request r7)
                     return InvokeTestOutStream(r7);
-                }
-                else if (request is Messages.C11_Request)
-                {
-                    var r6 = (Messages.C11_Request)request;
+                else if (request is Messages.C11_Request r6)
                     return InvokeComplexTypesCall(r6);
-                }
-                else if (request is Messages.C6_Request)
-                {
-                    var r5 = (Messages.C6_Request)request;
+                else if (request is Messages.C6_Request r5)
                     return InvokeInvokeCallback(r5);
-                }
-                else if (request is Messages.C5_Request)
-                {
-                    var r4 = (Messages.C5_Request)request;
+                else if (request is Messages.C5_Request r4)
                     return InvokeTestCallFault(r4);
-                }
-                else if (request is Messages.C4_Request)
-                {
-                    var r3 = (Messages.C4_Request)request;
+                else if (request is Messages.C4_Request r3)
                     return InvokeTestRpcException(r3);
-                }
-                else if (request is Messages.C3_Request)
-                {
-                    var r2 = (Messages.C3_Request)request;
+                else if (request is Messages.C3_Request r2)
                     return InvokeTestCrash(r2);
-                }
-                else if (request is Messages.C2_Request)
-                {
-                    var r1 = (Messages.C2_Request)request;
+                else if (request is Messages.C2_Request r1)
                     return InvokeTestCall2(r1);
-                }
-                else if (request is Messages.C1_Request)
-                {
-                    var r0 = (Messages.C1_Request)request;
+                else if (request is Messages.C1_Request r0)
                     return InvokeTestCall1(r0);
-                }
                 else
                     return OnUnknownRequest(request);
             }
 
             protected override void OnResponseSent(SharpRpc.IResponseMessage response)
             {
-                if (response is Messages.C16_Response)
-                {
-                    var r9 = (Messages.C16_Response)response;
+                if (response is Messages.C16_Response r9)
                     _stub.OnResponseSent_GetSessionSharedProperty(r9.Result);
-                }
-                else if (response is Messages.C15_Response)
-                {
-                    var r8 = (Messages.C15_Response)response;
+                else if (response is Messages.C15_Response r8)
                     _stub.OnResponseSent_CancellableCall(r8.Result);
-                }
-                else if (response is Messages.C14_Response)
-                {
-                    var r7 = (Messages.C14_Response)response;
+                else if (response is Messages.C14_Response r7)
                     _stub.OnResponseSent_TestDuplexStream(r7.Result);
-                }
-                else if (response is Messages.C13_Response)
-                {
-                    var r6 = (Messages.C13_Response)response;
+                else if (response is Messages.C13_Response r6)
                     _stub.OnResponseSent_TestInStream(r6.Result);
-                }
-                else if (response is Messages.C12_Response)
-                {
-                    var r5 = (Messages.C12_Response)response;
+                else if (response is Messages.C12_Response r5)
                     _stub.OnResponseSent_TestOutStream(r5.Result);
-                }
-                else if (response is Messages.C11_Response)
-                {
-                    var r4 = (Messages.C11_Response)response;
+                else if (response is Messages.C11_Response r4)
                     _stub.OnResponseSent_ComplexTypesCall(r4.Result);
-                }
-                else if (response is Messages.C6_Response)
-                {
-                    var r3 = (Messages.C6_Response)response;
+                else if (response is Messages.C6_Response r3)
                     _stub.OnResponseSent_InvokeCallback(r3.Result);
-                }
-                else if (response is Messages.C4_Response)
-                {
-                    var r2 = (Messages.C4_Response)response;
+                else if (response is Messages.C4_Response r2)
                     _stub.OnResponseSent_TestRpcException(r2.Result);
-                }
-                else if (response is Messages.C3_Response)
-                {
-                    var r1 = (Messages.C3_Response)response;
+                else if (response is Messages.C3_Response r1)
                     _stub.OnResponseSent_TestCrash(r1.Result);
-                }
-                else if (response is Messages.C2_Response)
-                {
-                    var r0 = (Messages.C2_Response)response;
+                else if (response is Messages.C2_Response r0)
                     _stub.OnResponseSent_TestCall2(r0.Result);
-                }
             }
 
             protected override void OnInit(SharpRpc.Channel channel)
@@ -954,12 +885,12 @@
         {
             public void Serialize(SharpRpc.IMessage message, SharpRpc.MessageWriter writer)
             {
-                MessagePack.MessagePackSerializer.Serialize<TestCommon.FunctionTestContract_Gen.Messages.MessageBase>(writer.ByteStream, (TestCommon.FunctionTestContract_Gen.Messages.MessageBase)message);
+                MessagePack.MessagePackSerializer.Serialize<TestCommon.FunctionTestContract_Gen.Messages.MessageBase>(writer.ByteBuffer, (TestCommon.FunctionTestContract_Gen.Messages.MessageBase)message);
             }
 
             public SharpRpc.IMessage Deserialize(SharpRpc.MessageReader reader)
             {
-                return MessagePack.MessagePackSerializer.Deserialize<TestCommon.FunctionTestContract_Gen.Messages.MessageBase>(reader.ByteStream);
+                return MessagePack.MessagePackSerializer.Deserialize<TestCommon.FunctionTestContract_Gen.Messages.MessageBase>(reader.ByteBuffer);
             }
         }
 
@@ -2087,7 +2018,7 @@
                 {
                 }
 
-                public System.Threading.Tasks.Task TestCallbackNotify1(int p1, string p2)
+                public System.Threading.Tasks.ValueTask TestCallbackNotify1(int p1, string p2)
                 {
                     Messages.C7_Message message = new Messages.C7_Message();
                     message.Arg1 = p1;
@@ -2165,7 +2096,7 @@
                 {
                 }
 
-                public System.Threading.Tasks.Task<SharpRpc.RpcResult> TestCallbackNotify1(int p1, string p2)
+                public System.Threading.Tasks.ValueTask<SharpRpc.RpcResult> TestCallbackNotify1(int p1, string p2)
                 {
                     Messages.C7_Message message = new Messages.C7_Message();
                     message.Arg1 = p1;
@@ -2201,10 +2132,10 @@
 
         public abstract class CallbackServiceBase
         {
-            public abstract System.Threading.Tasks.Task TestCallbackNotify1(int p1, string p2);
-            public abstract System.Threading.Tasks.Task TestCallback1(SharpRpc.CallContext context, int p1, string p2);
-            public abstract System.Threading.Tasks.Task<int> TestCallback2(SharpRpc.CallContext context, int p1, string p2);
-            public abstract System.Threading.Tasks.Task<string> TestCallback3(SharpRpc.CallContext context, int p1, string p2);
+            public abstract System.Threading.Tasks.ValueTask TestCallbackNotify1(int p1, string p2);
+            public abstract System.Threading.Tasks.ValueTask TestCallback1(SharpRpc.CallContext context, int p1, string p2);
+            public abstract System.Threading.Tasks.ValueTask<int> TestCallback2(SharpRpc.CallContext context, int p1, string p2);
+            public abstract System.Threading.Tasks.ValueTask<string> TestCallback3(SharpRpc.CallContext context, int p1, string p2);
             public virtual void OnResponseSent_TestCallback2(int responseValue)
             {
             }
@@ -2222,7 +2153,7 @@
                 _stub = serviceImpl;
             }
 
-            private async System.Threading.Tasks.Task<SharpRpc.IResponseMessage> InvokeTestCallback1(Messages.C8_Request request)
+            private async System.Threading.Tasks.ValueTask<SharpRpc.IResponseMessage> InvokeTestCallback1(Messages.C8_Request request)
             {
                 var context = CreateCallContext(request);
                 try
@@ -2246,7 +2177,7 @@
                 }
             }
 
-            private async System.Threading.Tasks.Task<SharpRpc.IResponseMessage> InvokeTestCallback2(Messages.C9_Request request)
+            private async System.Threading.Tasks.ValueTask<SharpRpc.IResponseMessage> InvokeTestCallback2(Messages.C9_Request request)
             {
                 var context = CreateCallContext(request);
                 try
@@ -2271,7 +2202,7 @@
                 }
             }
 
-            private async System.Threading.Tasks.Task<SharpRpc.IResponseMessage> InvokeTestCallback3(Messages.C10_Request request)
+            private async System.Threading.Tasks.ValueTask<SharpRpc.IResponseMessage> InvokeTestCallback3(Messages.C10_Request request)
             {
                 var context = CreateCallContext(request);
                 try
@@ -2296,50 +2227,32 @@
                 }
             }
 
-            protected override System.Threading.Tasks.Task OnMessage(SharpRpc.IMessage message)
+            protected override System.Threading.Tasks.ValueTask OnMessage(SharpRpc.IMessage message)
             {
-                if (message is Messages.C7_Message)
-                {
-                    var m0 = (Messages.C7_Message)message;
+                if (message is Messages.C7_Message m0)
                     return _stub.TestCallbackNotify1(m0.Arg1, m0.Arg2);
-                }
                 else
                     return OnUnknownMessage(message);
             }
 
-            protected override System.Threading.Tasks.Task<SharpRpc.IResponseMessage> OnRequest(SharpRpc.IRequestMessage request)
+            protected override System.Threading.Tasks.ValueTask<SharpRpc.IResponseMessage> OnRequest(SharpRpc.IRequestMessage request)
             {
-                if (request is Messages.C10_Request)
-                {
-                    var r2 = (Messages.C10_Request)request;
+                if (request is Messages.C10_Request r2)
                     return InvokeTestCallback3(r2);
-                }
-                else if (request is Messages.C9_Request)
-                {
-                    var r1 = (Messages.C9_Request)request;
+                else if (request is Messages.C9_Request r1)
                     return InvokeTestCallback2(r1);
-                }
-                else if (request is Messages.C8_Request)
-                {
-                    var r0 = (Messages.C8_Request)request;
+                else if (request is Messages.C8_Request r0)
                     return InvokeTestCallback1(r0);
-                }
                 else
                     return OnUnknownRequest(request);
             }
 
             protected override void OnResponseSent(SharpRpc.IResponseMessage response)
             {
-                if (response is Messages.C10_Response)
-                {
-                    var r1 = (Messages.C10_Response)response;
+                if (response is Messages.C10_Response r1)
                     _stub.OnResponseSent_TestCallback3(r1.Result);
-                }
-                else if (response is Messages.C9_Response)
-                {
-                    var r0 = (Messages.C9_Response)response;
+                else if (response is Messages.C9_Response r0)
                     _stub.OnResponseSent_TestCallback2(r0.Result);
-                }
             }
         }
     }

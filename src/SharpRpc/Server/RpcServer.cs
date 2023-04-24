@@ -133,7 +133,7 @@ namespace SharpRpc
                 .AsParallel()
                 .Select(c =>
                     {
-                        c.Closed -= Session_Closed;
+                        c.InternalClosed -= Session_Closed;
                         return c.CloseAsync();
                     })
                 .ToList();
@@ -151,7 +151,7 @@ namespace SharpRpc
                 {
                     var serviceImpl = _binding.CreateServiceImpl();
                     var session = new Channel(true, sender, _binding.Descriptor, serviceImpl);
-                    session.Closed += Session_Closed;
+                    session.InternalClosed += Session_Closed;
                     session.Init(transport);
                     _sessions.Add(session.Id, session);
                     Logger.Verbose(Name, "New session: " + session.Id);
@@ -163,7 +163,7 @@ namespace SharpRpc
             if (abortConnection)
             {
                 transport.Shutdown();
-                Logger.Verbose(Name, "Incoming connection was aborted!");
+                Logger.Info(Name, "Incoming connection was aborted!");
             }
         }
 
@@ -188,7 +188,7 @@ namespace SharpRpc
 
         private bool IsFaultClose(RpcRetCode code)
         {
-            return code != RpcRetCode.Ok && code != RpcRetCode.ChannelClosed && code != RpcRetCode.LogoutRequest;
+            return code != RpcRetCode.Ok && code != RpcRetCode.ChannelClosed && code != RpcRetCode.ChannelClosedByOtherSide;
         }
     }
 }

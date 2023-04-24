@@ -21,11 +21,19 @@ namespace SharpRpc
     {
         private readonly SslStream _stream;
         private readonly Socket _socket;
+        private IRpcLogger _logger;
+        private string _channelId;
 
         public SslTransport(SslStream stream, Socket socket)
         {
             _stream = stream;
             _socket = socket;
+        }
+
+        public override void Init(Channel channel)
+        {
+            _logger = channel.Logger;
+            _channelId = channel.Id;
         }
 
 #if NET5_0_OR_GREATER
@@ -61,9 +69,9 @@ namespace SharpRpc
             {
                 await _stream.ShutdownAsync();
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // TO DO: log
+                _logger.Error(GetName(), "Shutdown() failed: " + ex.Message);
             }
         }
 
@@ -75,6 +83,11 @@ namespace SharpRpc
         public override ITransportInfo GetInfo()
         {
             return SocketTransport.CreateInfobject(_socket);
+        }
+
+        private string GetName()
+        {
+            return $"{_channelId}-SslTransport";
         }
     }
 }

@@ -101,14 +101,14 @@
                 {
                 }
 
-                public System.Threading.Tasks.Task SendUpdate(TestCommon.FooEntity entity)
+                public System.Threading.Tasks.ValueTask SendUpdate(TestCommon.FooEntity entity)
                 {
                     Messages.C0_Message message = new Messages.C0_Message();
                     message.Arg1 = entity;
                     return SendMessageAsync(message);
                 }
 
-                public System.Threading.Tasks.Task SendUpdate(PrebuiltMessages.SendUpdate message)
+                public System.Threading.Tasks.ValueTask SendUpdate(PrebuiltMessages.SendUpdate message)
                 {
                     return SendMessageAsync(message);
                 }
@@ -193,14 +193,14 @@
                 {
                 }
 
-                public System.Threading.Tasks.Task<SharpRpc.RpcResult> SendUpdate(TestCommon.FooEntity entity)
+                public System.Threading.Tasks.ValueTask<SharpRpc.RpcResult> SendUpdate(TestCommon.FooEntity entity)
                 {
                     Messages.C0_Message message = new Messages.C0_Message();
                     message.Arg1 = entity;
                     return TrySendMessageAsync(message);
                 }
 
-                public System.Threading.Tasks.Task<SharpRpc.RpcResult> SendUpdate(PrebuiltMessages.SendUpdate message)
+                public System.Threading.Tasks.ValueTask<SharpRpc.RpcResult> SendUpdate(PrebuiltMessages.SendUpdate message)
                 {
                     return TrySendMessageAsync(message);
                 }
@@ -236,13 +236,13 @@
 
         public abstract class ServiceBase
         {
-            public abstract System.Threading.Tasks.Task SendUpdate(TestCommon.FooEntity entity);
-            public abstract System.Threading.Tasks.Task ApplyUpdate(SharpRpc.CallContext context, TestCommon.FooEntity entity);
-            public abstract System.Threading.Tasks.Task UpstreamUpdates(SharpRpc.CallContext context, SharpRpc.StreamReader<TestCommon.FooEntity> inputStream);
-            public abstract System.Threading.Tasks.Task DownstreamUpdates(SharpRpc.CallContext context, SharpRpc.StreamWriter<TestCommon.FooEntity> outputStream);
-            public abstract System.Threading.Tasks.Task Flush(SharpRpc.CallContext context);
-            public abstract System.Threading.Tasks.Task<TestCommon.MulticastReport> MulticastUpdateToClients(SharpRpc.CallContext context, int msgCount, bool usePrebuiltMessages);
-            public abstract System.Threading.Tasks.Task<TestCommon.PerfReport> GetPerfCounters(SharpRpc.CallContext context);
+            public abstract System.Threading.Tasks.ValueTask SendUpdate(TestCommon.FooEntity entity);
+            public abstract System.Threading.Tasks.ValueTask ApplyUpdate(SharpRpc.CallContext context, TestCommon.FooEntity entity);
+            public abstract System.Threading.Tasks.ValueTask UpstreamUpdates(SharpRpc.CallContext context, SharpRpc.StreamReader<TestCommon.FooEntity> inputStream);
+            public abstract System.Threading.Tasks.ValueTask DownstreamUpdates(SharpRpc.CallContext context, SharpRpc.StreamWriter<TestCommon.FooEntity> outputStream);
+            public abstract System.Threading.Tasks.ValueTask Flush(SharpRpc.CallContext context);
+            public abstract System.Threading.Tasks.ValueTask<TestCommon.MulticastReport> MulticastUpdateToClients(SharpRpc.CallContext context, int msgCount, bool usePrebuiltMessages);
+            public abstract System.Threading.Tasks.ValueTask<TestCommon.PerfReport> GetPerfCounters(SharpRpc.CallContext context);
             public SharpRpc.SessionInfo Session { get; private set; }
 
             public CallbackClient Client { get; private set; }
@@ -271,7 +271,7 @@
                 _stub = serviceImpl;
             }
 
-            private async System.Threading.Tasks.Task<SharpRpc.IResponseMessage> InvokeApplyUpdate(Messages.C1_Request request)
+            private async System.Threading.Tasks.ValueTask<SharpRpc.IResponseMessage> InvokeApplyUpdate(Messages.C1_Request request)
             {
                 var context = CreateCallContext(request);
                 try
@@ -295,7 +295,7 @@
                 }
             }
 
-            private async System.Threading.Tasks.Task<SharpRpc.IResponseMessage> InvokeUpstreamUpdates(Messages.C2_Request request)
+            private async System.Threading.Tasks.ValueTask<SharpRpc.IResponseMessage> InvokeUpstreamUpdates(Messages.C2_Request request)
             {
                 var context = CreateInputStreamContext<TestCommon.FooEntity>(request, new Messages.C2_InputStreamFactory());
                 try
@@ -319,7 +319,7 @@
                 }
             }
 
-            private async System.Threading.Tasks.Task<SharpRpc.IResponseMessage> InvokeDownstreamUpdates(Messages.C3_Request request)
+            private async System.Threading.Tasks.ValueTask<SharpRpc.IResponseMessage> InvokeDownstreamUpdates(Messages.C3_Request request)
             {
                 var context = CreateOutputStreamContext<TestCommon.FooEntity>(request, new Messages.C3_OutputStreamFactory());
                 try
@@ -343,7 +343,7 @@
                 }
             }
 
-            private async System.Threading.Tasks.Task<SharpRpc.IResponseMessage> InvokeFlush(Messages.C4_Request request)
+            private async System.Threading.Tasks.ValueTask<SharpRpc.IResponseMessage> InvokeFlush(Messages.C4_Request request)
             {
                 var context = CreateCallContext(request);
                 try
@@ -367,7 +367,7 @@
                 }
             }
 
-            private async System.Threading.Tasks.Task<SharpRpc.IResponseMessage> InvokeMulticastUpdateToClients(Messages.C5_Request request)
+            private async System.Threading.Tasks.ValueTask<SharpRpc.IResponseMessage> InvokeMulticastUpdateToClients(Messages.C5_Request request)
             {
                 var context = CreateCallContext(request);
                 try
@@ -392,7 +392,7 @@
                 }
             }
 
-            private async System.Threading.Tasks.Task<SharpRpc.IResponseMessage> InvokeGetPerfCounters(Messages.C8_Request request)
+            private async System.Threading.Tasks.ValueTask<SharpRpc.IResponseMessage> InvokeGetPerfCounters(Messages.C8_Request request)
             {
                 var context = CreateCallContext(request);
                 try
@@ -417,49 +417,28 @@
                 }
             }
 
-            protected override System.Threading.Tasks.Task OnMessage(SharpRpc.IMessage message)
+            protected override System.Threading.Tasks.ValueTask OnMessage(SharpRpc.IMessage message)
             {
-                if (message is Messages.C0_Message)
-                {
-                    var m0 = (Messages.C0_Message)message;
+                if (message is Messages.C0_Message m0)
                     return _stub.SendUpdate(m0.Arg1);
-                }
                 else
                     return OnUnknownMessage(message);
             }
 
-            protected override System.Threading.Tasks.Task<SharpRpc.IResponseMessage> OnRequest(SharpRpc.IRequestMessage request)
+            protected override System.Threading.Tasks.ValueTask<SharpRpc.IResponseMessage> OnRequest(SharpRpc.IRequestMessage request)
             {
-                if (request is Messages.C8_Request)
-                {
-                    var r5 = (Messages.C8_Request)request;
+                if (request is Messages.C8_Request r5)
                     return InvokeGetPerfCounters(r5);
-                }
-                else if (request is Messages.C5_Request)
-                {
-                    var r4 = (Messages.C5_Request)request;
+                else if (request is Messages.C5_Request r4)
                     return InvokeMulticastUpdateToClients(r4);
-                }
-                else if (request is Messages.C4_Request)
-                {
-                    var r3 = (Messages.C4_Request)request;
+                else if (request is Messages.C4_Request r3)
                     return InvokeFlush(r3);
-                }
-                else if (request is Messages.C3_Request)
-                {
-                    var r2 = (Messages.C3_Request)request;
+                else if (request is Messages.C3_Request r2)
                     return InvokeDownstreamUpdates(r2);
-                }
-                else if (request is Messages.C2_Request)
-                {
-                    var r1 = (Messages.C2_Request)request;
+                else if (request is Messages.C2_Request r1)
                     return InvokeUpstreamUpdates(r1);
-                }
-                else if (request is Messages.C1_Request)
-                {
-                    var r0 = (Messages.C1_Request)request;
+                else if (request is Messages.C1_Request r0)
                     return InvokeApplyUpdate(r0);
-                }
                 else
                     return OnUnknownRequest(request);
             }
@@ -479,12 +458,12 @@
         {
             public void Serialize(SharpRpc.IMessage message, SharpRpc.MessageWriter writer)
             {
-                MessagePack.MessagePackSerializer.Serialize<TestCommon.BenchmarkContract_Gen.Messages.MessageBase>(writer.ByteStream, (TestCommon.BenchmarkContract_Gen.Messages.MessageBase)message);
+                MessagePack.MessagePackSerializer.Serialize<TestCommon.BenchmarkContract_Gen.Messages.MessageBase>(writer.ByteBuffer, (TestCommon.BenchmarkContract_Gen.Messages.MessageBase)message);
             }
 
             public SharpRpc.IMessage Deserialize(SharpRpc.MessageReader reader)
             {
-                return MessagePack.MessagePackSerializer.Deserialize<TestCommon.BenchmarkContract_Gen.Messages.MessageBase>(reader.ByteStream);
+                return MessagePack.MessagePackSerializer.Deserialize<TestCommon.BenchmarkContract_Gen.Messages.MessageBase>(reader.ByteBuffer);
             }
         }
 
@@ -1047,14 +1026,14 @@
                 {
                 }
 
-                public System.Threading.Tasks.Task SendUpdateToClient(TestCommon.FooEntity entity)
+                public System.Threading.Tasks.ValueTask SendUpdateToClient(TestCommon.FooEntity entity)
                 {
                     Messages.C6_Message message = new Messages.C6_Message();
                     message.Arg1 = entity;
                     return SendMessageAsync(message);
                 }
 
-                public System.Threading.Tasks.Task SendUpdateToClient(PrebuiltMessages.SendUpdateToClient message)
+                public System.Threading.Tasks.ValueTask SendUpdateToClient(PrebuiltMessages.SendUpdateToClient message)
                 {
                     return SendMessageAsync(message);
                 }
@@ -1099,14 +1078,14 @@
                 {
                 }
 
-                public System.Threading.Tasks.Task<SharpRpc.RpcResult> SendUpdateToClient(TestCommon.FooEntity entity)
+                public System.Threading.Tasks.ValueTask<SharpRpc.RpcResult> SendUpdateToClient(TestCommon.FooEntity entity)
                 {
                     Messages.C6_Message message = new Messages.C6_Message();
                     message.Arg1 = entity;
                     return TrySendMessageAsync(message);
                 }
 
-                public System.Threading.Tasks.Task<SharpRpc.RpcResult> SendUpdateToClient(PrebuiltMessages.SendUpdateToClient message)
+                public System.Threading.Tasks.ValueTask<SharpRpc.RpcResult> SendUpdateToClient(PrebuiltMessages.SendUpdateToClient message)
                 {
                     return TrySendMessageAsync(message);
                 }
@@ -1122,8 +1101,8 @@
 
         public abstract class CallbackServiceBase
         {
-            public abstract System.Threading.Tasks.Task SendUpdateToClient(TestCommon.FooEntity entity);
-            public abstract System.Threading.Tasks.Task ApplyUpdateOnClient(SharpRpc.CallContext context, TestCommon.FooEntity entity);
+            public abstract System.Threading.Tasks.ValueTask SendUpdateToClient(TestCommon.FooEntity entity);
+            public abstract System.Threading.Tasks.ValueTask ApplyUpdateOnClient(SharpRpc.CallContext context, TestCommon.FooEntity entity);
         }
 
         private class CallbackServiceHandler : SharpRpc.RpcCallHandler
@@ -1134,7 +1113,7 @@
                 _stub = serviceImpl;
             }
 
-            private async System.Threading.Tasks.Task<SharpRpc.IResponseMessage> InvokeApplyUpdateOnClient(Messages.C7_Request request)
+            private async System.Threading.Tasks.ValueTask<SharpRpc.IResponseMessage> InvokeApplyUpdateOnClient(Messages.C7_Request request)
             {
                 var context = CreateCallContext(request);
                 try
@@ -1158,24 +1137,18 @@
                 }
             }
 
-            protected override System.Threading.Tasks.Task OnMessage(SharpRpc.IMessage message)
+            protected override System.Threading.Tasks.ValueTask OnMessage(SharpRpc.IMessage message)
             {
-                if (message is Messages.C6_Message)
-                {
-                    var m0 = (Messages.C6_Message)message;
+                if (message is Messages.C6_Message m0)
                     return _stub.SendUpdateToClient(m0.Arg1);
-                }
                 else
                     return OnUnknownMessage(message);
             }
 
-            protected override System.Threading.Tasks.Task<SharpRpc.IResponseMessage> OnRequest(SharpRpc.IRequestMessage request)
+            protected override System.Threading.Tasks.ValueTask<SharpRpc.IResponseMessage> OnRequest(SharpRpc.IRequestMessage request)
             {
-                if (request is Messages.C7_Request)
-                {
-                    var r0 = (Messages.C7_Request)request;
+                if (request is Messages.C7_Request r0)
                     return InvokeApplyUpdateOnClient(r0);
-                }
                 else
                     return OnUnknownRequest(request);
             }

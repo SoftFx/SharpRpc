@@ -5,6 +5,7 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+using SharpRpc.Lib;
 using SharpRpc.Server;
 using System;
 using System.Collections.Generic;
@@ -26,8 +27,9 @@ namespace SharpRpc
         private readonly TaskCompletionSource<RpcResult> _connectEvent = new TaskCompletionSource<RpcResult>();
         private readonly TaskCompletionSource<RpcResult> _disconnectEvent = new TaskCompletionSource<RpcResult>();
         private readonly CancellationTokenSource _loginCancelSrc = new CancellationTokenSource();
-        private RpcResult _channelDisplayFault = RpcResult.Ok;
-        private RpcResult _channelOperationFault = RpcResult.ChannelClose;
+        private readonly CancellationTokenSource _abortSrc = new CancellationTokenSource();
+        //private RpcResult _channelDisplayFault = RpcResult.Ok;
+        private RpcResult _channelFault;
         private ByteTransport _transport;
         private SessionCoordinator _coordinator;
         private bool _closeFlag;
@@ -35,7 +37,8 @@ namespace SharpRpc
         private static int idSeed;
 
         public ChannelState State { get; private set; }
-        public RpcResult Fault => _channelDisplayFault;
+        public SessionState SessionState => _coordinator.State;
+        public RpcResult Fault => _channelFault;
         public string Id { get; }
 
         internal MessageDispatcher Dispatcher => _dispatcher;
@@ -44,9 +47,12 @@ namespace SharpRpc
         internal ContractDescriptor Contract => _descriptor;
         internal IRpcLogger Logger { get; }
 
-        internal event Action<Channel, RpcResult> Closed;
+        internal event Action<Channel, RpcResult> InternalClosed;
 
-        public event Action<Channel, RpcResult> Faulted;
+        public event AsyncEventHandler<ChannelOpeningArgs> Opening;
+        //public event EventHandler<ChannelOpenedArgs> Opened;
+        public event AsyncEventHandler<ChannelClosingArgs> Closing;
+        public event EventHandler<ChannelClosedArgs> Closed;
 
         internal Channel(bool serverSide, Endpoint endpoint, ContractDescriptor descriptor, RpcCallHandler msgHandler)
         {
@@ -102,8 +108,6 @@ namespace SharpRpc
 
         private void StartPipelines(ByteTransport transport)
         {
-            _coordinator.Init(this);
-
             //if (_endpoint.AsyncMessageParsing)
             //    _rx = new RxPipeline.OneThread(transport, _endpoint, _descriptor.SerializationAdapter, _dispatcher, _coordinator);
             //else
@@ -142,24 +146,38 @@ namespace SharpRpc
 
         public Task CloseAsync()
         {
-            TriggerClose(out var completion);
+            TriggerClose(new RpcResult(RpcRetCode.ChannelClosed, "Channel is closed locally."), out var completion);
             return completion;
         }
 
         internal void TriggerClose()
         {
-            TriggerClose(out _);
+            TriggerClose(new RpcResult(RpcRetCode.ChannelClosed, "Channel is closed locally."), out _);
         }
 
-        private void TriggerClose(out Task closeCompletion)
+        internal void TriggerDisconnect(RpcResult reason)
+        {
+            TriggerClose(reason, out _);
+        }
+
+        private void TriggerClose(RpcResult reason, out Task closeCompletion)
         {
             lock (_stateSyncObj)
             {
                 _closeFlag = true;
 
                 if (State == ChannelState.Online)
+                {
                     State = ChannelState.Disconnecting;
-                else if (State == ChannelState.Disconnecting || State == ChannelState.Connecting)
+                    _channelFault = reason;
+                }
+                else if (State == ChannelState.Connecting)
+                {
+                    closeCompletion = _disconnectEvent.Task;
+                    _channelFault = reason;
+                    return;
+                }
+                else if (State == ChannelState.Disconnecting)
                 {
                     closeCompletion = _disconnectEvent.Task;
                     return;
@@ -167,6 +185,7 @@ namespace SharpRpc
                 else if (State == ChannelState.New)
                 {
                     State = ChannelState.Closed;
+                    _channelFault = reason;
                     closeCompletion = Task.CompletedTask;
                     return;
                 }
@@ -177,45 +196,28 @@ namespace SharpRpc
                 }
             }
 
-            DoDisconnect(ChannelShutdownMode.Normal, LogoutOption.Immidiate);
+            DoDisconnect();
 
             closeCompletion = _disconnectEvent.Task;
         }
 
         internal void OnCommunicationError(RpcResult fault)
         {
-            lock (_stateSyncObj)
+            if (Logger.VerboseEnabled)
             {
-                if (State == ChannelState.Online)
-                {
-                    State = ChannelState.Disconnecting;
-                    UpdateFault(fault);
-                }
-                else if (State == ChannelState.Connecting)
-                {
-                    UpdateFault(fault);
-                    _loginCancelSrc.Cancel();
-                    return;
-                }
+                if (fault.Code == RpcRetCode.ConnectionAbortedByPeer)
+                    Logger.Verbose(Id, "The transport has been closed by the other side.");
                 else
-                    return;
+                    Logger.Verbose(Id, "Communication error: " + fault.Code);
             }
 
-            if (fault.Code != RpcRetCode.LogoutRequest)
-                Logger.Info(Id, "Communication error: " + fault.Code);
-            else
-                Logger.Info(Id, "Received a logout request.");
-
-            DoDisconnect(ChannelShutdownMode.Abort, LogoutOption.Immidiate);
+            Abort(fault);
         }
 
         private void UpdateFault(RpcResult fault)
         {
-            if (_channelDisplayFault.Code == RpcRetCode.Ok) // only first fault counts
-            {
-                _channelOperationFault = fault;
-                _channelDisplayFault = fault;
-            }
+            if (_channelFault.Code == RpcRetCode.Ok) // only first fault counts
+                _channelFault = fault;
         }
 
         private async void DoConnect()
@@ -242,13 +244,18 @@ namespace SharpRpc
 
             if (_transport != null)
             {
+                _coordinator.Init(this);
+
+                // start the coordinator before the pipelines
+                var startCoordinatorTask = _coordinator.OnConnect(_loginCancelSrc.Token);
+
                 StartPipelines(_transport);
 
                 // setup login timeout
                 _loginCancelSrc.CancelAfter(_coordinator.LoginTimeout);
 
                 // login handshake
-                var loginResult = await _coordinator.OnConnect(_loginCancelSrc.Token);
+                var loginResult = await startCoordinatorTask;
 
                 if (loginResult.Code != RpcRetCode.Ok)
                     UpdateFault(loginResult);
@@ -261,7 +268,7 @@ namespace SharpRpc
             lock (_stateSyncObj)
             {
                 // Note: a communication fault may be already occured at this time
-                if (_closeFlag || _channelDisplayFault.Code != RpcRetCode.Ok)
+                if (_closeFlag || _channelFault.Code != RpcRetCode.Ok)
                     abortConnect = true;
                 else
                     State = ChannelState.Online;
@@ -272,20 +279,20 @@ namespace SharpRpc
 
             if (abortConnect)
             {
-                _tx.StopProcessingUserMessages(_channelOperationFault);
+                _tx.StopProcessingUserMessages(_channelFault);
 
                 await CloseComponents();
 
                 lock (_stateSyncObj)
                     State = ChannelState.Faulted;
 
-                Logger.Warn(Id, "Connection failed! Code: {0}", _channelDisplayFault.Code);
+                Logger.Warn(Id, "Connection failed! Code: {0}", _channelFault.Code);
 
-                Closed?.Invoke(this, _channelDisplayFault);
+                InternalClosed?.Invoke(this, _channelFault);
 
-                Faulted?.Invoke(this, _channelDisplayFault);
+                //Faulted?.Invoke(this, new ChannelFaultedArgs(_channelFault));
 
-                _connectEvent.SetResult(_channelDisplayFault);
+                _connectEvent.SetResult(_channelFault);
                 _disconnectEvent.SetResult(RpcResult.Ok);
             }
             else
@@ -299,7 +306,7 @@ namespace SharpRpc
         {
             Logger.Verbose(Id, "Stopping dispatcher...");
 
-            await _dispatcher.Stop(_channelOperationFault);
+            await _dispatcher.Stop(_channelFault);
 
             try
             {
@@ -322,33 +329,40 @@ namespace SharpRpc
                 if (rxCloseTask != null)
                     await rxCloseTask;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                //TO DO : log
+                Logger.Error(Id, "CloseComponents() failed!", ex);
             }
 
             _transport?.Dispose();
         }
 
-        private async void DoDisconnect(ChannelShutdownMode closeMode, LogoutOption logoutMode)
+        private void Abort(RpcResult fault)
         {
-            Logger.Info(Id, "Disconnecting... Mode: {0}, logout: {1}", closeMode, logoutMode);
+            _abortSrc.Cancel();
+            TriggerClose(fault, out _);
+        }
 
-            _tx.StopProcessingUserMessages(_channelOperationFault);
+        private async void DoDisconnect()
+        {
+            Logger.Info(Id, $"{_channelFault.FaultMessage} [{_channelFault.Code}] Disconnecting...");
 
-            if (closeMode == ChannelShutdownMode.Normal)
-                await _coordinator.OnDisconnect(logoutMode);
+            _abortSrc.CancelAfter(TimeSpan.FromMinutes(2));
 
+            _tx.StopProcessingUserMessages(_channelFault);
+
+            await _coordinator.OnDisconnect(_abortSrc.Token);
             await CloseComponents();
 
             var faultToRise = RpcResult.Ok;
 
             lock (_stateSyncObj)
             {
-                if (_channelDisplayFault.Code != RpcRetCode.LogoutRequest)
+                if (_channelFault.Code != RpcRetCode.ChannelClosedByOtherSide
+                    && _channelFault.Code != RpcRetCode.ChannelClosed)
                 {
                     State = ChannelState.Faulted;
-                    faultToRise = _channelDisplayFault;
+                    faultToRise = _channelFault;
                 }
                 else
                     State = ChannelState.Closed;
@@ -356,12 +370,11 @@ namespace SharpRpc
 
             Logger.Info(Id, "Disconnected. Final state: " + State);
 
-            Closed?.Invoke(this, _channelDisplayFault);
-
-            if (!faultToRise.IsOk)
-                Faulted?.Invoke(this, faultToRise);
+            InternalClosed?.Invoke(this, _channelFault);
 
             _disconnectEvent.SetResult(RpcResult.Ok);
+
+            RiseClosedEvent(_channelFault, State == ChannelState.Faulted);
         }
 
         private void OnConnectionRequested()
@@ -386,6 +399,46 @@ namespace SharpRpc
             return _transport.GetInfo();
         }
 
+        internal async Task<bool> RiseOpeningEvent()
+        {
+            try
+            {
+                var args = new ChannelOpeningArgs();
+                await Opening.InvokeAsync(this, args);
+                return !args.HasErrorOccurred;
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(Id, ex, "An opening event handler threw an exception!");
+                return false;
+            }
+        }
+
+        internal async Task RiseClosingEvent(bool isFaulted)
+        {
+            try
+            {
+                var args = new ChannelClosingArgs(isFaulted);
+                await Closing.InvokeAsync(this, args);
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(Id, ex, "An opening event handler threw an exception!");
+            }
+        }
+
+        internal void RiseClosedEvent(RpcResult closeResult, bool isFaulted)
+        {
+            try
+            {
+                Closed?.Invoke(this, new ChannelClosedArgs(closeResult, isFaulted));
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(Id, ex, "An opening event handler threw an exception!");
+            }
+        }
+
 #if PF_COUNTERS
         public double GetAverageRxChunkSize() => _rx.GetAvarageRxSize();
         public int GetRxMessagePageCount() => _rx.GetPageCount();
@@ -403,29 +456,37 @@ namespace SharpRpc
         Faulted
     }
 
-    internal enum ChannelShutdownMode
-    {
-        /// <summary>
-        /// Close channel with full logout sequnce.
-        /// </summary>
-        Normal,
+    //public class ChannelOpenedArgs : EventArgs
+    //{
+    //}
 
-        /// <summary>
-        /// Close channel immediately without logout sequence. This option is typically used in fault situations.
-        /// </summary>
-        Abort
+    public class ChannelOpeningArgs : EventArgs
+    {
+        public ChannelOpeningArgs()
+        {
+        }
+
+        public bool HasErrorOccurred { get; set; }
     }
 
-    public enum LogoutOption
+    public class ChannelClosingArgs : EventArgs
     {
-        /// <summary>
-        /// Close channel immidietly; Do not wait for completion of started calls; Do not require logout response from other side;
-        /// </summary>
-        Immidiate,
+        public ChannelClosingArgs(bool isFaulted)
+        {
+            IsFaulted = isFaulted;
+        }
 
-        /// <summary>
-        /// Wait for all started calls to complete; Require logout response from other side
-        /// </summary>
-        EnsureCompletion
+        public bool IsFaulted { get; }
+    }
+
+    public class ChannelClosedArgs : EventArgs
+    {
+        internal ChannelClosedArgs(RpcResult reason, bool isFaulted)
+        {
+            Reason = reason;
+        }
+
+        public RpcResult Reason { get; }
+        public bool IsFaulted { get; }
     }
 }

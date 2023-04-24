@@ -16,10 +16,8 @@ namespace SharpRpc
 {
     internal class ClientSideCoordinator : SessionCoordinator
     {
-        private object _lockObj = new object();
-        private States _state = States.PendingLogin;
         private TaskCompletionSource<ILoginMessage> _loginWaitHandle;
-        private TaskCompletionSource<ILogoutMessage> _logoutWaitHandle;
+        //private TaskCompletionSource<ILogoutMessage> _logoutWaitHandle;
         private Credentials _creds;
 
 #if DEBUG
@@ -34,15 +32,11 @@ namespace SharpRpc
             _creds = clientEndpoint.Credentials;
         }
 
-#if NET5_0_OR_GREATER
-        public override async ValueTask<RpcResult> OnConnect(CancellationToken cToken)
-#else
         public override async Task<RpcResult> OnConnect(CancellationToken cToken)
-#endif
         {
-            lock (_lockObj)
+            lock (LockObj)
             {
-                _state = States.LoginInProgress;
+                State = SessionState.PendingLogin;
                 _loginWaitHandle = new TaskCompletionSource<ILoginMessage>();
             }
 
@@ -75,79 +69,22 @@ namespace SharpRpc
             }
         }
 
-#if NET5_0_OR_GREATER
-        public override async ValueTask<RpcResult> OnDisconnect(LogoutOption option)
-#else
-        public override async Task<RpcResult> OnDisconnect(LogoutOption option)
-#endif
+        protected override RpcResult OnLoginMessage(ILoginMessage loginMsg)
         {
-            lock (_lockObj)
+            lock (LockObj)
             {
-                // the session has been already closed
-                if (_state == States.LoggedOut)
-                    return RpcResult.Ok;
+                if (State != SessionState.PendingLogin)
+                    return new RpcResult(RpcRetCode.ProtocolViolation, "Unexpected login message!");
 
-                if (option == LogoutOption.Immidiate)
-                    _state = States.LoggedOut;
-                else
-                {
-                    _state = States.LogoutInProgress;
-                    _logoutWaitHandle = new TaskCompletionSource<ILogoutMessage>();
-                }
+                State = SessionState.OpeningEvent;
+                _loginWaitHandle.TrySetResult(loginMsg);
+                return RpcResult.Ok;
             }
-
-            var logoutMsg = Channel.Contract.SystemMessages.CreateLogoutMessage();
-            //logoutMsg.Mode = option;
-
-            var sendResult = await Channel.Tx.SendSystemMessage(logoutMsg);
-
-            lock (_lockObj)
-            {
-                if (!sendResult.IsOk)
-                    return sendResult;
-
-                if (option == LogoutOption.Immidiate)
-                {
-                    _state = States.LoggedOut;
-                    return RpcResult.Ok;
-                }
-            }
-
-            // TO DO: add wait timeout
-            await _logoutWaitHandle.Task;
-
-            lock (_lockObj)
-                _state = States.LoggedOut;
-
-            return RpcResult.Ok;
         }
 
-        public override RpcResult OnMessage(ISystemMessage message)
+        protected override Task RiseClosingEvent(bool isFaulted)
         {
-            lock (_lockObj)
-            {
-                if (message is ILoginMessage loginMsg)
-                {
-                    if (_state != States.LoginInProgress)
-                        return new RpcResult(RpcRetCode.ProtocolViolation, "Unexpected login message!");
-
-                    _state = States.LoggedIn;
-                    _loginWaitHandle.TrySetResult(loginMsg);
-                }
-                else if (message is ILogoutMessage logoutMsg)
-                {
-                    if (_state == States.LoginInProgress)
-                        _logoutWaitHandle.TrySetResult(logoutMsg);
-                    else
-                    {
-                        _state = States.LoggedOut;
-                        return new RpcResult(RpcRetCode.LogoutRequest, "Connection is closed by server side.");
-                    }
-                }
-                
-            }
-
-            return RpcResult.Ok;
+            return Channel.RiseClosingEvent(isFaulted);
         }
 
         private void OnLoginTimeout()

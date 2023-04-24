@@ -70,6 +70,7 @@ namespace SharpRpc
         private readonly IDispatcher _dispatcher;
 
         private string _name;
+        private readonly string _channelId;
 
         public StreamCall(IOpenStreamRequest request, StreamOptions inputOptions, StreamOptions outputOptions, TxPipeline msgTransmitter,
             IDispatcher dispatcher, IStreamMessageFactory<TInItem> inFactory, IStreamMessageFactory<TOutItem> outFactory,
@@ -77,6 +78,7 @@ namespace SharpRpc
         {
             _requestMessage = request;
             _dispatcher = dispatcher;
+            _channelId = msgTransmitter.ChannelId;
 
             CallId = dispatcher.GenerateOperationId();
 
@@ -241,7 +243,7 @@ namespace SharpRpc
         private string GetName()
         {
             if (_name == null)
-                _name = "StreamCall(" + CallId + ")";
+                _name = $"{_channelId}-SC-{CallId}";
             return _name;
         }
     }

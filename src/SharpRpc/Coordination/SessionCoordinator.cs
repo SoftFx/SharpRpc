@@ -16,6 +16,9 @@ namespace SharpRpc
 {
     internal abstract class SessionCoordinator
     {
+        private TaskCompletionSource<ILogoutMessage> _logoutWaitHandle;
+
+        protected object LockObj { get; } = new object();
         protected Channel Channel { get; private set; }
 
         public void Init(Channel ch)
@@ -25,25 +28,106 @@ namespace SharpRpc
         }
 
         public abstract TimeSpan LoginTimeout { get; }
+        public SessionState State { get; protected set; }
 
-        public abstract RpcResult OnMessage(ISystemMessage message);
-#if NET5_0_OR_GREATER
-        public abstract ValueTask<RpcResult> OnConnect(CancellationToken cToken);
-        public abstract ValueTask<RpcResult> OnDisconnect(LogoutOption option);
-#else
         public abstract Task<RpcResult> OnConnect(CancellationToken cToken);
-        public abstract Task<RpcResult> OnDisconnect(LogoutOption option);
-#endif
+        //public abstract Task<RpcResult> OnDisconnect();public abstract Task<RpcResult> OnDisconnect();
 
+        protected abstract RpcResult OnLoginMessage(ILoginMessage loginMsg);
         protected virtual void OnInit() { }
 
-        public enum States
+        protected abstract Task RiseClosingEvent(bool isFaulted);
+
+        public RpcResult OnMessage(ISystemMessage message)
         {
-            PendingLogin,
-            LoginInProgress,
-            LoggedIn,
-            LogoutInProgress,
-            LoggedOut
+            if (message is ILoginMessage loginMsg)
+                return OnLoginMessage(loginMsg);
+            else if (message is ILogoutMessage logoutMsg)
+                return OnLogoutMessage(logoutMsg);
+
+            return RpcResult.Ok; // TO DO : report protocol violation
         }
+
+        private RpcResult OnLogoutMessage(ILogoutMessage logoutMsg)
+        {
+            lock (LockObj)
+            {
+                if (State == SessionState.ClosingEvent || State == SessionState.PendingLogout)
+                {
+                    if (Channel.Logger.VerboseEnabled)
+                        Channel.Logger.Verbose(Channel.Id, "The logout message has been received.");
+                    _logoutWaitHandle.SetResult(logoutMsg);
+                    return RpcResult.Ok;
+                }
+                else if (State != SessionState.LoggedIn)
+                    return new RpcResult(RpcRetCode.UnexpectedMessage, $"Received an unexpected logout message! State='{State}'.");
+            }
+
+            // trigger logout (SessionState.LoggedIn)
+            Channel.TriggerDisconnect(new RpcResult(RpcRetCode.ChannelClosedByOtherSide, "Logout requested by other side."));
+            return RpcResult.Ok;
+        }
+
+        public async Task OnDisconnect(CancellationToken abortToken)
+        {
+            lock (LockObj)
+            {
+                State = SessionState.ClosingEvent;
+                _logoutWaitHandle = new TaskCompletionSource<ILogoutMessage>();
+            }
+
+            await RiseClosingEvent(abortToken.IsCancellationRequested);
+
+            if (!abortToken.IsCancellationRequested)
+            {
+                using (abortToken.Register(AbortLogoutWait))
+                {
+                    lock (LockObj)
+                        State = SessionState.PendingLogout;
+
+                    var sendResult = await SendLogout();
+
+                    if (sendResult.IsOk)
+                    {
+                        await _logoutWaitHandle.Task;
+                        await Task.Yield(); // exit the lock
+                    }
+                    else
+                        Channel.Logger.Warn(Channel.Id, "Failed to send a logout message! " + sendResult.FaultMessage);
+                }
+            }
+
+            lock (LockObj)
+                State = SessionState.LoggedOut;
+        }
+
+        private void AbortLogoutWait()
+        {
+            lock (LockObj)
+            {
+                if (!_logoutWaitHandle.Task.IsCompleted)
+                    _logoutWaitHandle.SetResult(null);
+            }
+        }
+
+        private Task<RpcResult> SendLogout()
+        {
+            if (Channel.Logger.VerboseEnabled)
+                Channel.Logger.Verbose(Channel.Id, "Sending logout message...");
+
+            var logoutMsg = Channel.Contract.SystemMessages.CreateLogoutMessage();
+            return Channel.Tx.SendSystemMessage(logoutMsg).ToTask();
+        }
+    }
+
+    public enum SessionState
+    {
+        None, // new
+        PendingLogin, // wating for login message
+        LoggedIn,
+        OpeningEvent,
+        ClosingEvent,
+        PendingLogout,
+        LoggedOut
     }
 }

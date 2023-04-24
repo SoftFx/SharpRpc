@@ -22,7 +22,7 @@ namespace SharpRpc
         InvalidCredentials = 12,
         ConfigurationError = 13,
         ChannelClosed = 14,
-        LogoutRequest = 15,
+        ChannelClosedByOtherSide = 15,
         ConnectionShutdown = 16,
         ConnectionAbortedByPeer = 17,
         ConnectionTimeout = 18,

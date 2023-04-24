@@ -24,6 +24,8 @@ namespace SharpRpc
 #endif
         public abstract RpcResult TranslateException(Exception ex);
 
+        public abstract void Init(Channel channel);
+
         public abstract Task Shutdown();
         public abstract void Dispose();
 

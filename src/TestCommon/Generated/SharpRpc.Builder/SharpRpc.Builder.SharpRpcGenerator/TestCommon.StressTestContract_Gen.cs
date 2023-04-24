@@ -154,11 +154,11 @@
 
         public abstract class ServiceBase
         {
-            public abstract System.Threading.Tasks.Task<TestCommon.StressEntity> RequestResponse(SharpRpc.CallContext context, TestCommon.StressEntity entity, TestCommon.RequestConfig cfg);
-            public abstract System.Threading.Tasks.Task RequestMessages(SharpRpc.CallContext context, int count, TestCommon.RequestConfig cfg);
-            public abstract System.Threading.Tasks.Task DownstreamEntities(SharpRpc.CallContext context, SharpRpc.StreamWriter<TestCommon.StressEntity> outputStream, TestCommon.RequestConfig cfg, int count);
-            public abstract System.Threading.Tasks.Task<int> UpstreamEntities(SharpRpc.CallContext context, SharpRpc.StreamReader<TestCommon.StressEntity> inputStream, TestCommon.RequestConfig cfg);
-            public abstract System.Threading.Tasks.Task DuplexStreamEntities(SharpRpc.CallContext context, SharpRpc.StreamReader<TestCommon.StressEntity> inputStream, SharpRpc.StreamWriter<TestCommon.StressEntity> outputStream, TestCommon.RequestConfig cfg);
+            public abstract System.Threading.Tasks.ValueTask<TestCommon.StressEntity> RequestResponse(SharpRpc.CallContext context, TestCommon.StressEntity entity, TestCommon.RequestConfig cfg);
+            public abstract System.Threading.Tasks.ValueTask RequestMessages(SharpRpc.CallContext context, int count, TestCommon.RequestConfig cfg);
+            public abstract System.Threading.Tasks.ValueTask DownstreamEntities(SharpRpc.CallContext context, SharpRpc.StreamWriter<TestCommon.StressEntity> outputStream, TestCommon.RequestConfig cfg, int count);
+            public abstract System.Threading.Tasks.ValueTask<int> UpstreamEntities(SharpRpc.CallContext context, SharpRpc.StreamReader<TestCommon.StressEntity> inputStream, TestCommon.RequestConfig cfg);
+            public abstract System.Threading.Tasks.ValueTask DuplexStreamEntities(SharpRpc.CallContext context, SharpRpc.StreamReader<TestCommon.StressEntity> inputStream, SharpRpc.StreamWriter<TestCommon.StressEntity> outputStream, TestCommon.RequestConfig cfg);
             public SharpRpc.SessionInfo Session { get; private set; }
 
             public CallbackClient Client { get; private set; }
@@ -187,7 +187,7 @@
                 _stub = serviceImpl;
             }
 
-            private async System.Threading.Tasks.Task<SharpRpc.IResponseMessage> InvokeRequestResponse(Messages.C1_Request request)
+            private async System.Threading.Tasks.ValueTask<SharpRpc.IResponseMessage> InvokeRequestResponse(Messages.C1_Request request)
             {
                 var context = CreateCallContext(request);
                 try
@@ -212,7 +212,7 @@
                 }
             }
 
-            private async System.Threading.Tasks.Task<SharpRpc.IResponseMessage> InvokeRequestMessages(Messages.C2_Request request)
+            private async System.Threading.Tasks.ValueTask<SharpRpc.IResponseMessage> InvokeRequestMessages(Messages.C2_Request request)
             {
                 var context = CreateCallContext(request);
                 try
@@ -236,7 +236,7 @@
                 }
             }
 
-            private async System.Threading.Tasks.Task<SharpRpc.IResponseMessage> InvokeDownstreamEntities(Messages.C4_Request request)
+            private async System.Threading.Tasks.ValueTask<SharpRpc.IResponseMessage> InvokeDownstreamEntities(Messages.C4_Request request)
             {
                 var context = CreateOutputStreamContext<TestCommon.StressEntity>(request, new Messages.C4_OutputStreamFactory());
                 try
@@ -260,7 +260,7 @@
                 }
             }
 
-            private async System.Threading.Tasks.Task<SharpRpc.IResponseMessage> InvokeUpstreamEntities(Messages.C5_Request request)
+            private async System.Threading.Tasks.ValueTask<SharpRpc.IResponseMessage> InvokeUpstreamEntities(Messages.C5_Request request)
             {
                 var context = CreateInputStreamContext<TestCommon.StressEntity>(request, new Messages.C5_InputStreamFactory());
                 try
@@ -285,7 +285,7 @@
                 }
             }
 
-            private async System.Threading.Tasks.Task<SharpRpc.IResponseMessage> InvokeDuplexStreamEntities(Messages.C6_Request request)
+            private async System.Threading.Tasks.ValueTask<SharpRpc.IResponseMessage> InvokeDuplexStreamEntities(Messages.C6_Request request)
             {
                 var context = CreateDuplexStreamContext<TestCommon.StressEntity, TestCommon.StressEntity>(request, new Messages.C6_InputStreamFactory(), new Messages.C6_OutputStreamFactory());
                 try
@@ -309,38 +309,23 @@
                 }
             }
 
-            protected override System.Threading.Tasks.Task OnMessage(SharpRpc.IMessage message)
+            protected override System.Threading.Tasks.ValueTask OnMessage(SharpRpc.IMessage message)
             {
                 return OnUnknownMessage(message);
             }
 
-            protected override System.Threading.Tasks.Task<SharpRpc.IResponseMessage> OnRequest(SharpRpc.IRequestMessage request)
+            protected override System.Threading.Tasks.ValueTask<SharpRpc.IResponseMessage> OnRequest(SharpRpc.IRequestMessage request)
             {
-                if (request is Messages.C6_Request)
-                {
-                    var r4 = (Messages.C6_Request)request;
+                if (request is Messages.C6_Request r4)
                     return InvokeDuplexStreamEntities(r4);
-                }
-                else if (request is Messages.C5_Request)
-                {
-                    var r3 = (Messages.C5_Request)request;
+                else if (request is Messages.C5_Request r3)
                     return InvokeUpstreamEntities(r3);
-                }
-                else if (request is Messages.C4_Request)
-                {
-                    var r2 = (Messages.C4_Request)request;
+                else if (request is Messages.C4_Request r2)
                     return InvokeDownstreamEntities(r2);
-                }
-                else if (request is Messages.C2_Request)
-                {
-                    var r1 = (Messages.C2_Request)request;
+                else if (request is Messages.C2_Request r1)
                     return InvokeRequestMessages(r1);
-                }
-                else if (request is Messages.C1_Request)
-                {
-                    var r0 = (Messages.C1_Request)request;
+                else if (request is Messages.C1_Request r0)
                     return InvokeRequestResponse(r0);
-                }
                 else
                     return OnUnknownRequest(request);
             }
@@ -360,12 +345,12 @@
         {
             public void Serialize(SharpRpc.IMessage message, SharpRpc.MessageWriter writer)
             {
-                MessagePack.MessagePackSerializer.Serialize<TestCommon.StressTestContract_Gen.Messages.MessageBase>(writer.ByteStream, (TestCommon.StressTestContract_Gen.Messages.MessageBase)message);
+                MessagePack.MessagePackSerializer.Serialize<TestCommon.StressTestContract_Gen.Messages.MessageBase>(writer.ByteBuffer, (TestCommon.StressTestContract_Gen.Messages.MessageBase)message);
             }
 
             public SharpRpc.IMessage Deserialize(SharpRpc.MessageReader reader)
             {
-                return MessagePack.MessagePackSerializer.Deserialize<TestCommon.StressTestContract_Gen.Messages.MessageBase>(reader.ByteStream);
+                return MessagePack.MessagePackSerializer.Deserialize<TestCommon.StressTestContract_Gen.Messages.MessageBase>(reader.ByteBuffer);
             }
         }
 
@@ -944,7 +929,7 @@
                 {
                 }
 
-                public System.Threading.Tasks.Task CallbackMessage(System.Guid requestId, TestCommon.StressEntity entity)
+                public System.Threading.Tasks.ValueTask CallbackMessage(System.Guid requestId, TestCommon.StressEntity entity)
                 {
                     Messages.C3_Message message = new Messages.C3_Message();
                     message.Arg1 = requestId;
@@ -952,7 +937,7 @@
                     return SendMessageAsync(message);
                 }
 
-                public System.Threading.Tasks.Task CallbackMessage(PrebuiltMessages.CallbackMessage message)
+                public System.Threading.Tasks.ValueTask CallbackMessage(PrebuiltMessages.CallbackMessage message)
                 {
                     return SendMessageAsync(message);
                 }
@@ -984,7 +969,7 @@
                 {
                 }
 
-                public System.Threading.Tasks.Task<SharpRpc.RpcResult> CallbackMessage(System.Guid requestId, TestCommon.StressEntity entity)
+                public System.Threading.Tasks.ValueTask<SharpRpc.RpcResult> CallbackMessage(System.Guid requestId, TestCommon.StressEntity entity)
                 {
                     Messages.C3_Message message = new Messages.C3_Message();
                     message.Arg1 = requestId;
@@ -992,7 +977,7 @@
                     return TrySendMessageAsync(message);
                 }
 
-                public System.Threading.Tasks.Task<SharpRpc.RpcResult> CallbackMessage(PrebuiltMessages.CallbackMessage message)
+                public System.Threading.Tasks.ValueTask<SharpRpc.RpcResult> CallbackMessage(PrebuiltMessages.CallbackMessage message)
                 {
                     return TrySendMessageAsync(message);
                 }
@@ -1001,7 +986,7 @@
 
         public abstract class CallbackServiceBase
         {
-            public abstract System.Threading.Tasks.Task CallbackMessage(System.Guid requestId, TestCommon.StressEntity entity);
+            public abstract System.Threading.Tasks.ValueTask CallbackMessage(System.Guid requestId, TestCommon.StressEntity entity);
         }
 
         private class CallbackServiceHandler : SharpRpc.RpcCallHandler
@@ -1012,18 +997,15 @@
                 _stub = serviceImpl;
             }
 
-            protected override System.Threading.Tasks.Task OnMessage(SharpRpc.IMessage message)
+            protected override System.Threading.Tasks.ValueTask OnMessage(SharpRpc.IMessage message)
             {
-                if (message is Messages.C3_Message)
-                {
-                    var m0 = (Messages.C3_Message)message;
+                if (message is Messages.C3_Message m0)
                     return _stub.CallbackMessage(m0.Arg1, m0.Arg2);
-                }
                 else
                     return OnUnknownMessage(message);
             }
 
-            protected override System.Threading.Tasks.Task<SharpRpc.IResponseMessage> OnRequest(SharpRpc.IRequestMessage request)
+            protected override System.Threading.Tasks.ValueTask<SharpRpc.IResponseMessage> OnRequest(SharpRpc.IRequestMessage request)
             {
                 return OnUnknownRequest(request);
             }
