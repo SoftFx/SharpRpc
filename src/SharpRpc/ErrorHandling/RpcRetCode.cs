@@ -32,11 +32,10 @@ namespace SharpRpc
         SerializationError = 22,
         DeserializationError = 23,
         MessageMarkupError = 24,
-        
         UnexpectedMessage = 25,
-
         OperationCanceled = 26,
-        
+        InvalidHandshake = 27,
+
         RequestFault = 50,
 
         // Unexpected exception in request handler (not covered by fault contract)

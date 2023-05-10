@@ -11,6 +11,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace SharpRpc.Tcp
@@ -32,7 +33,7 @@ namespace SharpRpc.Tcp
             _socket = socket ?? throw new ArgumentNullException(nameof(socket));
             _endpoint = endpoint ?? throw new ArgumentNullException(nameof(_endpoint));
             _security = security ?? throw new ArgumentNullException(nameof(security));
-            _logId = endpoint.Name;
+            _logId = endpoint.Name + ".Listener";
             
             _configureSocket = socketConfigAction ?? throw new ArgumentNullException(nameof(socketConfigAction));
             _onConnect = onConnect ?? throw new ArgumentNullException(nameof(onConnect));
@@ -59,10 +60,13 @@ namespace SharpRpc.Tcp
 
         private async Task AcceptLoop()
         {
+            var handshaker = new HandshakeCoordinator(1024 * 10, TimeSpan.FromSeconds(10));
+
             while (!_stopFlag)
             {
-                Socket socket;
+                Socket socket = null;
 
+                // ** accept **
                 try
                 {
                     socket = await _socket.AcceptAsync().ConfigureAwait(false);
@@ -76,27 +80,65 @@ namespace SharpRpc.Tcp
                     if (!_stopFlag || socketEx == null || socketEx.SocketErrorCode != SocketError.OperationAborted)
                         Logger.Error(_logId, ex.Message, null);
 
+                    if (socket != null)
+                        CloseSocket(socket);
+
                     continue;
                 }
 
+                if (Logger.VerboseEnabled)
+                    Logger.Verbose(_logId, "Accepted new connection.");
+
                 try
                 {
+
+                    // do handshake
+                    var unsecuredTransport = new SocketTransport(socket, _endpoint.TaskQueue);
+                    var handshakeResult = await handshaker.DoServerSideHandshake(unsecuredTransport);
+
+                    if (!handshakeResult.IsOk)
+                    {
+                        Logger.Info(_logId, "Handshake failed: " + handshakeResult.FaultMessage);
+
+                        try
+                        {
+                            await socket.DisconnectAsync(_endpoint.TaskQueue);
+                        }
+                        catch (Exception)
+                        {
+                        }
+
+                        CloseSocket(socket);
+
+                        continue;
+                    }
+
+                    Logger.Verbose(_logId, "Completed a handshake.");
+
+                    // secure
                     var transport = await _security.SecureTransport(socket, _endpoint);
 
+                    // open new session
                     _onConnect(transport);
                 }
                 catch (Exception ex)
                 {
                     Logger.Error(_logId, ex.Message);
-
-                    try
-                    {
-                        await socket.DisconnectAsync(_endpoint.TaskQueue);
-                    }
-                    catch
-                    {
-                    }
+                    CloseSocket(socket);
                 }
+            }
+        }
+
+        private void CloseSocket(Socket socket)
+        {
+            try
+            {
+                //await socket.DisconnectAsync(_endpoint.TaskQueue);
+                socket.Close();
+                socket.Dispose();
+            }
+            catch
+            {
             }
         }
     }

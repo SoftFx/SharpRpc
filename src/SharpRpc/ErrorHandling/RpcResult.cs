@@ -6,6 +6,7 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 using System;
+using System.Data.Common;
 
 namespace SharpRpc
 {
@@ -80,6 +81,7 @@ namespace SharpRpc
         public string FaultMessage { get; }
         public object CustomFaultData { get; }
         public T Value { get; }
+        public bool IsOk => Code == RpcRetCode.Ok;
 
         public RpcResult GetResultInfo()
         {
@@ -99,5 +101,8 @@ namespace SharpRpc
         //    if (Code != RpcRetCode.Ok)
         //        throw new RpcException(FaultMessage, Code);
         //}
+
+        public static implicit operator RpcResult<T>(RpcResult r) => new RpcResult<T>(r.Code, r.FaultMessage, r.CustomFaultData);
+        public static implicit operator RpcResult(RpcResult<T> r) => new RpcResult(r.Code, r.FaultMessage, r.CustomFaultData);
     }
 }

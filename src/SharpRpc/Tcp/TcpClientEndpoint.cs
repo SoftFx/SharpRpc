@@ -55,6 +55,12 @@ namespace SharpRpc
 
                 await socket.ConnectAsync(targetEndpoint);
 
+                // handshake
+                var handshaker = new HandshakeCoordinator(1024 * 10, TimeSpan.FromSeconds(10));
+                var unsecuredTransport = new SocketTransport(socket, TaskQueue);
+                await handshaker.DoClientSideHandshake(unsecuredTransport);
+
+                // secure
                 return new RpcResult<ByteTransport>(await _security.SecureTransport(socket, this, _address));
             }
             catch (Exception ex)

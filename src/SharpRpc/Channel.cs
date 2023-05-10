@@ -26,8 +26,8 @@ namespace SharpRpc
         private readonly ContractDescriptor _descriptor;
         private readonly TaskCompletionSource<RpcResult> _connectEvent = new TaskCompletionSource<RpcResult>();
         private readonly TaskCompletionSource<RpcResult> _disconnectEvent = new TaskCompletionSource<RpcResult>();
-        private readonly CancellationTokenSource _loginCancelSrc = new CancellationTokenSource();
-        private readonly CancellationTokenSource _abortSrc = new CancellationTokenSource();
+        private readonly CancellationTokenSource _abortLoginSrc = new CancellationTokenSource();
+        private readonly CancellationTokenSource _abortLogoutSrc = new CancellationTokenSource();
         //private RpcResult _channelDisplayFault = RpcResult.Ok;
         private RpcResult _channelFault;
         private ByteTransport _transport;
@@ -247,12 +247,12 @@ namespace SharpRpc
                 _coordinator.Init(this);
 
                 // start the coordinator before the pipelines
-                var startCoordinatorTask = _coordinator.OnConnect(_loginCancelSrc.Token);
+                var startCoordinatorTask = _coordinator.OnConnect(_abortLoginSrc.Token);
 
                 StartPipelines(_transport);
 
                 // setup login timeout
-                _loginCancelSrc.CancelAfter(_coordinator.LoginTimeout);
+                _abortLoginSrc.CancelAfter(_coordinator.LoginTimeout);
 
                 // login handshake
                 var loginResult = await startCoordinatorTask;
@@ -339,19 +339,20 @@ namespace SharpRpc
 
         private void Abort(RpcResult fault)
         {
-            _abortSrc.Cancel();
             TriggerClose(fault, out _);
+            _abortLoginSrc.Cancel();
+            _abortLogoutSrc.Cancel();
         }
 
         private async void DoDisconnect()
         {
             Logger.Info(Id, $"{_channelFault.FaultMessage} [{_channelFault.Code}] Disconnecting...");
 
-            _abortSrc.CancelAfter(TimeSpan.FromMinutes(2));
+            _abortLogoutSrc.CancelAfter(TimeSpan.FromMinutes(2));
 
             _tx.StopProcessingUserMessages(_channelFault);
 
-            await _coordinator.OnDisconnect(_abortSrc.Token);
+            await _coordinator.OnDisconnect(_abortLogoutSrc.Token);
             await CloseComponents();
 
             var faultToRise = RpcResult.Ok;
