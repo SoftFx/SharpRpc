@@ -18,7 +18,7 @@ namespace SharpRpc
     {
         private Channel _ch;
 
-        internal void Init(Channel channel, SessionContext sharedContext, ITransportInfo transportInfo)
+        internal void Init(Channel channel, SessionContext sharedContext, TransportInfo transportInfo)
         {
             _ch = channel;
             Id = _ch.Id;
@@ -29,7 +29,7 @@ namespace SharpRpc
         public string Id { get; private set; }
 
         public CustomProperties Properties { get; private set; }
-        public ITransportInfo TransportInfo { get; private set; }
+        public TransportInfo TransportInfo { get; private set; }
 
         /// <summary>
         /// Triggers session close. It's safe to call this function from message/call handlers.
@@ -40,7 +40,7 @@ namespace SharpRpc
         }
 
         public T GetTransportInfo<T>()
-            where T : ITransportInfo
+            where T : TransportInfo
         {
             if (TransportInfo is T typedInfo)
                 return typedInfo;

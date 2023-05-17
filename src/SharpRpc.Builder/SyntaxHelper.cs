@@ -151,6 +151,11 @@ namespace SharpRpc.Builder
             return SyntaxFactory.Token(SyntaxKind.ProtectedKeyword);
         }
 
+        public static SyntaxToken StaticToken()
+        {
+            return SyntaxFactory.Token(SyntaxKind.StaticKeyword);
+        }
+
         public static SyntaxToken VirtualToken()
         {
             return SyntaxFactory.Token(SyntaxKind.VirtualKeyword);
@@ -366,10 +371,10 @@ namespace SharpRpc.Builder
                 SyntaxFactory.SeparatedList(initNodes)));
         }
 
-        public static ExpressionSyntax PropertyInitializer(string propName, ExpressionSyntax value)
+        public static PropertyDeclarationSyntax AddInitializer(this PropertyDeclarationSyntax property, ExpressionSyntax value)
         {
-            return SyntaxFactory.AssignmentExpression(SyntaxKind.SimpleAssignmentExpression,
-                SyntaxFactory.IdentifierName(propName), value);
+            return property.WithInitializer(SyntaxFactory.EqualsValueClause(value))
+                .WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken));
         }
     }
 }

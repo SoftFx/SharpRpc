@@ -89,14 +89,14 @@ namespace SharpRpc.Builder
             return handlerClass;
         }
 
-        public MethodDeclarationSyntax GenerateBindMethod()
+        public MethodDeclarationSyntax GenerateServiceDescriptorFactory()
         {
-            var serializerCreateClause = SH.InvocationExpression(Names.FacadeSerializerAdapterFactoryMethod, SF.Argument(SF.IdentifierName("serializer")));
-            var serializerVarStatement = SH.LocalVarDeclaration("adapter", serializerCreateClause);
+            //var msgFactoryVarStatement = SH.LocalVarDeclaration("sFactory",
+            //    SF.ObjectCreationExpression(SH.ShortTypeName(_contract.MessageFactoryClassName))
+            //    .WithoutArguments());
 
-            var msgFactoryVarStatement = SH.LocalVarDeclaration("sFactory",
-                SF.ObjectCreationExpression(SH.ShortTypeName(_contract.MessageFactoryClassName))
-                .WithoutArguments());
+            var contractDescriptorVarStatement = SH.LocalVarDeclaration("contract",
+                SH.InvocationExpression(Names.FacadeCreateDescriptorMethod, SH.IdentifierArgument("serializer")));
 
             var serviceFactoryFunc = SH.GenericType("System.Func", _contract.ServiceStubClassName.Short);
             var serviceFactoryParam = SH.Parameter("serviceImplFactory", serviceFactoryFunc);
@@ -108,20 +108,19 @@ namespace SharpRpc.Builder
                 .WithExpressionBody(handlerCreationExp);
 
             var retStatement = SF.ReturnStatement(
-                SF.ObjectCreationExpression(SH.FullTypeName(Names.ServiceBindingClass))
+                SF.ObjectCreationExpression(SH.FullTypeName(Names.ServiceDescriptorClass))
                 .AddArgumentListArguments(
-                    SF.Argument(handlerCreationLambda),
-                    SH.IdentifierArgument("adapter"),
-                    SH.IdentifierArgument("sFactory")));
+                    SH.IdentifierArgument("contract"),
+                    SF.Argument(handlerCreationLambda)));
 
             var serializerDefValue = SH.EnumValue(Names.SerializerChoiceEnum.Full, _contract.GetDefaultSerializerChoice());
             var serializerParam = SH.Parameter("serializer", Names.SerializerChoiceEnum.Full)
                 .WithDefault(SF.EqualsValueClause(serializerDefValue));
 
-            return SF.MethodDeclaration(SH.FullTypeName(Names.ServiceBindingClass), "CreateBinding")
+            return SF.MethodDeclaration(SH.FullTypeName(Names.ServiceDescriptorClass), "CreateServiceDescriptor")
                 .AddModifiers(SF.Token(SyntaxKind.PublicKeyword), SF.Token(SyntaxKind.StaticKeyword))
                 .AddParameterListParameters(serviceFactoryParam, serializerParam)
-                .WithBody(SF.Block(serializerVarStatement, msgFactoryVarStatement, retStatement));
+                .WithBody(SF.Block(contractDescriptorVarStatement, retStatement));
         }
 
         private MethodDeclarationSyntax[] GenerateStubMethods()

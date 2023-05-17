@@ -18,10 +18,8 @@ namespace SharpRpc
 {
     internal class ServerSideCoordinator : SessionCoordinator
     {
-        //private States _state = States.PendingLogin;
         private Authenticator _authPlugin;
         private readonly TaskCompletionSource<ILoginMessage> _loginWaitHandle = new TaskCompletionSource<ILoginMessage>();
-        //private readonly CancellationTokenSource _loginWaitCancel = new CancellationTokenSource();
         private TaskFactory _taskQueue;
         private readonly SessionContext _sharedContextObj;
 
@@ -33,13 +31,13 @@ namespace SharpRpc
 #if DEBUG
         public override TimeSpan LoginTimeout => TimeSpan.FromMinutes(2);
 #else
-        public override TimeSpan LoginTimeout => TimeSpan.FromSeconds(5);
+        public override TimeSpan LoginTimeout => TimeSpan.FromSeconds(20);
 #endif
 
         protected override void OnInit()
         {
             var serverEndpoint = (ServerEndpoint)Channel.Endpoint;
-            _authPlugin = serverEndpoint.Authenticator;
+            _authPlugin = Channel.Binding.Authenticator;
             _taskQueue = serverEndpoint.TaskQueue;
         }
 
@@ -105,8 +103,6 @@ namespace SharpRpc
             {
                 if (State != SessionState.PendingLogin)
                     return new RpcResult(RpcRetCode.ProtocolViolation, "Unexpected login message!");
-
-                //State = SessionState.OpeningEvent;
 
                 _loginWaitHandle.TrySetResult(loginMsg);
                 return RpcResult.Ok;

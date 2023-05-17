@@ -5,6 +5,7 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+using SharpRpc.Server;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -21,12 +22,9 @@ namespace SharpRpc
         private readonly List<ServerEndpoint> _endpoints = new List<ServerEndpoint>();
         private ServerState _state;
         private readonly Dictionary<string, Channel> _sessions = new Dictionary<string, Channel>();
-        private readonly ServiceBinding _binding;
 
-        public RpcServer(ServiceBinding binding)
+        public RpcServer()
         {
-            _binding = binding ?? throw new ArgumentNullException("binding");
-
             Name = Namer.GetInstanceName(GetType());
         }
 
@@ -34,9 +32,9 @@ namespace SharpRpc
         {
             lock (_stateLock)
             {
-                endpoint.Init(this);
-                endpoint.ClientConnected += Endpoint_ClientConnected;
                 _endpoints.Add(endpoint);
+                endpoint.AttachTo(this);
+                endpoint.ClientConnected += Endpoint_ClientConnected;
             }
 
             return this;
@@ -72,7 +70,10 @@ namespace SharpRpc
             try
             {
                 foreach (var endpoint in _endpoints)
-                    endpoint.Validate();
+                    endpoint.Lock();
+
+                foreach (var endpoint in _endpoints)
+                    endpoint.Init();
 
                 foreach (var endpoint in _endpoints)
                     endpoint.InvokeStart();
@@ -141,7 +142,7 @@ namespace SharpRpc
             await Task.WhenAll(closeTasks);
         }
 
-        private void Endpoint_ClientConnected(ServerEndpoint sender, ByteTransport transport)
+        private void Endpoint_ClientConnected(ServerEndpoint sender, ServiceBinding binding, ByteTransport transport)
         {
             bool abortConnection = false;
 
@@ -149,12 +150,11 @@ namespace SharpRpc
             {
                 if (_state == ServerState.Online || _state == ServerState.Starting)
                 {
-                    var serviceImpl = _binding.CreateServiceImpl();
-                    var session = new Channel(true, sender, _binding.Descriptor, serviceImpl);
+                    var serviceImpl = binding.CreateServiceImpl();
+                    var session = new Channel(binding, sender, binding.Descriptor, serviceImpl);
                     session.InternalClosed += Session_Closed;
                     session.Init(transport);
                     _sessions.Add(session.Id, session);
-                    Logger.Verbose(Name, "New session: " + session.Id);
                 }
                 else
                     abortConnection = true;

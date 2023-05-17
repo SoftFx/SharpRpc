@@ -114,7 +114,7 @@ namespace SharpRpc.Builder
             var clientFactoryMethod = clientBuilder.GenerateFactoryMethod();
             var sAdapterFactoryMethod = SerializerFixture.GenerateSerializerFactory(contractInfo);
             var descriptorFactoryMethod = GenerateDescriptorFactoryMethod(contractInfo);
-            var serviceFactoryMethod = serverBuilder.GenerateBindMethod();
+            var serviceFactoryMethod = serverBuilder.GenerateServiceDescriptorFactory();
 
             var contractGenClass = SF.ClassDeclaration(contractGenClassName.Short)
                .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
@@ -398,15 +398,40 @@ namespace SharpRpc.Builder
                 SyntaxHelper.ShortTypeName(contractInfo.MessageFactoryClassName))
                 .WithoutArguments();
 
+            var serializerCreateClause = SyntaxHelper.InvocationExpression(Names.FacadeSerializerAdapterFactoryMethod,
+                SF.Argument(SF.IdentifierName("serializer")));
+            var serializerVarStatement = SyntaxHelper.LocalVarDeclaration("sAdapter", serializerCreateClause);
+
             var retStatement = SF.ReturnStatement(
                 SF.ObjectCreationExpression(SyntaxHelper.FullTypeName(Names.ContractDescriptorClass))
                 .AddArgumentListArguments(SyntaxHelper.IdentifierArgument("sAdapter"), SF.Argument(msgFactoryCreationExp)));
 
             return SF.MethodDeclaration(SyntaxHelper.FullTypeName(Names.ContractDescriptorClass), Names.FacadeCreateDescriptorMethod)
                 .AddModifiers(SF.Token(SyntaxKind.PrivateKeyword), SF.Token(SyntaxKind.StaticKeyword))
-                .AddParameterListParameters(SyntaxHelper.Parameter("sAdapter", Names.RpcSerializerInterface.Full))
-                .AddBodyStatements(retStatement);
+                .AddParameterListParameters(SyntaxHelper.Parameter("serializer", Names.SerializerChoiceEnum.Full))
+                .AddBodyStatements(serializerVarStatement, retStatement);
         }
+
+        //private IEnumerable<PropertyDeclarationSyntax> GenerateDescriptorProperties(ContractDeclaration contractInfo)
+        //{
+        //    foreach (var serializer in contractInfo.Serializers)
+        //    {
+        //        var propName = "ContractDescriptor";
+
+        //        if (contractInfo.Serializers.Count > 1)
+        //            propName += "_" + serializer.ShortName;
+
+        //        var enumVal = Names.SerializerChoiceEnum.Full + "." + serializer.Builder.EnumVal;
+
+        //        var propInitializer = SyntaxHelper.InvocationExpression(Names.FacadeCreateDescriptorMethod)
+        //            .AddArgumentListArguments(SyntaxHelper.IdentifierArgument(enumVal));
+
+        //        yield return SF.PropertyDeclaration(SyntaxHelper.FullTypeName(Names.ContractDescriptorClass), propName)
+        //            .AddModifiers(SyntaxHelper.StaticToken(), SyntaxHelper.PublicToken())
+        //            .AddInitializer(propInitializer)
+        //            .AddAutoGetter();
+        //    }
+        //}
 
         private class SyntaxReceiver : ISyntaxReceiver
         {

@@ -18,21 +18,28 @@ namespace TestCommon
     {
         private readonly CallbackService _callback = new CallbackService();
 
-        public BenchmarkClient(string address, int port, TcpSecurity security)
+        public BenchmarkClient(string address, TcpSecurity security)
         {
-            var endpoint = new TcpClientEndpoint(address, port, security);
+            var serviceName = security is SslSecurity ? "Bench/Ssl/Messagepack" : "Bench/Messagepack";
+
+            var endpoint = new TcpClientEndpoint(address, serviceName, BenchmarkContractCfg.Port, security);
             endpoint.Credentials = new BasicCredentials("Admin", "zzzz");
             BenchmarkContractCfg.ConfigureEndpoint(endpoint);
             Stub = BenchmarkContract_Gen.CreateClient(endpoint, _callback);
         }
 
+        protected BenchmarkClient(ClientEndpoint endpoint)
+        {
+            Stub = BenchmarkContract_Gen.CreateClient(endpoint, _callback);
+        }
+
 #if NET5_0_OR_GREATER
-        public BenchmarkClient(string udsUrl, TcpSecurity security)
+        public static BenchmarkClient CreateUdsBenchmarkClient(string udsUrl, TcpSecurity security)
         {
             var endpoint = new UdsClientEndpoint(udsUrl, security);
             endpoint.Credentials = new BasicCredentials("Admin", "zzzz");
             BenchmarkContractCfg.ConfigureEndpoint(endpoint);
-            Stub = BenchmarkContract_Gen.CreateClient(endpoint, _callback);
+            return new BenchmarkClient(endpoint);
         }
 #endif
 

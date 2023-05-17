@@ -14,11 +14,11 @@ using System.Threading.Tasks;
 
 namespace SharpRpc
 {
-    public class MessageDispatcherConfig : EndpointConfigElement
+    public class MessageDispatcherConfig : ConfigElement
     {
         //private DispatcherConcurrencyMode _rxConcurrency = DispatcherConcurrencyMode.None;
 
-        internal MessageDispatcherConfig(IConfigHost host) : base(host)
+        internal MessageDispatcherConfig()
         {
         }
 

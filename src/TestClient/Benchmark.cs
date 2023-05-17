@@ -439,7 +439,7 @@ namespace TestClient
         private static BenchmarkClient CreateClient(string address, bool secure)
         {
             //return new BenchmarkClient(address, GetSecurity(secure));
-            return new BenchmarkClient(address, BenchmarkContractCfg.GetPort(secure), GetSecurity(secure));
+            return new BenchmarkClient(address, GetSecurity(secure));
         }
 
         private static TcpSecurity GetSecurity(bool secure)

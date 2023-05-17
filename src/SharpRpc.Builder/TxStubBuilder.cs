@@ -172,11 +172,8 @@ namespace SharpRpc.Builder
         {
             var addHandlerParam = !_isCallback && _contract.HasCallbacks;
 
-            var serializerCreateClause = SH.InvocationExpression(Names.FacadeSerializerAdapterFactoryMethod, SF.Argument(SF.IdentifierName("serializer")));
-            var serializerVarStatement = SH.LocalVarDeclaration("adapter", serializerCreateClause);
-
             var descriptorVarStatement = SH.LocalVarDeclaration("descriptor",
-                SH.InvocationExpression(Names.FacadeCreateDescriptorMethod, SH.IdentifierArgument("adapter")));
+                SH.InvocationExpression(Names.FacadeCreateDescriptorMethod, SH.IdentifierArgument("serializer")));
 
             var clientCreateExpression = SF.ObjectCreationExpression(SH.ShortTypeName(_contract.ClientStubClassName))
                 .WithArgumentList(SH.CallArguments(SH.IdentifierArgument("endpoint"), SH.IdentifierArgument("descriptor")));
@@ -206,7 +203,7 @@ namespace SharpRpc.Builder
             return SF.MethodDeclaration(SF.ParseTypeName(_contract.ClientStubClassName.Short), "CreateClient")
                 .AddModifiers(SF.Token(SyntaxKind.PublicKeyword), SF.Token(SyntaxKind.StaticKeyword))
                 .AddParameterListParameters(paramList.ToArray())
-                .WithBody(SF.Block(serializerVarStatement, descriptorVarStatement, returnStatement));
+                .WithBody(SF.Block(descriptorVarStatement, returnStatement));
         }
 
         private MethodDeclarationSyntax[] GenerateCallMethods(TypeString clientStubTypeName, bool isAsync, bool isTry, bool skipStreamCalls, MetadataDiagnostics diagnostics)

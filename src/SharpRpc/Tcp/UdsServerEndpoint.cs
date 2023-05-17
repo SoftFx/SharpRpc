@@ -17,18 +17,16 @@ using System.Threading.Tasks;
 
 namespace SharpRpc
 {
-    public class UdsServerEndpoint : ServerEndpoint
+    public class UdsServerEndpoint : ServerEndpoint, ISocketListenerContext
     {
         private readonly Socket _socket;
         private readonly SocketListener _listener;
         private readonly UnixDomainSocketEndPoint _endpoint;
-        private readonly TcpServerSecurity _security;
 
-        public UdsServerEndpoint(string socketPath, TcpServerSecurity security)
+        public UdsServerEndpoint(string socketPath)
         {
             if (string.IsNullOrEmpty(socketPath))
                 throw new ArgumentNullException(nameof(socketPath));
-            _security = security ?? throw new ArgumentNullException(nameof(security));
 
             if (File.Exists(socketPath))
                 File.Delete(socketPath); // dotnet expects us delete file beforehand
@@ -36,12 +34,32 @@ namespace SharpRpc
             _endpoint = new UnixDomainSocketEndPoint(socketPath);
 
             _socket = new Socket(_endpoint.AddressFamily, SocketType.Stream, ProtocolType.IP);
-            _listener = new SocketListener(_socket, this, _security, OnAccept, OnConnect);
+            _listener = new SocketListener(_socket, this, this, ServiceRegistry);
+        }
+
+        bool ISocketListenerContext.IsHostNameResolveSupported => false;
+
+        public UdsServiceBinding BindService(ServiceDescriptor descriptor)
+        {
+            var binding = new UdsServiceBinding(null, descriptor);
+            ServiceRegistry.Add(binding);
+            return binding;
+        }
+
+        public TcpServiceBinding BindService(string serviceName, ServiceDescriptor descriptor)
+        {
+            if (string.IsNullOrWhiteSpace(serviceName))
+                throw new ArgumentException("Service name is invalid!");
+
+            var binding = new TcpServiceBinding(serviceName, descriptor);
+
+            ServiceRegistry.Add(binding);
+            return binding;
         }
 
         protected override void Start()
         {
-            GetLogger().Info(Name, "listening at {0}, security: {1}", _endpoint, _security.Name);
+            GetLogger().Info(Name, "listening at {0}", _endpoint);
 
             _listener.Start(_endpoint);
         }
@@ -51,8 +69,13 @@ namespace SharpRpc
             return _listener.Stop();
         }
 
-        private void OnAccept(Socket scoket)
+        void ISocketListenerContext.OnAccept(Socket socket)
         {
+        }
+
+        void ISocketListenerContext.OnNewConnection(ServiceBinding serviceCfg, ByteTransport transport)
+        {
+            OnNewConnection(serviceCfg, transport);
         }
     }
 }

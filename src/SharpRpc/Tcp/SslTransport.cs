@@ -80,7 +80,7 @@ namespace SharpRpc
             _stream.Dispose();
         }
 
-        public override ITransportInfo GetInfo()
+        public override TransportInfo GetInfo()
         {
             return SocketTransport.CreateInfobject(_socket);
         }

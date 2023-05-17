@@ -5,6 +5,7 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+using SharpRpc.Server;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -36,26 +37,76 @@ namespace SharpRpc
             _msgEncoder = new HandshakeEncoder(bufferSize);
         }
 
-        public async Task<RpcResult> DoServerSideHandshake(ByteTransport transport)
+        public async Task<HandshakeResult> DoServerSideHandshake(ByteTransport transport, ServiceRegistry services, Log parentLog)
         {
             using (var timeoutSrc = new CancellationTokenSource(_timeout))
             {
                 var rxResult = await TryReceiveRequest(transport, timeoutSrc.Token);
 
                 if (!rxResult.IsOk)
-                    return rxResult;
+                {
+                    if (parentLog.InfoEnabled)
+                        parentLog.Info("Failed to receive handshake request! " + rxResult.FaultMessage);
+                    return default;
+                }
 
-                //var request = rxResult.Value;
+                var request = rxResult.Value;
+                var clientVersion = request.RpcVersion;
+                
+                if (parentLog.InfoEnabled)
+                    parentLog.Info($"Incoming handshake, client v{clientVersion.Minor}.{clientVersion.Major}," +
+                        $" target={request.HostName}/{request.ServiceName}");
 
-                return await TrySend(transport, new HandshakeResponse(), timeoutSrc.Token);
+                var retCode = HandshakeResultCode.Accepted;
+
+                var resolveRetCode = services.TryResolve(request.HostName, request.ServiceName, out var service);
+                if (resolveRetCode != ServiceRegistry.ResolveRetCode.Ok)
+                {
+                    if (resolveRetCode == ServiceRegistry.ResolveRetCode.ServiceNotFound)
+                        retCode = HandshakeResultCode.UnknwonService;
+                    else
+                        retCode = HandshakeResultCode.UnknownHostName;
+                }
+
+                var actualVersion = clientVersion;
+
+                var response = new HandshakeResponse();
+                response.RpcVersion = new ShortVersion(0, 0);
+                response.RetCode = retCode;
+
+                if (parentLog.InfoEnabled)
+                    parentLog.Info($"Outgoing handshake, v{response.RpcVersion.Major}.{response.RpcVersion.Minor}," +
+                        $" code={retCode}");
+
+                var sendResult = await TrySend(transport, response, timeoutSrc.Token);
+
+                if (!sendResult.IsOk)
+                {
+                    if (parentLog.InfoEnabled)
+                        parentLog.Info("Failed to send handshake response! " + rxResult.FaultMessage);
+                    return default;
+                }
+
+                if (retCode == HandshakeResultCode.Accepted)
+                    return new HandshakeResult(service, actualVersion);
+
+                return default;
             }
         }
 
-        public async Task<RpcResult> DoClientSideHandshake(ByteTransport transport)
+        public async Task<RpcResult> DoClientSideHandshake(ByteTransport transport, string hostName, string serviceName)
         {
+            hostName = hostName?.Trim().ToLowerInvariant();
+            serviceName = serviceName?.Trim().ToLowerInvariant();
+
             using (var timeoutSrc = new CancellationTokenSource(_timeout))
             {
-                var txResult = await TrySend(transport, new HandshakeRequest(), timeoutSrc.Token);
+                var request = new HandshakeRequest();
+                request.RpcVersion = new ShortVersion(0, 0);
+                request.ServiceName = serviceName;
+                request.HostName = hostName;
+
+                var txResult = await TrySend(transport, request, timeoutSrc.Token);
 
                 if (!txResult.IsOk)
                     return txResult;
@@ -64,9 +115,30 @@ namespace SharpRpc
 
                 if (!rxResult.IsOk)
                     return rxResult;
-            }
 
-            return RpcResult.Ok;
+                var clientVersion = request.RpcVersion;
+                var serverRpcVersion = rxResult.Value.RpcVersion;
+
+                switch (rxResult.Value.RetCode)
+                {
+                    case HandshakeResultCode.Accepted:
+                        return RpcResult.Ok;
+                    case HandshakeResultCode.UnknwonService:
+                        return new RpcResult(RpcRetCode.UnknownService,
+                        $"Specified service ('{serviceName}') is not found! Please check the service name.");
+                    case HandshakeResultCode.UnknownHostName:
+                        return new RpcResult(RpcRetCode.UnknownHostName,
+                        $"The server has not accepted the specified hostname ('{hostName}')!");
+                    case HandshakeResultCode.VersionIncompatibility:
+                        return new RpcResult(RpcRetCode.UnsupportedProtocolVersion,
+                            $"The server has not accepted the client's protocol version ({clientVersion.Major}.{clientVersion.Minor})!");
+                    default:
+                        return new RpcResult(RpcRetCode.UnknownError,
+                            "The server has not accepted the connection but has not provided any meaningful error code!");
+                }
+
+                //return HandshakeRetCodeToTcpResult(rxResult.Value.RetCode);
+            }
         }
 
         private Task<RpcResult> TrySend(ByteTransport transport, HandshakeRequest msg, CancellationToken timeoutToken)
@@ -156,12 +228,14 @@ namespace SharpRpc
     {
         Accepted = 0,
         VersionIncompatibility = 1,
+        UnknownHostName = 2,
+        UnknwonService = 3,
         OtherIncompatibility = 100
     }
 
-    public struct ProtocolVersion
+    public struct ShortVersion
     {
-        public ProtocolVersion(byte major, byte minor)
+        public ShortVersion(byte major, byte minor)
         {
             Major = major;
             Minor = minor;
@@ -169,5 +243,19 @@ namespace SharpRpc
 
         public byte Major { get; set; }
         public byte Minor { get; set; }
+    }
+
+    public struct HandshakeResult
+    {
+        public HandshakeResult(ServiceBinding sConfig, ShortVersion rpcVersion)
+        {
+            Service = sConfig;
+            RpcVersion = rpcVersion;
+            WasAccepted = true;
+        }
+
+        public ServiceBinding Service { get; }
+        public ShortVersion RpcVersion { get; }
+        public bool WasAccepted { get; }
     }
 }

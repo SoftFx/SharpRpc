@@ -14,7 +14,7 @@ using System.Threading.Tasks;
 
 namespace SharpRpc.Tcp
 {
-    public class TcpConnectionInfo : ITransportInfo
+    public class TcpConnectionInfo : TransportInfo
     {
         internal TcpConnectionInfo(IPEndPoint remEp, IPEndPoint localEp)
         {
@@ -24,5 +24,11 @@ namespace SharpRpc.Tcp
 
         public IPEndPoint RemoteEndPoint { get; }
         public IPEndPoint LocalEndPoint { get; }
+
+        internal override void DumptTo(Log log)
+        {
+            if (log.InfoEnabled)
+                log.Info($"RemoteEndPoint={RemoteEndPoint}, LocalEndPoint={LocalEndPoint}");
+        }
     }
 }

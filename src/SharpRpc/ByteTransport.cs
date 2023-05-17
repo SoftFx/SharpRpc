@@ -29,10 +29,11 @@ namespace SharpRpc
         public abstract Task Shutdown();
         public abstract void Dispose();
 
-        public abstract ITransportInfo GetInfo();
+        public abstract TransportInfo GetInfo();
     }
 
-    public interface ITransportInfo
+    public abstract class TransportInfo
     {
+        internal abstract void DumptTo(Log log);
     }
 }

@@ -70,7 +70,7 @@ namespace SharpRpc
             IncreaseWritePosition(2);
         }
 
-        public void Write(ProtocolVersion version)
+        public void Write(ShortVersion version)
         {
             Write(version.Major);
             Write(version.Minor);
@@ -177,11 +177,11 @@ namespace SharpRpc
             return false;
         }
 
-        public bool TryReadVersion(out ProtocolVersion value)
+        public bool TryReadVersion(out ShortVersion value)
         {
             if (HasEnoughBytes(2))
             {
-                value = new ProtocolVersion(Buffer[Position], Buffer[Position + 1]);
+                value = new ShortVersion(Buffer[Position], Buffer[Position + 1]);
                 Position += 2;
                 return true;
             }

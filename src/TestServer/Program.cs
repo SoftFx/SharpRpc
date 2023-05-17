@@ -43,27 +43,29 @@ namespace TestServer
 
         private static RpcServer StartBenchmarkServer()
         {
-            var tcpEndpoint = new TcpServerEndpoint(IPAddress.IPv6Any, BenchmarkContractCfg.GetPort(false), TcpServerSecurity.None);
+            var multicaster = new FooMulticaster();
+            var serviceDescriptor = BenchmarkContract_Gen.CreateServiceDescriptor(() => new BenchmarkServiceImpl(multicaster));
+            var serverCert = new StoredCertificate(StoreLocation.LocalMachine, StoreName.My, X509FindType.FindByThumbprint, CertThumbprint);
+
+            var tcpEndpoint = new TcpServerEndpoint(IPAddress.IPv6Any, BenchmarkContractCfg.Port);
             tcpEndpoint.IPv6Only = false;
             BenchmarkContractCfg.ConfigureEndpoint(tcpEndpoint);
-            tcpEndpoint.Authenticator = new BasicAuthenticator(new AuthValidator());
 
-            var serverCert = new StoredCertificate(StoreLocation.LocalMachine, StoreName.My, X509FindType.FindByThumbprint, CertThumbprint);
-            var sslEndpoint = new TcpServerEndpoint(IPAddress.IPv6Any, BenchmarkContractCfg.GetPort(true), new SslServerSecurity(serverCert));
-            sslEndpoint.IPv6Only = false;
-            BenchmarkContractCfg.ConfigureEndpoint(sslEndpoint);
-            sslEndpoint.Authenticator = new BasicAuthenticator(new AuthValidator());
+            tcpEndpoint.BindService("Bench/Messagepack", serviceDescriptor)
+                .SetAuthenticator(new BasicAuthenticator(new AuthValidator()));
 
-            var multicaster = new FooMulticaster();
+            tcpEndpoint.BindService("Bench/SSL/Messagepack", serviceDescriptor)
+                .SetSecurity(new SslServerSecurity(serverCert))
+                .SetAuthenticator(new BasicAuthenticator(new AuthValidator()));
 
-            var server = new RpcServer(BenchmarkContract_Gen.CreateBinding(() => new BenchmarkServiceImpl(multicaster)));
+            var server = new RpcServer();
             server.AddEndpoint(tcpEndpoint);
-            server.AddEndpoint(sslEndpoint);
 
 #if NET5_0_OR_GREATER
-            var udsEndpoint = new UdsServerEndpoint("c:\\temp\\shrpc.benchmark.uds", TcpServerSecurity.None);
+            var udsEndpoint = new UdsServerEndpoint("c:\\temp\\shrpc.benchmark.uds");
+            udsEndpoint.BindService(serviceDescriptor)
+                .SetAuthenticator(new BasicAuthenticator(new AuthValidator()));
             BenchmarkContractCfg.ConfigureEndpoint(udsEndpoint);
-            udsEndpoint.Authenticator = new BasicAuthenticator(new AuthValidator());
             server.AddEndpoint(udsEndpoint);
 #endif
 
@@ -75,16 +77,18 @@ namespace TestServer
 
         private static RpcServer StartFunctionTestServer()
         {
-            var tcpEndpoint = new TcpServerEndpoint(IPAddress.IPv6Any, 812, TcpServerSecurity.None);
+            var serverCert = new StoredCertificate(StoreLocation.LocalMachine, StoreName.My, X509FindType.FindByThumbprint, CertThumbprint);
+            var descriptor = FunctionTestContract_Gen.CreateServiceDescriptor(() => new FunctionTestService());
+
+            var tcpEndpoint = new TcpServerEndpoint(IPAddress.IPv6Any, 812);
             tcpEndpoint.IPv6Only = false;
 
-            var serverCert = new StoredCertificate(StoreLocation.LocalMachine, StoreName.My, X509FindType.FindByThumbprint, CertThumbprint);
-            var sslEndpoint = new TcpServerEndpoint(IPAddress.IPv6Any, 814, new SslServerSecurity(serverCert));
-            sslEndpoint.Authenticator = new BasicAuthenticator(new AuthValidator());
+            tcpEndpoint.BindService("func", descriptor);
+            tcpEndpoint.BindService("func/ssl", descriptor)
+                .SetSecurity(new SslServerSecurity(serverCert));
 
-            var server = new RpcServer(FunctionTestContract_Gen.CreateBinding(() => new FunctionTestService()));
+            var server = new RpcServer();
             server.AddEndpoint(tcpEndpoint);
-            server.AddEndpoint(sslEndpoint);
             server.SetLogger(new ConsoleLogger(true, true));
             server.Start();
 
@@ -93,10 +97,13 @@ namespace TestServer
 
         private static RpcServer StartStressServer()
         {
-            var tcpEndpoint = new TcpServerEndpoint(IPAddress.IPv6Any, 813, TcpServerSecurity.None);
-            tcpEndpoint.IPv6Only = false;
+            var descriptor = StressTestContract_Gen.CreateServiceDescriptor(() => new StressTestService());
 
-            var server = new RpcServer(StressTestContract_Gen.CreateBinding(() => new StressTestService()));
+            var tcpEndpoint = new TcpServerEndpoint(IPAddress.IPv6Any, 813);
+            tcpEndpoint.IPv6Only = false;
+            tcpEndpoint.BindService(descriptor);
+
+            var server = new RpcServer();
             server.AddEndpoint(tcpEndpoint);
             //server.SetLogger(new ConsoleLogger(false, true));
             server.Start();

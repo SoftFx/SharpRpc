@@ -115,7 +115,7 @@ namespace SharpRpc
             _socket.Dispose();
         }
 
-        public override ITransportInfo GetInfo() => CreateInfobject(_socket);
+        public override TransportInfo GetInfo() => CreateInfobject(_socket);
 
         internal static TcpConnectionInfo CreateInfobject(Socket socket)
         {

@@ -22,6 +22,7 @@ namespace SharpRpc
         }
 
         public bool VerboseEnabled { get; }
+        public bool InfoEnabled => true;
 
         public void Info(string component, string msg)
         {

@@ -24,7 +24,7 @@ namespace SharpRpc
             get => _creds;
             set
             {
-                lock (_stateLockObj)
+                lock (LockObject)
                 {
                     ThrowIfImmutable();
                     _creds = value;
@@ -39,7 +39,7 @@ namespace SharpRpc
             get => _logger;
             set
             {
-                lock (_stateLockObj)
+                lock (LockObject)
                 {
                     ThrowIfImmutable();
                     _logger = value ?? throw new ArgumentNullException(nameof(value));

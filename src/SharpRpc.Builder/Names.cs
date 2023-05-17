@@ -29,6 +29,7 @@ namespace SharpRpc.Builder
         public static readonly TypeString RpcCallContextClass = new TypeString("SharpRpc.CallContext");
 
         public static readonly TypeString ContractDescriptorClass = new TypeString("SharpRpc.ContractDescriptor");
+        public static readonly TypeString ServiceDescriptorClass = new TypeString("SharpRpc.ServiceDescriptor");
         public static readonly TypeString ServiceBindingClass = new TypeString("SharpRpc.ServiceBinding");
 
         public static readonly TypeString MessageInterface = new TypeString("SharpRpc.IMessage");

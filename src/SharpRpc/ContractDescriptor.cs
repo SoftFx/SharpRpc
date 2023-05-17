@@ -24,4 +24,17 @@ namespace SharpRpc
         public IRpcSerializer SerializationAdapter { get; }
         public IMessageFactory SystemMessages { get; }
     }
+
+    public class ServiceDescriptor : ContractDescriptor
+    {
+        public ServiceDescriptor(ContractDescriptor contract, Func<RpcCallHandler> implFactory)
+            : base(contract.SerializationAdapter, contract.SystemMessages)
+        {
+            Contract = contract;
+            ServiceImplFactory = implFactory;
+        }
+
+        public ContractDescriptor Contract { get; }
+        public Func<RpcCallHandler> ServiceImplFactory { get; }
+    }
 }

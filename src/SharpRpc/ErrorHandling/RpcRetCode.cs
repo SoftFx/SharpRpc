@@ -35,6 +35,9 @@ namespace SharpRpc
         UnexpectedMessage = 25,
         OperationCanceled = 26,
         InvalidHandshake = 27,
+        UnknownService = 28,
+        UnknownHostName = 29,
+        UnsupportedProtocolVersion = 30,
 
         RequestFault = 50,
 

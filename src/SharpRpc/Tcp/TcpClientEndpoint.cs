@@ -16,52 +16,69 @@ namespace SharpRpc
 {
     public class TcpClientEndpoint : ClientEndpoint
     {
-        private readonly string _address;
-        private readonly int _port;
+        //private readonly string _address;
+        private readonly string _serviceName;
+        //private readonly int _port;
         private readonly TcpSecurity _security;
-        private readonly IPEndPoint _endpoint;
+        private readonly DnsEndPoint _endpoint;
 
-        public TcpClientEndpoint(string address, int port, TcpSecurity security)
+        public TcpClientEndpoint(string urlString, TcpSecurity security)
         {
-            _address = address ?? throw new ArgumentNullException(nameof(address));
-            _port = port;
+            var url = new Uri(urlString);
+            _serviceName = url.Fragment;
+            _endpoint = new DnsEndPoint(url.DnsSafeHost, url.Port);
             _security = security ?? throw new ArgumentNullException(nameof(security));
         }
 
-        public TcpClientEndpoint(IPEndPoint ipEndpoint, TcpSecurity security)
+        public TcpClientEndpoint(string hostName, int port, TcpSecurity security)
+            : this(hostName, null, port, security)
         {
-            _endpoint = ipEndpoint ?? throw new ArgumentNullException(nameof(ipEndpoint));
+        }
+
+        public TcpClientEndpoint(string hostName, string serviceName, int port, TcpSecurity security)
+        {
+            _endpoint = new DnsEndPoint(hostName, port);
             _security = security ?? throw new ArgumentNullException(nameof(security));
+            _serviceName = serviceName;
+        }
+
+        public TcpClientEndpoint(DnsEndPoint dnsEndpoint, TcpSecurity security)
+        {
+            _endpoint = dnsEndpoint ?? throw new ArgumentNullException(nameof(dnsEndpoint));
+            _security = security ?? throw new ArgumentNullException(nameof(security));
+        }
+
+        public TcpClientEndpoint(DnsEndPoint dnsEndpoint, string serviceName, TcpSecurity security)
+        {
+            _endpoint = dnsEndpoint ?? throw new ArgumentNullException(nameof(dnsEndpoint));
+            _security = security ?? throw new ArgumentNullException(nameof(security));
+            _serviceName = serviceName;
         }
 
         public override async Task<RpcResult<ByteTransport>> ConnectAsync()
         {
-            IPEndPoint targetEndpoint;
-
-            if (_endpoint == null)
-            {
-                IPHostEntry ipHostInfo = await Dns.GetHostEntryAsync(_address);
-                IPAddress ipAddress = ipHostInfo.AddressList[0];
-                targetEndpoint = new IPEndPoint(ipAddress, _port);
-            }
-            else
-                targetEndpoint = _endpoint;
+            //IPHostEntry ipHostInfo = await Dns.GetHostEntryAsync(_endpoint.Host);
+            //IPAddress ipAddress = ipHostInfo.AddressList[0];
+            //var targetEndpoint = new IPEndPoint(ipAddress, _endpoint.Port);
 
             try
             {
                 // Create a TCP/IP socket.  
-                var socket = new Socket(targetEndpoint.AddressFamily,
-                    SocketType.Stream, ProtocolType.Tcp);
+                var socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
 
-                await socket.ConnectAsync(targetEndpoint);
+                // connect
+                await socket.ConnectAsync(_endpoint);
 
                 // handshake
                 var handshaker = new HandshakeCoordinator(1024 * 10, TimeSpan.FromSeconds(10));
                 var unsecuredTransport = new SocketTransport(socket, TaskQueue);
-                await handshaker.DoClientSideHandshake(unsecuredTransport);
+                var hsResult = await handshaker.DoClientSideHandshake(unsecuredTransport, _endpoint.Host, _serviceName);
+
+                if (!hsResult.IsOk)
+                    return hsResult;
 
                 // secure
-                return new RpcResult<ByteTransport>(await _security.SecureTransport(socket, this, _address));
+                return new RpcResult<ByteTransport>(await _security.SecureTransport(socket, this, _endpoint.Host));
             }
             catch (Exception ex)
             {

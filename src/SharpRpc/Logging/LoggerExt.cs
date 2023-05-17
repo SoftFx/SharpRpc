@@ -44,6 +44,7 @@ namespace SharpRpc
         public static NullLogger Instance { get; } =  new NullLogger();
 
         public bool VerboseEnabled => false;
+        public bool InfoEnabled => false;
 
         public void Error(string component, string msg, Exception ex)
         {

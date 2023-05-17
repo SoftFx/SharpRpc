@@ -27,13 +27,13 @@ namespace SharpRpc
         // *** body ***
 
         // 4 - Options (2 bytes, for future use)
-        // 5 - Domain (LEN UTF8)
+        // 5 - Host name (LEN UTF8)
         // 6 - Service name (LEN UTF8)
         // 7* - may contain unknown fields (compatibility)
 
-        public ProtocolVersion RpcVersion { get; set; }
+        public ShortVersion RpcVersion { get; set; }
         public RpcSessionOptions Options { get; set; }
-        public string Domain { get; set; }
+        public string HostName { get; set; }
         public string ServiceName { get; set; }
 
         public void WriteTo(HandshakeEncoder encoder)
@@ -43,8 +43,8 @@ namespace SharpRpc
             var lengthFieldPos = encoder.Position;
             encoder.Write((ushort)0); // empty size field
             encoder.Write((ushort)Options);
-            encoder.Write(Domain ?? "dd"); // string.Empty);
-            encoder.Write(ServiceName ?? "name name");// string.Empty);
+            encoder.Write(HostName ?? string.Empty);
+            encoder.Write(ServiceName ?? string.Empty);
 
             // update size field
             var size = encoder.Length - lengthFieldPos - 2;
@@ -52,7 +52,7 @@ namespace SharpRpc
             encoder.Write((ushort)size);
         }
 
-        public static HandshakeParseResult TryParseHeader(HandshakeEncoder encoder, out ProtocolVersion version, out ushort size)
+        public static HandshakeParseResult TryParseHeader(HandshakeEncoder encoder, out ShortVersion version, out ushort size)
         {
             version = default;
             size = default;
@@ -79,7 +79,7 @@ namespace SharpRpc
             return HandshakeParseResult.Ok;
         }
 
-        public static bool TryParseBody(HandshakeEncoder encoder, ProtocolVersion version, out HandshakeRequest request)
+        public static bool TryParseBody(HandshakeEncoder encoder, ShortVersion version, out HandshakeRequest request)
         {
             request = null;
 
@@ -96,7 +96,7 @@ namespace SharpRpc
             {
                 RpcVersion = version,
                 Options = (RpcSessionOptions)rawOptions,
-                Domain = domain,
+                HostName = domain,
                 ServiceName = serviceName,
             };
 

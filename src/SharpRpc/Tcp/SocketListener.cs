@@ -5,6 +5,7 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+using SharpRpc.Server;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -23,28 +24,23 @@ namespace SharpRpc.Tcp
         private readonly ServerEndpoint _endpoint;
         private volatile bool _stopFlag;
         private Task _listenerTask;
-        private readonly Action<ByteTransport> _onConnect;
-        private readonly Action<Socket> _configureSocket;
-        private readonly TcpServerSecurity _security;
+        private readonly ISocketListenerContext _context;
+        private readonly ServiceRegistry _services;
 
-        public SocketListener(Socket socket, ServerEndpoint endpoint, TcpServerSecurity security,
-            Action<Socket> socketConfigAction, Action<ByteTransport> onConnect)
+        public SocketListener(Socket socket, ServerEndpoint endpoint, ISocketListenerContext conext, ServiceRegistry services)
         {
             _socket = socket ?? throw new ArgumentNullException(nameof(socket));
             _endpoint = endpoint ?? throw new ArgumentNullException(nameof(_endpoint));
-            _security = security ?? throw new ArgumentNullException(nameof(security));
+            _services = services ?? throw new ArgumentNullException(nameof(services));
             _logId = endpoint.Name + ".Listener";
-            
-            _configureSocket = socketConfigAction ?? throw new ArgumentNullException(nameof(socketConfigAction));
-            _onConnect = onConnect ?? throw new ArgumentNullException(nameof(onConnect));
+            _context = conext ?? throw new ArgumentNullException(nameof(_context));
+            _services = services;
         }
 
         private IRpcLogger Logger => _endpoint.GetLogger();
 
         public void Start(EndPoint socketEndpoint)
         {
-            _security.Init();
-
             _socket.Bind(socketEndpoint);
             _socket.Listen(100);
 
@@ -71,7 +67,7 @@ namespace SharpRpc.Tcp
                 {
                     socket = await _socket.AcceptAsync().ConfigureAwait(false);
 
-                    _configureSocket(socket);
+                    _context.OnAccept(socket);
                 }
                 catch (Exception ex)
                 {
@@ -94,12 +90,10 @@ namespace SharpRpc.Tcp
 
                     // do handshake
                     var unsecuredTransport = new SocketTransport(socket, _endpoint.TaskQueue);
-                    var handshakeResult = await handshaker.DoServerSideHandshake(unsecuredTransport);
+                    var handshakeResult = await handshaker.DoServerSideHandshake(unsecuredTransport, _services, new Log(_logId, Logger));
 
-                    if (!handshakeResult.IsOk)
+                    if (!handshakeResult.WasAccepted)
                     {
-                        Logger.Info(_logId, "Handshake failed: " + handshakeResult.FaultMessage);
-
                         try
                         {
                             await socket.DisconnectAsync(_endpoint.TaskQueue);
@@ -113,13 +107,16 @@ namespace SharpRpc.Tcp
                         continue;
                     }
 
-                    Logger.Verbose(_logId, "Completed a handshake.");
+                    var serviceConfig = (TcpServiceBinding)handshakeResult.Service;
+
+                    if (Logger.VerboseEnabled)
+                        Logger.Verbose(_logId, "Handshake completed.");
 
                     // secure
-                    var transport = await _security.SecureTransport(socket, _endpoint);
+                    var transport = await serviceConfig.Security.SecureTransport(socket, _endpoint);
 
                     // open new session
-                    _onConnect(transport);
+                    _context.OnNewConnection(serviceConfig, transport);
                 }
                 catch (Exception ex)
                 {
@@ -141,5 +138,13 @@ namespace SharpRpc.Tcp
             {
             }
         }
+    }
+
+    internal interface ISocketListenerContext
+    {
+        bool IsHostNameResolveSupported { get; }
+
+        void OnAccept(Socket socket);
+        void OnNewConnection(ServiceBinding serviceCfg, ByteTransport transport);
     }
 }

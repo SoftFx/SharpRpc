@@ -14,6 +14,7 @@ namespace SharpRpc
     public interface IRpcLogger
     {
         bool VerboseEnabled { get; }
+        bool InfoEnabled { get; }
 
         void Verbose(string component, string msg);
         void Info(string component, string msg);

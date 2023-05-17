@@ -15,20 +15,19 @@ using System.Threading.Tasks;
 
 namespace SharpRpc
 {
-    public abstract class Endpoint : IConfigHost
+    public abstract class Endpoint : ConfigElement
     {
-        protected readonly object _stateLockObj = new object();
         private int _rxSegmentSize = ushort.MaxValue * 1;
         private int _txSegmentSize = ushort.MaxValue * 1;
         private TimeSpan _rxTimeout = TimeSpan.FromMinutes(1);
         private bool _asyncMessageParse = false;
-        private object _owner;
         private TaskScheduler _scheduler = null;
 
         public Endpoint()
         {
             Name = Namer.GetInstanceName(GetType());
-            Dispatcher = new MessageDispatcherConfig(this);
+            Dispatcher = new MessageDispatcherConfig();
+            Dispatcher.AttachTo(this);
         }
 
         public MessageDispatcherConfig Dispatcher { get; }
@@ -43,7 +42,7 @@ namespace SharpRpc
             get => _rxSegmentSize;
             set
             {
-                lock (_stateLockObj)
+                lock (LockObject)
                 {
                     ThrowIfImmutable();
                     _rxSegmentSize = value;
@@ -61,7 +60,7 @@ namespace SharpRpc
             get => _asyncMessageParse;
             set
             {
-                lock (_stateLockObj)
+                lock (LockObject)
                 {
                     ThrowIfImmutable();
                     _asyncMessageParse = value;
@@ -74,7 +73,7 @@ namespace SharpRpc
             get => _txSegmentSize;
             set
             {
-                lock (_stateLockObj)
+                lock (LockObject)
                 {
                     ThrowIfImmutable();
                     _txSegmentSize = value;
@@ -87,7 +86,7 @@ namespace SharpRpc
             get => _rxTimeout;
             set
             {
-                lock (_stateLockObj)
+                lock (LockObject)
                 {
                     ThrowIfImmutable();
                     _rxTimeout = value;
@@ -100,7 +99,7 @@ namespace SharpRpc
             get => _scheduler;
             set
             {
-                lock (_stateLockObj)
+                lock (LockObject)
                 {
                     ThrowIfImmutable();
                     _scheduler = value;
@@ -116,43 +115,15 @@ namespace SharpRpc
 
         public void EnableKeepAlive(TimeSpan threashold)
         {
-            lock (_stateLockObj)
+            lock (LockObject)
             {
                 ThrowIfImmutable();
                 KeepAliveThreshold = threashold;
             }
         }
 
-        protected void ThrowIfImmutable()
+        protected override void ValidateAndInitialize()
         {
-            Debug.Assert(Monitor.IsEntered(_stateLockObj));
-
-            if (_owner != null)
-                throw new InvalidOperationException("Endpoint configuration cannot be changed at this time! Please configure endpoint before it attached to a communication object.");
-        }
-
-        internal void Validate()
-        {
-            ValidateConfiguration();
-        }
-
-        protected virtual void ValidateConfiguration()
-        {
-        }
-
-        object IConfigHost.SyncObject => _stateLockObj;
-        void IConfigHost.ThrowIfImmutable() => ThrowIfImmutable();
-
-        internal void LockTo(object owner)
-        {
-            lock (_stateLockObj)
-            {
-                if (_owner != null)
-                    throw new InvalidOperationException("This endpoint is already in use by other communication object!");
-
-                _owner = owner;
-            }
-
             InitTaskScheduler();
         }
 

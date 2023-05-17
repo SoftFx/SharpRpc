@@ -354,3 +354,4 @@ MigrationBackup/
 *.diagsession
 /src/Benchmark.Client/Properties/launchSettings.json
 /src/SharpRpc/TickTraderPrivate.snk
+Generated

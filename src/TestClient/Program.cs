@@ -72,7 +72,7 @@ namespace TestClient
             }
             else if (choice == "3")
             {   
-                var client = new BenchmarkClient("localhost", 812, TcpSecurity.None);
+                var client = new BenchmarkClient("localhost", TcpSecurity.None);
                 var connectRet = client.Stub.Channel.TryConnectAsync().ToTask().Result;
 
                 TimerCallback statusCheckAction = s =>

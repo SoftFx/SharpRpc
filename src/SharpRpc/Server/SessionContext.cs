@@ -16,14 +16,14 @@ namespace SharpRpc.Server
 {
     public class SessionContext
     {
-        internal SessionContext(string sessionId, ITransportInfo transportInfo)
+        internal SessionContext(string sessionId, TransportInfo transportInfo)
         {
             SessionId = sessionId;
             TransportInfo = transportInfo;
         }
 
         public string SessionId { get; }
-        public ITransportInfo TransportInfo { get; }
+        public TransportInfo TransportInfo { get; }
 
         public CustomProperties Properties { get; } = new CustomProperties();
     }

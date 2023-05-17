@@ -12,6 +12,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using static System.Collections.Specialized.BitVector32;
 
 namespace SharpRpc
 {
@@ -21,6 +22,7 @@ namespace SharpRpc
         private TxPipeline _tx;
         private RxPipeline _rx;
         private readonly Endpoint _endpoint;
+        private readonly ServiceBinding _binding;
         private readonly MessageDispatcher _dispatcher;
         private readonly RpcCallHandler _callHandler;
         private readonly ContractDescriptor _descriptor;
@@ -28,7 +30,6 @@ namespace SharpRpc
         private readonly TaskCompletionSource<RpcResult> _disconnectEvent = new TaskCompletionSource<RpcResult>();
         private readonly CancellationTokenSource _abortLoginSrc = new CancellationTokenSource();
         private readonly CancellationTokenSource _abortLogoutSrc = new CancellationTokenSource();
-        //private RpcResult _channelDisplayFault = RpcResult.Ok;
         private RpcResult _channelFault;
         private ByteTransport _transport;
         private SessionCoordinator _coordinator;
@@ -43,6 +44,7 @@ namespace SharpRpc
 
         internal MessageDispatcher Dispatcher => _dispatcher;
         internal Endpoint Endpoint => _endpoint;
+        internal ServiceBinding Binding => _binding;
         internal TxPipeline Tx => _tx;
         internal ContractDescriptor Contract => _descriptor;
         internal IRpcLogger Logger { get; }
@@ -54,27 +56,29 @@ namespace SharpRpc
         public event AsyncEventHandler<ChannelClosingArgs> Closing;
         public event EventHandler<ChannelClosedArgs> Closed;
 
-        internal Channel(bool serverSide, Endpoint endpoint, ContractDescriptor descriptor, RpcCallHandler msgHandler)
+        internal Channel(ServiceBinding binding, Endpoint endpoint, ContractDescriptor descriptor, RpcCallHandler msgHandler)
         {
-            _isServerSide = serverSide;
-
+            _isServerSide = binding != null;
+            _binding = binding;
             _endpoint = endpoint ?? throw new ArgumentNullException("endpoint");
             _descriptor = descriptor ?? throw new ArgumentNullException("descriptor");
             _callHandler = msgHandler;
 
             if (!_isServerSide)
-                _endpoint.LockTo(this);
+            {
+                _endpoint.AttachTo(this);
+                _endpoint.Lock();
+                _endpoint.Init();
+            }
 
             Logger = endpoint.GetLogger();
             Id = nameof(Channel) + Interlocked.Increment(ref idSeed);
 
             _tx = new TxPipeline_NoQueue(Id, descriptor, endpoint, OnCommunicationError, OnConnectionRequested);
             //_tx = new TxPipeline_OneThread(descriptor, endpoint, OnCommunicationError, OnConnectionRequested);
-            _dispatcher = MessageDispatcher.Create(endpoint.Dispatcher, this, msgHandler, serverSide);
+            _dispatcher = MessageDispatcher.Create(endpoint.Dispatcher, this, msgHandler, _isServerSide);
 
-            Logger.Verbose(Id, "Created. Endpoint '{0}'.", endpoint.Name);
-
-            if (!serverSide)
+            if (!_isServerSide)
                 Init();
         }
 
@@ -85,6 +89,9 @@ namespace SharpRpc
             if (_isServerSide)
             {
                 var tranportInfo = GetTransportInfo();
+
+                if (Logger.InfoEnabled)
+                    Logger.Info(Id, $"Init, endpoint={_endpoint.Name}, service={_binding.ServiceName}");
 
                 var sharedContex = new SessionContext(Id, tranportInfo);
                 _coordinator = new ServerSideCoordinator(sharedContex);
@@ -239,8 +246,6 @@ namespace SharpRpc
                     UpdateFault(new RpcResult(RpcRetCode.UnknownError, "An unexpected error has been occured on transport level: " + ex.Message));
                 }
             }
-            else
-                Logger.Info(Id, "Initializing connection...");
 
             if (_transport != null)
             {
@@ -395,7 +400,7 @@ namespace SharpRpc
                 DoConnect();
         }
 
-        internal ITransportInfo GetTransportInfo()
+        internal TransportInfo GetTransportInfo()
         {
             return _transport.GetInfo();
         }

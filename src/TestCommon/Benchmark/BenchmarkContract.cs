@@ -75,6 +75,8 @@ namespace TestCommon
 
     public static class BenchmarkContractCfg
     {
+        public const int Port = 8413;
+
         public static void ConfigureEndpoint(Endpoint endpoint)
         {
             //endpoint.RxTimeout = TimeSpan.FromSeconds(5);
@@ -84,11 +86,6 @@ namespace TestCommon
             endpoint.TxBufferSegmentSize = short.MaxValue * 1;
 
             endpoint.AsyncMessageParsing = false;
-        }
-
-        public static int GetPort(bool secure)
-        {
-            return secure ? 8413 : 8412;
         }
     }
 }

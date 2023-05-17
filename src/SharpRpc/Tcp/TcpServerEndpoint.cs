@@ -5,6 +5,7 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+using SharpRpc.Server;
 using SharpRpc.Tcp;
 using System;
 using System.Collections.Generic;
@@ -15,30 +16,28 @@ using System.Threading.Tasks;
 
 namespace SharpRpc
 {
-    public class TcpServerEndpoint : ServerEndpoint
+    public class TcpServerEndpoint : ServerEndpoint, ISocketListenerContext
     {
         private readonly Socket _socket;
         private readonly SocketListener _listener;
         private readonly IPEndPoint _ipEndpoint;
-        private readonly TcpServerSecurity _security;
         private bool _ipv6Only = true;
 
         public const int PickUnusedPort = 0;
 
-        public TcpServerEndpoint(IPEndPoint ipEndpoint, TcpServerSecurity security)
+        public TcpServerEndpoint(IPEndPoint ipEndpoint)
         {
-            _security = security ?? throw new ArgumentNullException("security");
             _ipEndpoint = ipEndpoint ?? throw new ArgumentNullException("security");
             _socket = new Socket(ipEndpoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
-            _listener = new SocketListener(_socket, this, security, OnAccept, OnConnect);
+            _listener = new SocketListener(_socket, this, this, ServiceRegistry);
         }
 
-        public TcpServerEndpoint(IPAddress address, int port, TcpServerSecurity security)
-            : this(new IPEndPoint(address, port), security)
+        public TcpServerEndpoint(IPAddress address, int port)
+            : this(new IPEndPoint(address, port))
         {
         }
 
-        public TcpServerEndpoint(string address, TcpServerSecurity security)
+        public TcpServerEndpoint(string address)
         {
             var addressParts = address.Split(':');
 
@@ -48,14 +47,30 @@ namespace SharpRpc
             if (!int.TryParse(addressParts[1].Trim(), out int port) || port < 0)
                 throw new ArgumentException("Invalid port. Port must be a positive integer.");
 
-            _security = security ?? throw new ArgumentNullException("security");
-
             IPHostEntry ipHostInfo = Dns.GetHostEntry(addressParts[0].Trim());
             var ipAddress = ipHostInfo.AddressList[0];
             _ipEndpoint = new IPEndPoint(ipAddress, port);
 
             _socket = new Socket(ipAddress.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
-            _listener = new SocketListener(_socket, this, _security, OnAccept, OnConnect);
+            _listener = new SocketListener(_socket, this, this, ServiceRegistry);
+        }
+
+        public TcpServiceBinding BindService(ServiceDescriptor descriptor)
+        {
+            var binding = new TcpServiceBinding(null, descriptor);
+            ServiceRegistry.Add(binding);
+            return binding;
+        }
+
+        public TcpServiceBinding BindService(string serviceName, ServiceDescriptor descriptor)
+        {
+            if (string.IsNullOrWhiteSpace(serviceName))
+                throw new ArgumentException("Service name is invalid!");
+
+            var binding = new TcpServiceBinding(serviceName, descriptor);
+
+            ServiceRegistry.Add(serviceName, binding);
+            return binding;
         }
 
         /// <summary>
@@ -68,7 +83,7 @@ namespace SharpRpc
             get => _ipv6Only;
             set
             {
-                lock (_stateLockObj)
+                lock (LockObject)
                 {
                     ThrowIfImmutable();
                     _ipv6Only = value;
@@ -78,9 +93,11 @@ namespace SharpRpc
 
         public int EffectivePort { get; private set; }
 
+        bool ISocketListenerContext.IsHostNameResolveSupported => throw new NotImplementedException();
+
         protected override void Start()
         {
-            GetLogger().Info(Name, "listening at {0}, security: {1}", _ipEndpoint, _security.Name);
+            GetLogger().Info(Name, "listening at {0}", _ipEndpoint);
 
             _socket.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.IPv6Only, _ipv6Only);
 
@@ -94,9 +111,14 @@ namespace SharpRpc
             return _listener.Stop();
         }
 
-        private void OnAccept(Socket socket)
+        void ISocketListenerContext.OnAccept(Socket socket)
         {
-            socket.NoDelay = true;
+            
+        }
+
+        void ISocketListenerContext.OnNewConnection(ServiceBinding serviceCfg, ByteTransport transport)
+        {
+            OnNewConnection(serviceCfg, transport);
         }
 
 #if NET5_0_OR_GREATER

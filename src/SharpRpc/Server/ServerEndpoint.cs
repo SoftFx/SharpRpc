@@ -5,8 +5,10 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+using SharpRpc.Server;
 using System;
 using System.Collections.Generic;
+using System.Net;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -15,8 +17,6 @@ namespace SharpRpc
 {
     public abstract class ServerEndpoint : Endpoint
     {
-        //private ServerCredentials _creds = ServerCredentials.None;
-        private Authenticator _authenticator = Authenticator.None;
         private RpcServer _serverObj;
 
         public ServerEndpoint()
@@ -24,38 +24,29 @@ namespace SharpRpc
         }
 
         internal override IRpcLogger GetLogger() => _serverObj.Logger;
-
-        public Authenticator Authenticator
-        {
-            get => _authenticator;
-            set
-            {
-                lock (_stateLockObj)
-                {
-                    ThrowIfImmutable();
-                    _authenticator = value ?? throw new ArgumentNullException(nameof(value));
-                }
-            }
-        }
-
-        internal void Init(RpcServer server)
-        {
-            LockTo(server);
-            _serverObj = server;
-        }
+        internal ServiceRegistry ServiceRegistry { get; } = new ServiceRegistry();
 
         protected abstract void Start();
         protected abstract Task StopAsync();
 
-        protected void OnConnect(ByteTransport newConnection)
+        internal void OnNewConnection(ServiceBinding sConfig, ByteTransport newConnection)
         {
-            if (GetLogger().VerboseEnabled)
-                GetLogger().Verbose(Name, "Incoming connection");
-
-            ClientConnected.Invoke(this, newConnection);
+            ClientConnected.Invoke(this, sConfig, newConnection);
         }
 
-        internal event Action<ServerEndpoint, ByteTransport> ClientConnected;
+        internal event Action<ServerEndpoint, ServiceBinding, ByteTransport> ClientConnected;
+
+        protected override void ValidateAndInitialize()
+        {
+            base.ValidateAndInitialize();
+
+            ServiceRegistry.BuildCache();
+        }
+
+        protected override void OnAttached()
+        {
+            _serverObj = (RpcServer)Parent;
+        }
 
         internal void InvokeStart()
         {

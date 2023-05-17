@@ -13,12 +13,14 @@ namespace SharpRpc.Builder
 {
     internal class SerializerDeclaration
     {
-        public SerializerDeclaration(SerializerBuilderBase builder, TypeString facadeClassName)
+        public SerializerDeclaration(string shortName, SerializerBuilderBase builder, TypeString facadeClassName)
         {
+            ShortName = shortName;
             Builder = builder;
             AdapterClassName = new TypeString(facadeClassName.Full, builder.Name + "Adapter");
         }
 
+        public string ShortName { get; }
         public TypeString AdapterClassName { get; }
         public SerializerBuilderBase Builder { get; }
     }

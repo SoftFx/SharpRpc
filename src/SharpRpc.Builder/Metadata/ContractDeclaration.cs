@@ -88,7 +88,7 @@ namespace SharpRpc.Builder
 
         internal void AddSerializer(SerializerBuilderBase serializerBuilder)
         {
-            _serializers.Add(new SerializerDeclaration(serializerBuilder, InterfaceName));
+            _serializers.Add(new SerializerDeclaration(serializerBuilder.EnumVal, serializerBuilder, InterfaceName));
         }
 
         public TypeString GetOnWayMessageClassName(OperationDeclaration callInfo)

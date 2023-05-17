@@ -20,8 +20,9 @@ namespace SharpRpc
         // 4 - Options (2 bytes, for future use)
 
 
-        public ProtocolVersion RpcVersion { get; set; }
+        public ShortVersion RpcVersion { get; set; }
         public RpcSessionOptions Options { get; set; }
+        public HandshakeResultCode RetCode { get; set; }
 
         public void WriteTo(HandshakeEncoder encoder)
         {
@@ -31,6 +32,7 @@ namespace SharpRpc
             encoder.Write((ushort)0); // empty size field
 
             encoder.Write((ushort)Options);
+            encoder.Write((ushort)RetCode);
 
             // update size field
             var size = encoder.Length - lengthFieldPos - 2;
@@ -38,20 +40,24 @@ namespace SharpRpc
             encoder.Write((ushort)size);
         }
 
-        public static HandshakeParseResult TryParseHeader(HandshakeEncoder encoder, out ProtocolVersion version, out ushort size)
+        public static HandshakeParseResult TryParseHeader(HandshakeEncoder encoder, out ShortVersion version, out ushort size)
             => HandshakeRequest.TryParseHeader(encoder, out version, out size);
 
-        public static bool TryParseBody(HandshakeEncoder encoder, ProtocolVersion version, out HandshakeResponse response)
+        public static bool TryParseBody(HandshakeEncoder encoder, ShortVersion version, out HandshakeResponse response)
         {
             response = null;
 
             if (!encoder.TryReadUInt16(out var rawOptions))
                 return false;
 
+            if (!encoder.TryReadUInt16(out var rawRetCode))
+                return false;
+
             response = new HandshakeResponse()
             {
                 RpcVersion = version,
                 Options = (RpcSessionOptions)rawOptions,
+                RetCode = (HandshakeResultCode)rawRetCode,
             };
 
             return true;
