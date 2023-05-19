@@ -85,7 +85,8 @@ namespace TestServer
 
             tcpEndpoint.BindService("func", descriptor);
             tcpEndpoint.BindService("func/ssl", descriptor)
-                .SetSecurity(new SslServerSecurity(serverCert));
+                .SetSecurity(new SslServerSecurity(serverCert))
+                .SetAuthenticator(new BasicAuthenticator(new AuthValidator()));
 
             var server = new RpcServer();
             server.AddEndpoint(tcpEndpoint);

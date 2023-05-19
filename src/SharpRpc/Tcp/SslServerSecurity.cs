@@ -38,7 +38,8 @@ namespace SharpRpc
 
         internal override void Init()
         {
-            _cert = LoadCertificate();
+            if (_cert == null)
+                _cert = LoadCertificate();
         }
 
 #if NET5_0_OR_GREATER

@@ -132,6 +132,8 @@ namespace SharpRpc
         {
             _writer?.Abort(fault);
             _reader?.Abort(fault);
+
+            EndCall(fault, default);
         }
 
         private void EndCall(RpcResult result, TReturn resultValue)

@@ -34,6 +34,13 @@ namespace SharpRpc.Tcp
                 }
             }
         }
+
+        protected override void ValidateAndInitialize()
+        {
+            base.ValidateAndInitialize();
+
+            _security.Init();
+        }
     }
 
     public class TcpServiceBinding : SocketServiceBinding

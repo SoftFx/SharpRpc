@@ -94,14 +94,14 @@ namespace SharpRpc
                     Logger.Info(Id, $"Init, endpoint={_endpoint.Name}, service={_binding.ServiceName}");
 
                 var sharedContex = new SessionContext(Id, tranportInfo);
-                _coordinator = new ServerSideCoordinator(sharedContex);
+                _coordinator = new ServerSessionCoordinator(sharedContex);
 
                 if (_callHandler is ServiceCallHandler sch)
                     sch.Session.Init(this, sharedContex, tranportInfo);
             }
             else
             {
-                _coordinator = new ClientSideCoordinator();
+                _coordinator = new ClientSessionCoordinator();
             }
 
             if (_isServerSide)

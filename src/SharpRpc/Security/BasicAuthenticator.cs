@@ -31,7 +31,7 @@ namespace SharpRpc
         {
             if (string.IsNullOrEmpty(login.UserName))
             {
-                var msg = "UserName field is empty!";
+                var msg = "The username is not provided!";
 #if NET5_0_OR_GREATER
                 return ValueTask.FromResult(msg);
 #else
@@ -41,7 +41,7 @@ namespace SharpRpc
 
             if (login.Password == null)
             {
-                var msg = "Password field is empty!";
+                var msg = "The password is not provided!";
 #if NET5_0_OR_GREATER
                 return ValueTask.FromResult(msg);
 #else

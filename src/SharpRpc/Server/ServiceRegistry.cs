@@ -5,6 +5,7 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+using SharpRpc.Config;
 using System;
 using System.Collections.Generic;
 using System.Drawing.Printing;
@@ -18,9 +19,16 @@ namespace SharpRpc.Server
     {
         private readonly ServiceGroup _namelessGroup = new ServiceGroup(string.Empty);
         private readonly Dictionary<string, ServiceGroup> _groupsByName = new Dictionary<string, ServiceGroup>();
+        private readonly ConfigElement _cfgRoot;
+
+        public ServiceRegistry(ConfigElement configRoot)
+        {
+            _cfgRoot = configRoot;
+        }
 
         public void Add(ServiceBinding service)
         {
+            service.AttachTo(_cfgRoot);
             _namelessGroup.Add(service);
         }
 
@@ -34,6 +42,7 @@ namespace SharpRpc.Server
                 _groupsByName.Add(normalizedServiceName, serviceGroup);
             }
 
+            service.AttachTo(_cfgRoot);
             serviceGroup.Add(service);
         }
 
@@ -46,6 +55,11 @@ namespace SharpRpc.Server
 
             if (normalizedServiceName.Length == 0)
             {
+                if (_namelessGroup.IsEmpty)
+                {
+                    binding = null;
+                    return ResolveRetCode.ServiceNotFound;
+                }
                 binding = _namelessGroup.ResolveService(normalizedHostName);
                 return binding == null ? ResolveRetCode.HostNameNotFound : ResolveRetCode.Ok;
             }
@@ -80,6 +94,7 @@ namespace SharpRpc.Server
             }
 
             public string Name { get; }
+            public bool IsEmpty => _bindings.Count == 0;
 
             public void Add(ServiceBinding binding)
             {

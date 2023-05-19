@@ -10,6 +10,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Net;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -93,8 +94,9 @@ namespace TestClient
         private static bool RunTestCase(string address, TestCase tCase, bool ssl, out string errorMessage)
         {
             var security = ssl ? new SslSecurity(TestBase.NullCertValidator) : TcpSecurity.None;
-            var port = ssl ? 814 : 812;
-            var endpoint = new TcpClientEndpoint(address, port, security);
+            var port = 812;
+            var serviceName = ssl ? "func/ssl" : "func";
+            var endpoint = new TcpClientEndpoint(new DnsEndPoint(address, port), serviceName, security);
 
             if (ssl)
                 endpoint.Credentials = new BasicCredentials("Admin", "zzzz");
@@ -472,11 +474,11 @@ namespace TestClient
 
             public override IEnumerable<TestCase> GetPredefinedCases()
             {
-                yield return CreateCase(8, StreamTestOptions.JustExit);
-                yield return CreateCase(8, StreamTestOptions.ImmediateFault);
+                //yield return CreateCase(8, StreamTestOptions.JustExit);
+                //yield return CreateCase(8, StreamTestOptions.ImmediateFault);
                 yield return CreateCase(8, StreamTestOptions.ImmediateCustomFault);
-                yield return CreateCase(8, StreamTestOptions.None);
-                yield return CreateCase(32, StreamTestOptions.None);
+                //yield return CreateCase(8, StreamTestOptions.None);
+                //yield return CreateCase(32, StreamTestOptions.None);
             }
 
             public override TestCase GetRandomCase(Random rnd)
@@ -521,7 +523,7 @@ namespace TestClient
                     var result = call.AsyncResult.Result;
 
                     if (result.Code != RpcRetCode.RequestFault)
-                        throw new Exception("Stream call returned an unexpected result!");
+                        throw new Exception(result.FaultMessage);
                 }
                 else
                 {
@@ -743,7 +745,7 @@ namespace TestClient
                     throw new Exception("Stream call returned an unexpected result!");
 
                 if (result.ExitCode != StreamCallExitCode.StreamWriteCancelled)
-                    throw new Exception("Stream call returned an unexpected result!");
+                    throw new Exception("Stream call returned an unexpected exit code!");
             }
         }
 

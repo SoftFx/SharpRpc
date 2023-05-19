@@ -21,10 +21,11 @@ namespace SharpRpc
 
         public ServerEndpoint()
         {
+            ServiceRegistry = new ServiceRegistry(this);
         }
 
         internal override IRpcLogger GetLogger() => _serverObj.Logger;
-        internal ServiceRegistry ServiceRegistry { get; } = new ServiceRegistry();
+        internal ServiceRegistry ServiceRegistry { get; }
 
         protected abstract void Start();
         protected abstract Task StopAsync();

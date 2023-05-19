@@ -14,7 +14,7 @@ using System.Threading.Tasks;
 
 namespace SharpRpc
 {
-    internal class ClientSideCoordinator : SessionCoordinator
+    internal class ClientSessionCoordinator : SessionCoordinator
     {
         private TaskCompletionSource<ILoginMessage> _loginWaitHandle;
         //private TaskCompletionSource<ILogoutMessage> _logoutWaitHandle;

@@ -16,14 +16,14 @@ using System.Threading.Tasks;
 
 namespace SharpRpc
 {
-    internal class ServerSideCoordinator : SessionCoordinator
+    internal class ServerSessionCoordinator : SessionCoordinator
     {
         private Authenticator _authPlugin;
         private readonly TaskCompletionSource<ILoginMessage> _loginWaitHandle = new TaskCompletionSource<ILoginMessage>();
         private TaskFactory _taskQueue;
         private readonly SessionContext _sharedContextObj;
 
-        public ServerSideCoordinator(SessionContext sharedContext)
+        public ServerSessionCoordinator(SessionContext sharedContext)
         {
             _sharedContextObj = sharedContext;
         }
