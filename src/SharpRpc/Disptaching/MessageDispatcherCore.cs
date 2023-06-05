@@ -82,7 +82,7 @@ namespace SharpRpc
         public void CompleteStop()
         {
             foreach (var task in _tasksToCancel)
-                task.OnFault(_fault);
+                task.Abort(_fault);
         }
 
         public bool TryInvokeInit(Channel ch, out RpcResult error)
