@@ -30,6 +30,12 @@ namespace SharpRpc
             _stream = new NetworkStream(socket, false);
         }
 
+#if NET5_0_OR_GREATER
+        public override bool StopRxByShutdown => false;
+#else
+        public override bool StopRxByShutdown => true;
+#endif
+
         public override void Init(Channel channel)
         {
             _channelId = channel.Id;
@@ -48,12 +54,12 @@ namespace SharpRpc
 #else
         public override Task<int> Receive(ArraySegment<byte> buffer, CancellationToken cToken)
         {
-            return _stream.ReadAsync(buffer.Array, buffer.Offset, buffer.Count, cToken);
+            return _stream.ReadAsync(buffer.Array, buffer.Offset, buffer.Count);
         }
 
         public override Task Send(ArraySegment<byte> data, CancellationToken cToken)
         {
-            return _stream.WriteAsync(data.Array, data.Offset, data.Count, cToken);
+            return _stream.WriteAsync(data.Array, data.Offset, data.Count);
         }
 #endif
 

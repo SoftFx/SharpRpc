@@ -85,9 +85,7 @@ namespace SharpRpc
             var byteSize = Encoding.UTF8.GetBytes(value, GetAppendSpan());
             IncreaseWritePosition(byteSize);
 #else
-            var strBytes = Encoding.UTF8.GetBytes(value);
-            Write(strBytes);
-            IncreaseWritePosition(strBytes.Length);
+            Write(Encoding.UTF8.GetBytes(value));
 #endif
         }
 

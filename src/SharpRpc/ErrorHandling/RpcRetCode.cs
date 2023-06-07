@@ -38,6 +38,7 @@ namespace SharpRpc
         UnknownService = 28,
         UnknownHostName = 29,
         UnsupportedProtocolVersion = 30,
+        ChannelOpenEventFailed = 31,
 
         RequestFault = 50,
 

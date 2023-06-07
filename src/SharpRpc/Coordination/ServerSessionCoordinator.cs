@@ -83,6 +83,7 @@ namespace SharpRpc
                     State = SessionState.LoggedIn;
 
                 // start processing messages
+                Channel.Tx.StartProcessingUserMessages();
                 var startResult = Channel.Dispatcher.Start();
 
                 if (startResult.IsOk)

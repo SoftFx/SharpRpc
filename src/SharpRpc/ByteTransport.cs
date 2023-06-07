@@ -15,6 +15,8 @@ namespace SharpRpc
 {
     public abstract class ByteTransport
     {
+        public abstract bool StopRxByShutdown { get; }
+
 #if NET5_0_OR_GREATER
         public abstract ValueTask Send(ArraySegment<byte> data, CancellationToken cToken);
         public abstract ValueTask<int> Receive(ArraySegment<byte> buffer, CancellationToken cToken);
@@ -27,6 +29,7 @@ namespace SharpRpc
         public abstract void Init(Channel channel);
 
         public abstract Task Shutdown();
+
         public abstract void Dispose();
 
         public abstract TransportInfo GetInfo();

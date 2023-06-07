@@ -11,6 +11,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using static SharpRpc.Lib.SlimAwaitable;
 
 namespace SharpRpc
 {
@@ -34,6 +35,28 @@ namespace SharpRpc
 
         public override async Task<RpcResult> OnConnect(CancellationToken cToken)
         {
+            var loginResult = await Login(cToken);
+
+            if (!loginResult.IsOk)
+                return loginResult;
+
+            lock (LockObj)
+            {
+                _loginWaitHandle = null;
+                State = SessionState.OpenEvent;
+            }
+
+            if (!await Channel.RiseOpeningEvent())
+                return new RpcResult(RpcRetCode.ChannelOpenEventFailed, "An error occurred in the channel open event handler!");
+
+            lock (LockObj)
+                State = SessionState.LoggedIn;
+
+            return RpcResult.Ok;
+        }
+
+        private async Task<RpcResult> Login(CancellationToken cToken)
+        {
             lock (LockObj)
             {
                 State = SessionState.PendingLogin;
@@ -43,7 +66,6 @@ namespace SharpRpc
             // send login
             var loginMsg = Channel.Contract.SystemMessages.CreateLoginMessage();
             _creds.OnBeforeLogin(loginMsg);
-
             var sendResult = await Channel.Tx.SendSystemMessage(loginMsg);
 
             if (!sendResult.IsOk)
@@ -60,6 +82,7 @@ namespace SharpRpc
                 if (loginResp.ResultCode == LoginResult.Ok)
                 {
                     // enable message queue
+                    Channel.Tx.StartProcessingUserMessages();
                     return Channel.Dispatcher.Start();
                 }
                 else if (loginResp.ResultCode == LoginResult.InvalidCredentials)
@@ -76,7 +99,7 @@ namespace SharpRpc
                 if (State != SessionState.PendingLogin)
                     return new RpcResult(RpcRetCode.ProtocolViolation, "Unexpected login message!");
 
-                State = SessionState.OpeningEvent;
+                State = SessionState.OpenEvent;
                 _loginWaitHandle.TrySetResult(loginMsg);
                 return RpcResult.Ok;
             }

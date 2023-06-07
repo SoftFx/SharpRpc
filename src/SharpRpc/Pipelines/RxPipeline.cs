@@ -26,7 +26,7 @@ namespace SharpRpc
         //private readonly List<IMessage> _page = new List<IMessage>();
         //private readonly List<IMessage> _oneWayMsgPage = new List<IMessage>();
         private readonly SessionCoordinator _coordinator;
-        //private readonly CancellationTokenSource _rxCancelSrc = new CancellationTokenSource();
+        private readonly CancellationTokenSource _rxCancelSrc = new CancellationTokenSource();
         private Task _rxLoop;
         private readonly TaskFactory _taskQueue;
 
@@ -61,7 +61,7 @@ namespace SharpRpc
 
         protected Task StopTransportRx()
         {
-            //_rxCancelSrc.Cancel();
+            _rxCancelSrc.Cancel();
             return _rxLoop;
         }
 
@@ -75,7 +75,7 @@ namespace SharpRpc
                 {
                     var buffer = AllocateRxBuffer();
 
-                    byteCount = await _transport.Receive(buffer, CancellationToken.None); // _rxCancelSrc.Token);
+                    byteCount = await _transport.Receive(buffer, _rxCancelSrc.Token);
 
                     //await _taskQueue.Dive();
 

@@ -73,12 +73,23 @@ namespace TestClient
             else if (choice == "3")
             {   
                 var client = new BenchmarkClient("localhost", TcpSecurity.None);
-                var connectRet = client.Stub.Channel.TryConnectAsync().ToTask().Result;
+                
+                client.Channel.Opening += async (s, a) =>
+                {
+                    await client.Stub.Async.SendUpdate(new FooEntity());
+                };
+
+                client.Channel.Closing += async (s, a) =>
+                {
+                    await client.Stub.Async.SendUpdate(new FooEntity());
+                };
 
                 TimerCallback statusCheckAction = s =>
                 {
                     Console.WriteLine("Channel.State = " + client.Stub.Channel.State);
                 };
+
+                var connectRet = client.Stub.Channel.TryConnectAsync().ToTask().Result;
 
                 if (connectRet.Code == RpcRetCode.Ok)
                 {

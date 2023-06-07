@@ -30,6 +30,12 @@ namespace SharpRpc
             _socket = socket;
         }
 
+#if NET5_0_OR_GREATER
+        public override bool StopRxByShutdown => false;
+#else
+        public override bool StopRxByShutdown => true;
+#endif
+
         public override void Init(Channel channel)
         {
             _logger = channel.Logger;
