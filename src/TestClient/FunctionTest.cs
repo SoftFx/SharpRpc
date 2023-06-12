@@ -11,9 +11,12 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Net;
+using System.Net.Security;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using TestClient.TestLib;
 using TestCommon;
 using TestCommon.Lib;
 
@@ -21,79 +24,17 @@ namespace TestClient
 {
     public static class FunctionTest
     {
-        public static void Run(string address, bool ssl)
+        public static void Run(string address)
         {
-            Console.WriteLine("Functon test, ssl=" + ssl);
-            Console.WriteLine();
-
-            ExecTest<Call1Test>(address, ssl);
-            ExecTest<Call2Test>(address, ssl);
-            ExecTest<ComplexDataTest>(address, ssl);
-            ExecTest<RegularFaultTest>(address, ssl);
-            ExecTest<CrashFaultTest>(address, ssl);
-            ExecTest<CustomFaultTest>(address, ssl);
-            ExecTest<CallbackTest1>(address, ssl);
-            ExecTest<CallbackTest2>(address, ssl);
-            ExecTest<InputStreamTest>(address, ssl);
-            ExecTest<OutputStreamTest>(address, ssl);
-            ExecTest<DuplexStreamTest>(address, ssl);
-            ExecTest<InputStreamCancellationTest>(address, ssl);
-            ExecTest<OutputStreamCancellationTest>(address, ssl);
-            //ExecTest<DuplexStreamCancellationTest>(address, ssl);
-
-            if (ssl)
-                ExecTest<SessionPropertyTest>(address, ssl);
-
-            Console.WriteLine();
-            Console.WriteLine("Done testing.");
+            var runner = new TestRunner();
+            AddCases(runner, address, false);
+            AddCases(runner, address, true);
+            runner.RunAll();
         }
 
-        private static void ExecTest<T>(string address, bool ssl)
-            where T : TestBase, new()
+        private static void AddCases(TestRunner runner, string address, bool ssl)
         {
-            var test = new T();
-            var cases = test.GetPredefinedCases().ToList();
-
-            Console.WriteLine();
-
-            if (cases.Count > 1)
-            {
-                Console.WriteLine(test.Name);
-
-                foreach (var tCase in cases)
-                {
-                    var caseInfoBuilder = new StringBuilder();
-                    caseInfoBuilder.Append("\t");
-                    tCase.PrintCaseParams(caseInfoBuilder);
-                    caseInfoBuilder.Append(" ...");
-
-                    Console.Write(caseInfoBuilder.ToString());
-                    ExecTestCase(address, tCase, ssl);
-                }
-            }
-            else
-            {
-                Console.Write(test.Name + " ...");
-                ExecTestCase(address, cases[0], ssl);
-            }
-        }
-
-        private static void ExecTestCase(string address, TestCase tCase, bool ssl)
-        {
-            if (RunTestCase(address, tCase, ssl, out var error))
-                Console.WriteLine(" Passed");
-            else
-            {
-                Console.WriteLine(" Failed");
-                Console.WriteLine();
-                Console.WriteLine(error);
-                Console.WriteLine();
-            }
-        }
-
-        private static bool RunTestCase(string address, TestCase tCase, bool ssl, out string errorMessage)
-        {
-            var security = ssl ? new SslSecurity(TestBase.NullCertValidator) : TcpSecurity.None;
+            var security = ssl ? new SslSecurity(NullCertValidator) : TcpSecurity.None;
             var port = 812;
             var serviceName = ssl ? "func/ssl" : "func";
             var endpoint = new TcpClientEndpoint(new DnsEndPoint(address, port), serviceName, security);
@@ -106,25 +47,106 @@ namespace TestClient
 
             var rConnect = client.Channel.TryConnectAsync().Result;
 
-            try
-            {
-                tCase.RunTest(client);
-                errorMessage = null;
-                return true;
-            }
-            catch (Exception ex)
-            {
-                if (ex is AggregateException aggr && aggr.InnerExceptions.Count == 1)
-                    ex = aggr.InnerException;
+            var clientName = ssl ? "SSL" : "Unsecured";
 
-                errorMessage = ex.Message;
-                return false;
-            }
-            finally
-            {
-                client.Channel.CloseAsync().Wait();
-            }
+            runner.AddCases(new Call1Test().GetCases(clientName, client));
+            runner.AddCases(new Call2Test().GetCases(clientName, client));
+            runner.AddCases(new ComplexDataTest().GetCases(clientName, client));
+            runner.AddCases(new RegularFaultTest().GetCases(clientName, client));
+            runner.AddCases(new CrashFaultTest().GetCases(clientName, client));
+            runner.AddCases(new CustomFaultTest().GetCases(clientName, client));
+            runner.AddCases(new CallbackTest1().GetCases(clientName, client));
+            runner.AddCases(new CallbackTest2().GetCases(clientName, client));
+            runner.AddCases(new InputStreamTest().GetCases(clientName, client));
+            runner.AddCases(new OutputStreamTest().GetCases(clientName, client));
+            runner.AddCases(new DuplexStreamTest().GetCases(clientName, client));
+            runner.AddCases(new InputStreamCancellationTest().GetCases(clientName, client));
+            runner.AddCases(new OutputStreamCancellationTest().GetCases(clientName, client));
+            //runner.AddCases(new DuplexStreamCancellationTest().GetCases(clientName, client));
         }
+
+        private static bool NullCertValidator(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
+        {
+            return true;
+        }
+
+        //private static void ExecTest<T>(string address, bool ssl)
+        //    where T : TestBase, new()
+        //{
+        //    var test = new T();
+        //    var cases = test.GetPredefinedCases().ToList();
+
+        //    Console.WriteLine();
+
+        //    if (cases.Count > 1)
+        //    {
+        //        Console.WriteLine(test.Name);
+
+        //        foreach (var tCase in cases)
+        //        {
+        //            var caseInfoBuilder = new StringBuilder();
+        //            caseInfoBuilder.Append("\t");
+        //            tCase.PrintCaseParams(caseInfoBuilder);
+        //            caseInfoBuilder.Append(" ...");
+
+        //            Console.Write(caseInfoBuilder.ToString());
+        //            ExecTestCase(address, tCase, ssl);
+        //        }
+        //    }
+        //    else
+        //    {
+        //        Console.Write(test.Name + " ...");
+        //        ExecTestCase(address, cases[0], ssl);
+        //    }
+        //}
+
+        //private static void ExecTestCase(string address, TestCase tCase, bool ssl)
+        //{
+        //    if (RunTestCase(address, tCase, ssl, out var error))
+        //        Console.WriteLine(" Passed");
+        //    else
+        //    {
+        //        Console.WriteLine(" Failed");
+        //        Console.WriteLine();
+        //        Console.WriteLine(error);
+        //        Console.WriteLine();
+        //    }
+        //}
+
+        //private static bool RunTestCase(string address, TestCase tCase, bool ssl, out string errorMessage)
+        //{
+        //    var security = ssl ? new SslSecurity(TestBase.NullCertValidator) : TcpSecurity.None;
+        //    var port = 812;
+        //    var serviceName = ssl ? "func/ssl" : "func";
+        //    var endpoint = new TcpClientEndpoint(new DnsEndPoint(address, port), serviceName, security);
+
+        //    if (ssl)
+        //        endpoint.Credentials = new BasicCredentials("Admin", "zzzz");
+
+        //    var callback = new CallbackHandler();
+        //    var client = FunctionTestContract_Gen.CreateClient(endpoint, callback);
+
+        //    var rConnect = client.Channel.TryConnectAsync().Result;
+
+        //    try
+        //    {
+        //        tCase.RunTest(client);
+        //        errorMessage = null;
+        //        return true;
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        if (ex is AggregateException aggr && aggr.InnerExceptions.Count == 1)
+        //            ex = aggr.InnerException;
+
+        //        errorMessage = ex.Message;
+        //        return false;
+        //    }
+        //    finally
+        //    {
+        //        client.Channel.CloseAsync().Wait();
+        //    }
+        //}
 
         private enum CallType
         {
@@ -136,28 +158,25 @@ namespace TestClient
 
         private class Call1Test : TestBase
         {
-            public override IEnumerable<TestCase> GetPredefinedCases()
+            public IEnumerable<TestCase> GetCases(string clientDescription, FunctionTestContract_Gen.Client client)
             {
-                yield return CreateCase(CallType.Regular);
-                yield return CreateCase(CallType.Try);
-                yield return CreateCase(CallType.Async);
-                yield return CreateCase(CallType.TryAsync);
+                yield return CreateCase(CallType.Regular, clientDescription, client);
+                yield return CreateCase(CallType.Try, clientDescription, client);
+                yield return CreateCase(CallType.Async, clientDescription, client);
+                yield return CreateCase(CallType.TryAsync, clientDescription, client);
             }
 
-            public override TestCase GetRandomCase(Random rnd)
-            {
-                return CreateCase((CallType)rnd.Next(4));
-            }
-
-            private TestCase CreateCase(CallType cType)
+            private TestCase CreateCase(CallType cType, string clientDescription, FunctionTestContract_Gen.Client client)
             {
                 return new TestCase(this)
-                    .SetParam("callType", cType);
+                    .SetParam("callType", cType.ToString(), cType)
+                    .SetParam("client", clientDescription, client);
             }
 
-            public override void RunTest(TestCase tCase, FunctionTestContract_Gen.Client client)
+            public override void RunTest(TestCase tCase)
             {
                 var type = (CallType)tCase["callType"];
+                var client = tCase.GetParam<FunctionTestContract_Gen.Client>("client");
 
                 if (type == CallType.Regular)
                     client.TestCall1(10, "11");
@@ -172,28 +191,25 @@ namespace TestClient
 
         private class Call2Test : TestBase
         {
-            public override IEnumerable<TestCase> GetPredefinedCases()
+            public IEnumerable<TestCase> GetCases(string clientDescription, FunctionTestContract_Gen.Client client)
             {
-                yield return CreateCase(CallType.Regular);
-                yield return CreateCase(CallType.Try);
-                yield return CreateCase(CallType.Async);
-                yield return CreateCase(CallType.TryAsync);
+                yield return CreateCase(CallType.Regular, clientDescription, client);
+                yield return CreateCase(CallType.Try, clientDescription, client);
+                yield return CreateCase(CallType.Async, clientDescription, client);
+                yield return CreateCase(CallType.TryAsync, clientDescription, client);
             }
 
-            public override TestCase GetRandomCase(Random rnd)
-            {
-                return CreateCase((CallType)rnd.Next(4));
-            }
-
-            private TestCase CreateCase(CallType cType)
+            private TestCase CreateCase(CallType cType, string clientDescription, FunctionTestContract_Gen.Client client)
             {
                 return new TestCase(this)
-                    .SetParam("callType", cType);
+                    .SetParam("callType", cType)
+                    .SetParam("client", clientDescription, client);
             }
 
-            public override void RunTest(TestCase tCase, FunctionTestContract_Gen.Client client)
+            public override void RunTest(TestCase tCase)
             {
                 var type = (CallType)tCase["callType"];
+                var client = tCase.GetParam<FunctionTestContract_Gen.Client>("client");
 
                 if (type == CallType.Regular)
                 {
@@ -224,28 +240,25 @@ namespace TestClient
 
         private class RegularFaultTest : TestBase
         {
-            public override IEnumerable<TestCase> GetPredefinedCases()
+            public IEnumerable<TestCase> GetCases(string clientDescription, FunctionTestContract_Gen.Client client)
             {
-                yield return CreateCase(CallType.Regular);
-                yield return CreateCase(CallType.Try);
+                yield return CreateCase(CallType.Regular, clientDescription, client);
+                yield return CreateCase(CallType.Try, clientDescription, client);
                 //yield return CreateCase(CallType.Async);
                 //yield return CreateCase(CallType.TryAsync);
             }
 
-            public override TestCase GetRandomCase(Random rnd)
-            {
-                return CreateCase((CallType)rnd.Next(2));
-            }
-
-            private TestCase CreateCase(CallType cType)
+            private TestCase CreateCase(CallType cType, string clientDescription, FunctionTestContract_Gen.Client client)
             {
                 return new TestCase(this)
-                    .SetParam("callType", cType);
+                    .SetParam("callType", cType)
+                    .SetParam("client", clientDescription, client);
             }
 
-            public override void RunTest(TestCase tCase, FunctionTestContract_Gen.Client client)
+            public override void RunTest(TestCase tCase)
             {
                 var type = (CallType)tCase["callType"];
+                var client = tCase.GetParam<FunctionTestContract_Gen.Client>("client");
 
                 AssertFault(RpcRetCode.RequestFault, "Test exception", () =>
                 {
@@ -262,28 +275,25 @@ namespace TestClient
 
         private class CrashFaultTest : TestBase
         {
-            public override IEnumerable<TestCase> GetPredefinedCases()
+            public IEnumerable<TestCase> GetCases(string clientDescription, FunctionTestContract_Gen.Client client)
             {
-                yield return CreateCase(CallType.Regular);
-                yield return CreateCase(CallType.Try);
+                yield return CreateCase(CallType.Regular, clientDescription, client);
+                yield return CreateCase(CallType.Try, clientDescription, client);
                 //yield return CreateCase(CallType.Async);
                 //yield return CreateCase(CallType.TryAsync);
             }
 
-            public override TestCase GetRandomCase(Random rnd)
-            {
-                return CreateCase((CallType)rnd.Next(2));
-            }
-
-            private TestCase CreateCase(CallType cType)
+            private TestCase CreateCase(CallType cType, string clientDescription, FunctionTestContract_Gen.Client client)
             {
                 return new TestCase(this)
-                    .SetParam("callType", cType);
+                    .SetParam("callType", cType)
+                    .SetParam("client", clientDescription, client);
             }
 
-            public override void RunTest(TestCase tCase, FunctionTestContract_Gen.Client client)
+            public override void RunTest(TestCase tCase)
             {
                 var type = (CallType)tCase["callType"];
+                var client = tCase.GetParam<FunctionTestContract_Gen.Client>("client");
 
                 AssertFault(RpcRetCode.RequestCrash, "Request faulted due to", () =>
                 {
@@ -300,28 +310,25 @@ namespace TestClient
 
         private class CustomFaultTest : TestBase
         {
-            public override IEnumerable<TestCase> GetPredefinedCases()
+            public IEnumerable<TestCase> GetCases(string clientDescription, FunctionTestContract_Gen.Client client)
             {
-                yield return CreateCase(CallType.Regular);
-                yield return CreateCase(CallType.Try);
+                yield return CreateCase(CallType.Regular, clientDescription, client);
+                yield return CreateCase(CallType.Try, clientDescription, client);
                 //yield return CreateCase(CallType.Async);
                 //yield return CreateCase(CallType.TryAsync);
             }
 
-            public override TestCase GetRandomCase(Random rnd)
-            {
-                return CreateCase((CallType)rnd.Next(2));
-            }
-
-            private TestCase CreateCase(CallType cType)
+            private TestCase CreateCase(CallType cType, string clientDescription, FunctionTestContract_Gen.Client client)
             {
                 return new TestCase(this)
-                    .SetParam("callType", cType);
+                    .SetParam("callType", cType)
+                    .SetParam("client", clientDescription, client);
             }
 
-            public override void RunTest(TestCase tCase, FunctionTestContract_Gen.Client client)
+            public override void RunTest(TestCase tCase)
             {
                 var type = (CallType)tCase["callType"];
+                var client = tCase.GetParam<FunctionTestContract_Gen.Client>("client");
 
                 AssertCustomFault(RpcRetCode.RequestCrash, new TestFault1 { CustomCode = 11 }, () =>
                 {
@@ -338,8 +345,21 @@ namespace TestClient
 
         private class ComplexDataTest : TestBase
         {
-            public override void RunTest(TestCase tCase, FunctionTestContract_Gen.Client client)
+            public IEnumerable<TestCase> GetCases(string clientDescription, FunctionTestContract_Gen.Client client)
             {
+                yield return CreateCase(clientDescription, client);
+            }
+
+            private TestCase CreateCase(string clientDescription, FunctionTestContract_Gen.Client client)
+            {
+                return new TestCase(this)
+                    .SetParam("client", clientDescription, client);
+            }
+
+            public override void RunTest(TestCase tCase)
+            {
+                var client = tCase.GetParam<FunctionTestContract_Gen.Client>("client");
+
                 var list1 = new List<DateTime>();
                 list1.Add(new DateTime(2011, 10, 10));
                 list1.Add(new DateTime(2012, 10, 10));
@@ -445,8 +465,20 @@ namespace TestClient
 
         private class CallbackTest1 : TestBase
         {
-            public override void RunTest(TestCase tCase, FunctionTestContract_Gen.Client client)
+            public IEnumerable<TestCase> GetCases(string clientDescription, FunctionTestContract_Gen.Client client)
             {
+                yield return CreateCase(clientDescription, client);
+            }
+
+            private TestCase CreateCase(string clientDescription, FunctionTestContract_Gen.Client client)
+            {
+                return new TestCase(this)
+                    .SetParam("client", clientDescription, client);
+            }
+
+            public override void RunTest(TestCase tCase)
+            {
+                var client = tCase.GetParam<FunctionTestContract_Gen.Client>("client");
                 var r1 = client.Async.InvokeCallback(1, 10, "11").Result;
                 if (r1 != "Ok")
                     throw new Exception("InvokeCallback returned unexpected result!");
@@ -455,8 +487,20 @@ namespace TestClient
 
         private class CallbackTest2 : TestBase
         {
-            public override void RunTest(TestCase tCase, FunctionTestContract_Gen.Client client)
+            public IEnumerable<TestCase> GetCases(string clientDescription, FunctionTestContract_Gen.Client client)
             {
+                yield return CreateCase(clientDescription, client);
+            }
+
+            private TestCase CreateCase(string clientDescription, FunctionTestContract_Gen.Client client)
+            {
+                return new TestCase(this)
+                    .SetParam("client", clientDescription, client);
+            }
+
+            public override void RunTest(TestCase tCase)
+            {
+                var client = tCase.GetParam<FunctionTestContract_Gen.Client>("client");
                 var r2 = client.Async.InvokeCallback(2, 10, "11").Result;
                 if (r2 != "21")
                     throw new Exception("InvokeCallback returned unexpected result!");
@@ -465,32 +509,29 @@ namespace TestClient
 
         private class InputStreamTest : TestBase
         {
-            private TestCase CreateCase(ushort windowSize, StreamTestOptions options)
-            {
-                return new TestCase(this)
-                    .SetParam("windowSize", windowSize)
-                    .SetParam("options", options);
-            }
-
-            public override IEnumerable<TestCase> GetPredefinedCases()
+            public IEnumerable<TestCase> GetCases(string clientDescription, FunctionTestContract_Gen.Client client)
             {
                 //yield return CreateCase(8, StreamTestOptions.JustExit);
                 //yield return CreateCase(8, StreamTestOptions.ImmediateFault);
-                yield return CreateCase(8, StreamTestOptions.ImmediateCustomFault);
+                yield return CreateCase(8, StreamTestOptions.ImmediateCustomFault, clientDescription, client);
                 //yield return CreateCase(8, StreamTestOptions.None);
                 //yield return CreateCase(32, StreamTestOptions.None);
             }
 
-            public override TestCase GetRandomCase(Random rnd)
+            private TestCase CreateCase(ushort windowSize, StreamTestOptions options,
+                string clientDescription, FunctionTestContract_Gen.Client client)
             {
-                return CreateCase((ushort)rnd.Next(8, 100),
-                    rnd.Pick(StreamTestOptions.JustExit, StreamTestOptions.ImmediateFault, StreamTestOptions.ImmediateCustomFault));
+                return new TestCase(this)
+                    .SetParam("windowSize", windowSize)
+                    .SetParam("options", options)
+                    .SetParam("client", clientDescription, client);
             }
 
-            public override void RunTest(TestCase tCase, FunctionTestContract_Gen.Client client)
+            public override void RunTest(TestCase tCase)
             {
                 var windowSize = (ushort)tCase["windowSize"];
                 var testOptions = (StreamTestOptions)tCase["options"];
+                var client = tCase.GetParam<FunctionTestContract_Gen.Client>("client");
 
                 var options = new StreamOptions() { WindowSize = windowSize };
 
@@ -546,30 +587,27 @@ namespace TestClient
 
         private class OutputStreamTest : TestBase
         {
-            private TestCase CreateCase(ushort windowSize, bool withCompletion)
+            private TestCase CreateCase(ushort windowSize, bool withCompletion, string clientDescription, FunctionTestContract_Gen.Client client)
             {
                 return new TestCase(this)
                     .SetParam("windowSize", windowSize)
-                    .SetParam("withCompletion", withCompletion);
+                    .SetParam("withCompletion", withCompletion)
+                    .SetParam("client", clientDescription, client);
             }
 
-            public override IEnumerable<TestCase> GetPredefinedCases()
+            public IEnumerable<TestCase> GetCases(string clientDescription, FunctionTestContract_Gen.Client client)
             {
-                yield return CreateCase(8, true);
-                yield return CreateCase(8, false);
-                yield return CreateCase(32, true);
-                yield return CreateCase(32, false);
+                yield return CreateCase(8, true, clientDescription, client);
+                yield return CreateCase(8, false, clientDescription, client);
+                yield return CreateCase(32, true, clientDescription, client);
+                yield return CreateCase(32, false, clientDescription, client);
             }
 
-            public override TestCase GetRandomCase(Random rnd)
-            {
-                return CreateCase((ushort)rnd.Next(8, 100), rnd.Next(2) > 0);
-            }
-
-            public override void RunTest(TestCase tCase, FunctionTestContract_Gen.Client client)
+            public override void RunTest(TestCase tCase)
             {
                 var windowSize = (ushort)tCase["windowSize"];
                 var withCompletion = (bool)tCase["withCompletion"];
+                var client = tCase.GetParam<FunctionTestContract_Gen.Client>("client");
 
                 var itemsCount = 100;
                 var expectedSumm = (1 + itemsCount) * itemsCount / 2;
@@ -596,30 +634,27 @@ namespace TestClient
 
         private class DuplexStreamTest : TestBase
         {
-            private TestCase CreateCase(ushort windowSize, bool withCompletion)
+            private TestCase CreateCase(ushort windowSize, bool withCompletion, string clientDescription, FunctionTestContract_Gen.Client client)
             {
                 return new TestCase(this)
                     .SetParam("windowSize", windowSize)
-                    .SetParam("withCompletion", withCompletion);
+                    .SetParam("withCompletion", withCompletion)
+                    .SetParam("client", clientDescription, client);
             }
 
-            public override IEnumerable<TestCase> GetPredefinedCases()
+            public IEnumerable<TestCase> GetCases(string clientDescription, FunctionTestContract_Gen.Client client)
             {
-                yield return CreateCase(8, true);
-                yield return CreateCase(8, false);
-                yield return CreateCase(32, true);
-                yield return CreateCase(32, false);
+                yield return CreateCase(8, true, clientDescription, client);
+                yield return CreateCase(8, false, clientDescription, client);
+                yield return CreateCase(32, true, clientDescription, client);
+                yield return CreateCase(32, false, clientDescription, client);
             }
 
-            public override TestCase GetRandomCase(Random rnd)
-            {
-                return CreateCase((ushort)rnd.Next(8, 100), rnd.Next(2) > 0);
-            }
-
-            public override void RunTest(TestCase tCase, FunctionTestContract_Gen.Client client)
+            public override void RunTest(TestCase tCase)
             {
                 var windowSize = (ushort)tCase["windowSize"];
                 var withCompletion = (bool)tCase["withCompletion"];
+                var client = tCase.GetParam<FunctionTestContract_Gen.Client>("client");
 
                 var options = withCompletion ? StreamTestOptions.InvokeCompletion : StreamTestOptions.DoNotInvokeCompletion;
                 var streamOptions = new DuplexStreamOptions() { InputWindowSize = windowSize, OutputWindowSize = windowSize };
@@ -665,10 +700,10 @@ namespace TestClient
 
         private class TestCallCancellation_CancelAfterDelay : TestBase
         {
-            public override void RunTest(TestCase tCase, FunctionTestContract_Gen.Client client)
+            public override void RunTest(TestCase tCase)
             {
+                var client = tCase.GetParam<FunctionTestContract_Gen.Client>("client");
                 var cancelSrc = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
-
                 var result = client.CancellableCall(TimeSpan.FromMinutes(5), cancelSrc.Token);
 
                 if (!result)
@@ -678,11 +713,12 @@ namespace TestClient
 
         private class TestCallCancellation_CancelBefore : TestBase
         {
-            public override void RunTest(TestCase tCase, FunctionTestContract_Gen.Client client)
+            public override void RunTest(TestCase tCase)
             {
                 var cancelSrc = new CancellationTokenSource();
                 cancelSrc.Cancel();
 
+                var client = tCase.GetParam<FunctionTestContract_Gen.Client>("client");
                 var result = client.CancellableCall(TimeSpan.FromMinutes(2), cancelSrc.Token);
 
                 if (!result)
@@ -692,10 +728,22 @@ namespace TestClient
 
         private class InputStreamCancellationTest : TestBase
         {
-            public override void RunTest(TestCase tCase, FunctionTestContract_Gen.Client client)
+            public IEnumerable<TestCase> GetCases(string clientDescription, FunctionTestContract_Gen.Client client)
+            {
+                yield return CreateCase(clientDescription, client);
+            }
+
+            private TestCase CreateCase(string clientDescription, FunctionTestContract_Gen.Client client)
+            {
+                return new TestCase(this)
+                    .SetParam("client", clientDescription, client);
+            }
+
+            public override void RunTest(TestCase tCase)
             {
                 var cancelSrc2 = new CancellationTokenSource(500);
                 var options = new StreamOptions();
+                var client = tCase.GetParam<FunctionTestContract_Gen.Client>("client");
                 var callObj2 = client.TestInStream(options, TimeSpan.FromMilliseconds(100), StreamTestOptions.InvokeCompletion);
 
                 callObj2.InputStream.EnableCancellation(cancelSrc2.Token);
@@ -720,11 +768,23 @@ namespace TestClient
 
         private class OutputStreamCancellationTest : TestBase
         {
-            public override void RunTest(TestCase tCase, FunctionTestContract_Gen.Client client)
+            public IEnumerable<TestCase> GetCases(string clientDescription, FunctionTestContract_Gen.Client client)
+            {
+                yield return CreateCase(clientDescription, client);
+            }
+
+            private TestCase CreateCase(string clientDescription, FunctionTestContract_Gen.Client client)
+            {
+                return new TestCase(this)
+                    .SetParam("client", clientDescription, client);
+            }
+
+            public override void RunTest(TestCase tCase)
             {
                 var cancelSrc = new CancellationTokenSource(500);
                 var options = new StreamOptions() { WindowSize = 10 };
                 var itemCount = 100;
+                var client = tCase.GetParam<FunctionTestContract_Gen.Client>("client");
                 var callObj = client.TestOutStream(options, TimeSpan.FromMilliseconds(100), itemCount, StreamTestOptions.InvokeCompletion);
 
                 var e = callObj.OutputStream.GetEnumerator(cancelSrc.Token);
@@ -766,8 +826,9 @@ namespace TestClient
 
         private class SessionPropertyTest : TestBase
         {
-            public override void RunTest(TestCase tCase, FunctionTestContract_Gen.Client client)
+            public override void RunTest(TestCase tCase)
             {
+                var client = tCase.GetParam<FunctionTestContract_Gen.Client>("client");
                 var userProp = client.GetSessionSharedProperty("UserName");
                 var tokenProp = client.GetSessionSharedProperty("AuthToken");
 
@@ -779,7 +840,7 @@ namespace TestClient
             }
         }
 
-        private class CallbackHandler : FunctionTestContract_Gen.CallbackServiceBase
+        public class CallbackHandler : FunctionTestContract_Gen.CallbackServiceBase
         {
 #if NET5_0_OR_GREATER
             public override ValueTask TestCallbackNotify1(int p1, string p2)

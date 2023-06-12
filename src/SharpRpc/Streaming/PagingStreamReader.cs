@@ -129,6 +129,8 @@ namespace SharpRpc
 
             if (closeAck != null) SendCloseAck(closeAck);
             if (wakeupListener) _enumerator.WakeUpListener();
+
+            _closed.TrySetResult(true);
         }
 
         // The call ended (may happen before the stream is gracefully closed).
@@ -150,6 +152,8 @@ namespace SharpRpc
             }
 
             if (wakeupListener) _enumerator.WakeUpListener();
+
+            _closed.TrySetResult(true);
         }
 
         internal void Cancel(bool dropRemItems)

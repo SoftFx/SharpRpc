@@ -136,20 +136,15 @@ namespace SharpRpc
             EndCall(fault, default);
         }
 
-        private void EndCall(RpcResult result, TReturn resultValue)
-        {
-            if (ReturnsResult)
-                _typedCompletion.TrySetResult(result.ToValueResult(resultValue));
-            else
-                _voidCompletion.TrySetResult(result);
-
-            EnsureStreamCloseAndUnregister();
-        }
-
-        private async void EnsureStreamCloseAndUnregister()
+        private async void EndCall(RpcResult result, TReturn resultValue)
         {
             try
             {
+                if (ReturnsResult)
+                    _typedCompletion.TrySetResult(result.ToValueResult(resultValue));
+                else
+                    _voidCompletion.TrySetResult(result);
+
                 if (_reader != null)
                     await _reader.Closed;
 

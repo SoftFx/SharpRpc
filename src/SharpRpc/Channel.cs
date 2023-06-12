@@ -253,9 +253,11 @@ namespace SharpRpc
                     State = ChannelState.Faulted;
                 Logger.Warn(Id, "Failed to establish transport connection! Code: {0}", _channelFault.Code);
                 _connectEvent.SetResult(_channelFault);
+                await _dispatcher.Stop(_channelFault);
                 return;
             }
 
+            _transport.Init(this);
             _coordinator.Init(this);
 
             // start the coordinator before the pipelines

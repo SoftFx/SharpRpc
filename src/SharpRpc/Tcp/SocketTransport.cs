@@ -81,6 +81,9 @@ namespace SharpRpc
                     case SocketError.OperationAborted: return new RpcResult(RpcRetCode.ConnectionShutdown, socketEx.Message);
                     case SocketError.ConnectionAborted: return new RpcResult(RpcRetCode.ConnectionShutdown, ex.Message);
                     case SocketError.ConnectionReset: return new RpcResult(RpcRetCode.ConnectionAbortedByPeer, ex.Message);
+                    case SocketError.HostNotFound: return new RpcResult(RpcRetCode.HostNotFound, ex.Message);
+                    case SocketError.HostUnreachable: return new RpcResult(RpcRetCode.HostUnreachable, ex.Message);
+                    case SocketError.ConnectionRefused: return new RpcResult(RpcRetCode.ConnectionRefused, ex.Message);
                     default: return new RpcResult(RpcRetCode.OtherConnectionError, ex.Message);
                 }
             }

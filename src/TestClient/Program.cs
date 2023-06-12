@@ -24,9 +24,10 @@ namespace TestClient
             Console.WriteLine("Choose action:");
 
             Console.WriteLine("1. Benchmark");
-            Console.WriteLine("2. Function test");
+            Console.WriteLine("2. Function tests");
             Console.WriteLine("3. Keep connected");
             Console.WriteLine("4. Stress test");
+            Console.WriteLine("5. Connection tests");
             Console.Write(">");
 
             var choice = Console.ReadLine();
@@ -66,14 +67,13 @@ namespace TestClient
             }
             else if (choice == "2")
             {
-                FunctionTest.Run(address, false);
-                FunctionTest.Run(address, true);
+                FunctionTest.Run(address);
                 Console.Read();
             }
             else if (choice == "3")
-            {   
-                var client = new BenchmarkClient("localhost", TcpSecurity.None);
-                
+            {
+                var client = new BenchmarkClient("localhost1", TcpSecurity.None);
+
                 client.Channel.Opening += async (s, a) =>
                 {
                     await client.Stub.Async.SendUpdate(new FooEntity());
@@ -126,6 +126,11 @@ namespace TestClient
                     Console.WriteLine("Top 100 errors:");
                     test.PrintTopErrors(100);
                 }
+            }
+            else if (choice == "5")
+            {
+                ConnectionTest.RunAll(address);
+                Console.Read();
             }
             else
                 Console.WriteLine("Invalid input.");
