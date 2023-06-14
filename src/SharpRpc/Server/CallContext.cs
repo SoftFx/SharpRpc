@@ -44,9 +44,6 @@ namespace SharpRpc
         public IRequestMessage RequestMessage { get; }
         public CancellationToken CancellationToken { get; }
 
-
-        IRequestMessage IDispatcherOperation.RequestMessage => throw new NotImplementedException();
-
         public void StartCancellation() { }
 
         public void Close(Channel ch)
