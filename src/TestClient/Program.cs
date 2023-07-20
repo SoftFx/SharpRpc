@@ -72,16 +72,16 @@ namespace TestClient
             }
             else if (choice == "3")
             {
-                var client = new BenchmarkClient("localhost1", TcpSecurity.None);
+                var client = new BenchmarkClient("localhost", TcpSecurity.None);
 
                 client.Channel.Opening += async (s, a) =>
                 {
-                    await client.Stub.Async.SendUpdate(new FooEntity());
+                    await client.Stub.Async.ApplyUpdate(new FooEntity());
                 };
 
                 client.Channel.Closing += async (s, a) =>
                 {
-                    await client.Stub.Async.SendUpdate(new FooEntity());
+                    await client.Stub.Async.ApplyUpdate(new FooEntity());
                 };
 
                 TimerCallback statusCheckAction = s =>

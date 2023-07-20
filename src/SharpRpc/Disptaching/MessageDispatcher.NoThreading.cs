@@ -51,6 +51,9 @@ namespace SharpRpc
             {
                 lock (_lockObj)
                 {
+                    if (_closed)
+                        return _closeCompletion.Task;
+
                     _closed = true;
 
                     if (!_isStarted)

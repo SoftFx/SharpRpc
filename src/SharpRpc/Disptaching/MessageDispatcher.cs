@@ -67,6 +67,9 @@ namespace SharpRpc
 #else
         public abstract Task OnMessages();
 #endif
+
+        public void TriggerStop(RpcResult fault) => Stop(fault);
+
         public abstract Task Stop(RpcResult fault);
         public abstract RpcResult Register(IDispatcherOperation operation);
         public abstract void Unregister(IDispatcherOperation operation);

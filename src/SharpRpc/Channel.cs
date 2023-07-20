@@ -352,6 +352,7 @@ namespace SharpRpc
 
         private void Abort(RpcResult fault)
         {
+            _dispatcher.TriggerStop(fault);
             TriggerClose(fault, out _);
             _abortLoginSrc.Cancel();
             _abortLogoutSrc.Cancel();
