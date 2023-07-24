@@ -460,9 +460,10 @@ namespace SharpRpc
         }
 
 #if PF_COUNTERS
-        public double GetAverageRxChunkSize() => _rx.GetAvarageRxSize();
-        public int GetRxMessagePageCount() => _rx.GetPageCount();
-        public double GetAverageRxMessagePageSize() => _rx.GetAvaragePageSize();
+        public double GetAverageRxBufferSize() => _rx.GetAvarageBufferRxSize();
+        public double GetAverageRxMessageBatchSize() => _rx.GetAvarageMessagesPerBuffer();
+        public int GetRxMessageCount()=> _rx.GetMessageCount();
+        public double GetAverageRxMessageSize()=> _rx.GetAverageMessageSize();
 #endif
     }
 

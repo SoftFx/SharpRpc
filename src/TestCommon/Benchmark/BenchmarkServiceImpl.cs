@@ -60,12 +60,15 @@ namespace TestCommon
         }
 
 #if NET5_0_OR_GREATER
-        public override ValueTask<MulticastReport> MulticastUpdateToClients(CallContext context, int msgCount, bool usePrebuiltMessages)
+        public override ValueTask<MulticastReport> MulticastUpdateToClients(CallContext context, int msgCount, bool usePrebuiltMessages, bool useStreams)
 #else
-        public override Task<MulticastReport> MulticastUpdateToClients(CallContext context, int msgCount, bool usePrebuiltMessages)
+        public override Task<MulticastReport> MulticastUpdateToClients(CallContext context, int msgCount, bool usePrebuiltMessages, bool useStreams)
 #endif
         {
-            return FwAdapter.WrappResult(_multicaster.Multicast(msgCount, usePrebuiltMessages));
+            if (useStreams)
+                return FwAdapter.WrappResult(_multicaster.MulticastStreamItems(msgCount));
+            else
+                return FwAdapter.WrappResult(_multicaster.MulticastMessages(msgCount, usePrebuiltMessages));
         }
 
 #if NET5_0_OR_GREATER
@@ -77,9 +80,8 @@ namespace TestCommon
             var rep = new PerfReport();
 
 #if PF_COUNTERS
-            rep.AverageRxChunkSize = Session.AverageRxChunkSize;
-            rep.AverageRxMessagePageSize = Session.AverageRxMessagePageSize;
-            rep.RxMessagePageCount = Session.RxMessagePageCount;
+            rep.AverageRxBufferSize = Session.AverageRxBufferSize;
+            rep.AverageRxMessagesPerBuffer = Session.AverageRxMessagesPerBuffer;
 #endif
             return FwAdapter.WrappResult(rep);
         }
@@ -95,9 +97,8 @@ namespace TestCommon
 
         public override async ValueTask DownstreamUpdates(CallContext context, StreamWriter<FooEntity> outputStream)
         {
-            _multicaster.Add(outputStream);
-
-            await Task.Delay(TimeSpan.FromMinutes(10));
+            var adapter = _multicaster.Add(outputStream);
+            await adapter.Completion;
         }
 #else
         public override Task UpstreamUpdates(CallContext context, StreamReader<FooEntity> inputStream)
@@ -105,9 +106,10 @@ namespace TestCommon
             throw new NotImplementedException();
         }
 
-        public override Task DownstreamUpdates(CallContext context, StreamWriter<FooEntity> outputStream)
+        public override async Task DownstreamUpdates(CallContext context, StreamWriter<FooEntity> outputStream)
         {
-            throw new NotImplementedException();
+            var adapter =  _multicaster.Add(outputStream);
+            await adapter.Completion;
         }
 #endif
     }

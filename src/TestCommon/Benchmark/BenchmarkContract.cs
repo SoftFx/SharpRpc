@@ -35,7 +35,7 @@ namespace TestCommon
         void Flush();
 
         [RpcContract(5, RpcType.Call)]
-        MulticastReport MulticastUpdateToClients(int msgCount, bool usePrebuiltMessages);
+        MulticastReport MulticastUpdateToClients(int msgCount, bool usePrebuiltMessages, bool useStreams);
 
         [RpcContract(6, RpcType.CallbackMessage)]
         void SendUpdateToClient(FooEntity entity);
@@ -64,13 +64,16 @@ namespace TestCommon
     public class PerfReport
     {
         [Key(1)]
-        public int RxMessagePageCount { get; set; }
+        public int RxMessageCount { get; set; }
 
         [Key(2)]
-        public double AverageRxChunkSize { get; set; }
+        public double AverageRxMessageSize { get; set; }
 
         [Key(3)]
-        public double AverageRxMessagePageSize { get; set; }
+        public double AverageRxBufferSize { get; set; }
+
+        [Key(4)]
+        public double AverageRxMessagesPerBuffer { get; set; }
     }
 
     public static class BenchmarkContractCfg

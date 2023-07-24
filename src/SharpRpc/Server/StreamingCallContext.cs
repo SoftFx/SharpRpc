@@ -43,11 +43,11 @@ namespace SharpRpc
                 CancellationToken = CancellationToken.None;
 
             if (inFactory != null)
-                InputStream = new PagingStreamReader<TInItem>(CallId, msgTx, inFactory, dispatcher.Logger);
+                InputStream = new ObjectStreamReader<TInItem>(CallId, msgTx, inFactory, dispatcher.Logger);
 
             if (outFactory != null)
             {
-                OutputStream = new PagingStreamWriter<TOutItem>(CallId, msgTx, outFactory, true,
+                OutputStream = new ObjectStreamWriter<TOutItem>(CallId, msgTx, outFactory, true,
                     new StreamOptions(request), dispatcher.Logger);
             }
 
@@ -55,8 +55,8 @@ namespace SharpRpc
         }
 
         public string CallId { get; }
-        public PagingStreamReader<TInItem> InputStream { get; }
-        public PagingStreamWriter<TOutItem> OutputStream { get; }
+        public ObjectStreamReader<TInItem> InputStream { get; }
+        public ObjectStreamWriter<TOutItem> OutputStream { get; }
         public IRequestMessage RequestMessage { get; }
         public CancellationToken CancellationToken { get; }
 

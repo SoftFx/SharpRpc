@@ -16,39 +16,94 @@ using System.Threading.Tasks;
 
 namespace SharpRpc
 {
-    internal class StreamWriteCoordinator
+    internal abstract class StreamWriteCoordinator
     {
-        private readonly object _lockObj;
-        private readonly int _max;
-        private int _windowFill;
+        public IStreamCoordinatorContext Context { get; private set; }
 
-        public StreamWriteCoordinator(object lockObj, int maxPageCount)
+        public virtual StreamWriteCoordinator Init(IStreamCoordinatorContext context)
         {
-            _lockObj = lockObj;
-            _max = maxPageCount;
+            Context = context;
+            return this;
         }
 
         public bool IsBlocked { get; private set; }
+        public int WindowFill { get; private set; }
 
-        public void OnPageSent(int pageSize)
+        public abstract bool CanSend();
+
+        public virtual void OnPageSent(int pageSize)
         {
-            Debug.Assert(Monitor.IsEntered(_lockObj));
+            Debug.Assert(Monitor.IsEntered(Context.SyncObj));
 
-            _windowFill += pageSize;
-            if (_windowFill >= _max)
+            WindowFill++;
+
+            if (WindowFill >= Context.MaxPageCount)
                 IsBlocked = true;
         }
 
-        public void OnAcknowledgementRx(IStreamPageAck ack)
+        public virtual void OnAcknowledgementRx(IStreamPageAck ack)
         {
-            Debug.Assert(Monitor.IsEntered(_lockObj));
+            Debug.Assert(Monitor.IsEntered(Context.SyncObj));
 
-            _windowFill -= ack.Consumed;
+            WindowFill--;
 
-            // TO DO : check if _windowFill less than zero 
-
-            if (_windowFill < _max)
+            if (WindowFill < Context.MaxPageCount)
                 IsBlocked = false;
         }
+
+        public class Realtime : StreamWriteCoordinator
+        {
+            public override bool CanSend() => !IsBlocked;
+        }
+
+        public class Greedy : StreamWriteCoordinator
+        {
+            public override bool CanSend()
+            {
+                if (IsBlocked)
+                    return false;
+
+                return Context.PageSize >= Context.MaxPageSize
+                    || Context.IsCompleted;
+            }   
+        }
+
+        public class Balanced : StreamWriteCoordinator
+        {
+            private int _firstThreshold;
+            private int _secondThreshold;
+
+            public override StreamWriteCoordinator Init(IStreamCoordinatorContext context)
+            {
+                base.Init(context);
+
+                _firstThreshold = context.MaxPageSize / 2;
+                _secondThreshold = context.MaxPageSize;
+
+                return this;
+            }
+
+            public override bool CanSend()
+            {
+                if (IsBlocked)
+                    return false;
+
+                if (WindowFill < 2)
+                    return true;
+                else if (WindowFill < 5)
+                    return Context.PageSize >= _firstThreshold || Context.IsCompleted;
+                else
+                    return Context.PageSize >= _secondThreshold || Context.IsCompleted;
+            }
+        }
+    }
+
+    internal interface IStreamCoordinatorContext
+    {
+        object SyncObj { get; }
+        int PageSize { get; }
+        int MaxPageSize { get; }
+        int MaxPageCount { get; }
+        bool IsCompleted { get; }
     }
 }

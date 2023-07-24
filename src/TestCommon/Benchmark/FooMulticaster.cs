@@ -20,7 +20,8 @@ namespace TestCommon
         private bool _isBusy;
         private readonly EntitySet<FooEntity> _entitySet;
         private readonly EntitySet<BenchmarkContract_Gen.PrebuiltMessages.SendUpdateToClient> _prebuildEntitySet;
-        private readonly List<IListener> _listeners = new List<IListener>();
+        private readonly List<IListener> _msgListeners = new List<IListener>();
+        private readonly List<IStreamListener> _streamListeners = new List<IStreamListener>();
 
         public FooMulticaster()
         {
@@ -32,9 +33,11 @@ namespace TestCommon
             Add(new CallbackAdapter(listener));
         }
 
-        public void Add(StreamWriter<FooEntity> listener)
+        public StreamAdapter Add(StreamWriter<FooEntity> listener)
         {
-            Add(new StreamAdapter(listener));
+            var adapter = new StreamAdapter(listener);
+            Add(adapter);
+            return adapter;
         }
 
         public void Remove(BenchmarkContract_Gen.CallbackClient listener)
@@ -47,9 +50,9 @@ namespace TestCommon
             FindAndRemove(listener);
         }
 
-        public Task<MulticastReport> Multicast(int msgCount, bool usePrebuiltMessages)
+        public Task<MulticastReport> MulticastMessages(int msgCount, bool usePrebuiltMessages)
         {
-            lock (_listeners)
+            lock (_msgListeners)
             {
                 CheckIfIsBusy();
                 _isBusy = true;
@@ -66,9 +69,9 @@ namespace TestCommon
                 {
                     if (usePrebuiltMessages)
                     {
-                        for (int l = 0; l < _listeners.Count; l++)
+                        for (int l = 0; l < _msgListeners.Count; l++)
                         {
-                            var sendResult = _listeners[l].Send(_prebuildEntitySet.Next());
+                            var sendResult = _msgListeners[l].Send(_prebuildEntitySet.Next());
                             if (!sendResult.IsOk)
                                 failed++;
                             else
@@ -78,25 +81,80 @@ namespace TestCommon
                     else
                     {
                         var entity = _entitySet.Next();
-                        foreach (var l in _listeners)
-                        //Parallel.ForEach(_listeners, l =>
+                        for (int l = 0; l < _msgListeners.Count; l++)
                         {
-                            var sendResult = l.Send(entity);
+                            var sendResult = _msgListeners[l].Send(entity);
                             if (!sendResult.IsOk)
                                 failed++;
                             else
                                 sent++;
-                        }//);
+                        }
                     }
                 }
 
-                lock (_listeners)
+                lock (_msgListeners)
                     _isBusy = false;
 
                 watch.Stop();
 
                 return new MulticastReport { MessageFailed = failed, MessageSent = sent, Elapsed = watch.Elapsed };
             }, TaskCreationOptions.LongRunning);
+        }
+
+        public async Task<MulticastReport> MulticastStreamItems(int msgCount)
+        {
+            try
+            {
+                lock (_msgListeners)
+                {
+                    CheckIfIsBusy();
+                    _isBusy = true;
+                }
+
+                var failed = 0;
+                var sent = 0;
+
+                Console.WriteLine($"Multicast start (msg x{msgCount}, listeners x{_msgListeners.Count})");
+
+                var watch = Stopwatch.StartNew();
+
+                for (int i = 0; i < msgCount; i++)
+                {
+                    var entity = _entitySet.Next();
+
+                    foreach (var listener in _streamListeners)
+                    {
+                        var sendResult = await listener.Send(entity);
+                        if (!sendResult.IsOk)
+                            failed++;
+                        else
+                            sent++;
+                    }
+                }
+
+                Console.WriteLine("Multicast stream close");
+
+                await Task.WhenAll(_streamListeners.Select(l => l.Close()));
+
+                //foreach (var listener in _streamListeners)
+                //    await listener.Close();
+
+                _streamListeners.Clear();
+
+                lock (_msgListeners)
+                    _isBusy = false;
+
+                watch.Stop();
+
+                Console.WriteLine("Multicast end");
+
+                return new MulticastReport { MessageFailed = failed, MessageSent = sent, Elapsed = watch.Elapsed };
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("MulticastStreamItems() failed! " + ex);
+                throw;
+            }
         }
 
         private void CheckIfIsBusy()
@@ -107,19 +165,28 @@ namespace TestCommon
 
         private void Add(IListener listener)
         {
-            lock (_listeners)
+            lock (_msgListeners)
             {
                 CheckIfIsBusy();
-                _listeners.Add(listener);
+                _msgListeners.Add(listener);
+            }
+        }
+
+        private void Add(IStreamListener listener)
+        {
+            lock (_msgListeners)
+            {
+                CheckIfIsBusy();
+                _streamListeners.Add(listener);
             }
         }
 
         private void FindAndRemove(object listenerObj)
         {
-            lock (_listeners)
+            lock (_msgListeners)
             {
                 CheckIfIsBusy();
-                _listeners.RemoveAll(l => l.OriginalListener == listenerObj);
+                _msgListeners.RemoveAll(l => l.OriginalListener == listenerObj);
             }
         }
 
@@ -128,6 +195,16 @@ namespace TestCommon
             object OriginalListener { get; }
             RpcResult Send(FooEntity update);
             RpcResult Send(BenchmarkContract_Gen.PrebuiltMessages.SendUpdateToClient update);
+        }
+
+        private interface IStreamListener
+        {
+#if NET5_0_OR_GREATER
+            ValueTask<RpcResult> Send(FooEntity update);
+#else
+            Task<RpcResult> Send(FooEntity update);
+#endif
+            Task Close();
         }
 
         private class CallbackAdapter : IListener
@@ -152,25 +229,31 @@ namespace TestCommon
             }
         }
 
-        private class StreamAdapter : IListener
+        public class StreamAdapter : IStreamListener
         {
             private readonly StreamWriter<FooEntity> _stub;
+            private readonly TaskCompletionSource<bool> _completionSrc = new TaskCompletionSource<bool>();
 
             public StreamAdapter(StreamWriter<FooEntity> callbackStub)
             {
                 _stub = callbackStub;
             }
 
-            public object OriginalListener => _stub;
+            public Task Completion => _completionSrc.Task;
 
-            public RpcResult Send(FooEntity update)
+            public async Task Close()
             {
-                return _stub.WriteAsync(update).Result;
+                await _stub.CompleteAsync();
+                _completionSrc.SetResult(true);
             }
 
-            public RpcResult Send(BenchmarkContract_Gen.PrebuiltMessages.SendUpdateToClient update)
+#if NET5_0_OR_GREATER
+            public ValueTask<RpcResult> Send(FooEntity update)
+#else
+            public Task<RpcResult> Send(FooEntity update)
+#endif
             {
-                throw new NotImplementedException();
+                return _stub.WriteAsync(update);
             }
         }
     }

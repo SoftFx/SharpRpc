@@ -85,7 +85,7 @@ namespace SharpRpc
                         break;
                     }
 
-                    RegisterDataRx(byteCount);
+                    RegisterBufferRx(byteCount);
                 }
                 catch (OperationCanceledException)
                 {
@@ -149,8 +149,7 @@ namespace SharpRpc
                         }
                         else
                         {
-                            //if (msg is ISystemMessage || (msg is IInteropMessage && !(msg is IStreamPage)))
-                                container.Add(msg);
+                            container.Add(msg);
                         }
                     }
                     catch (Exception ex)
@@ -166,7 +165,7 @@ namespace SharpRpc
                     return new RpcResult(RpcRetCode.MessageMarkupError, "A violation of message markup has been detected! Code: " + pCode);
             }
 
-            RegisterMessagePage(container.Count);
+            RegisterMessageBatch(container.Count);
 
             return RpcResult.Ok;
         }
@@ -202,34 +201,36 @@ namespace SharpRpc
 
 
 #if PF_COUNTERS
-        private int _totalBytes;
-        private int _byteChunkCount;
+        private long _bufferTotalBytes;
+        private int _buffersCount;
         private int _msgCount;
-        private int _pageCount;
+        private int _msgBatchCount;
 #endif
 
         [Conditional("PF_COUNTERS")]
-        public void RegisterDataRx(int bufferSize)
+        public void RegisterBufferRx(int bufferSize)
         {
 #if PF_COUNTERS
-            _totalBytes += bufferSize;
-            _byteChunkCount++;
+            _bufferTotalBytes += bufferSize;
+            _buffersCount++;
 #endif
         }
 
         [Conditional("PF_COUNTERS")]
-        public void RegisterMessagePage(int pageMsgCount)
+        public void RegisterMessageBatch(int pageMsgCount)
         {
 #if PF_COUNTERS
             _msgCount += pageMsgCount;
-            _pageCount++;
+            _msgBatchCount++;
 #endif
         }
 
 #if PF_COUNTERS
-        public int GetPageCount() => _pageCount;
-        public double GetAvarageRxSize() => _byteChunkCount == 0 ? 0 : _totalBytes / _byteChunkCount;
-        public double GetAvaragePageSize() => _pageCount == 0 ? 0 : _msgCount / _pageCount;
+        public int GetPageCount() => _msgBatchCount;
+        public double GetAvarageBufferRxSize() => _buffersCount == 0 ? 0 : _bufferTotalBytes / _buffersCount;
+        public double GetAvarageMessagesPerBuffer() => _msgBatchCount == 0 ? 0 : _msgCount / _msgBatchCount;
+        public double GetAverageMessageSize() => _bufferTotalBytes == 0 ? 0 : _bufferTotalBytes / _msgCount;
+        public int GetMessageCount() => _msgCount;
 #endif
     }
 }

@@ -63,8 +63,8 @@ namespace SharpRpc
         private readonly TaskCompletionSource<RpcResult<TReturn>> _typedCompletion;
         private readonly TaskCompletionSource<RpcResult> _voidCompletion;
 
-        private readonly PagingStreamWriter<TInItem> _writer;
-        private readonly PagingStreamReader<TOutItem> _reader;
+        private readonly ObjectStreamWriter<TInItem> _writer;
+        private readonly ObjectStreamReader<TOutItem> _reader;
 
         private readonly IOpenStreamRequest _requestMessage;
         private readonly IDispatcher _dispatcher;
@@ -83,11 +83,11 @@ namespace SharpRpc
             CallId = dispatcher.GenerateOperationId();
 
             if (inFactory != null)
-                _writer = new PagingStreamWriter<TInItem>(CallId, msgTransmitter, inFactory, false, inputOptions, dispatcher.Logger);
+                _writer = new ObjectStreamWriter<TInItem>(CallId, msgTransmitter, inFactory, false, inputOptions, dispatcher.Logger);
 
             if (outFactory != null)
             {
-                _reader = new PagingStreamReader<TOutItem>(CallId, msgTransmitter, outFactory, dispatcher.Logger);
+                _reader = new ObjectStreamReader<TOutItem>(CallId, msgTransmitter, outFactory, dispatcher.Logger);
                 _requestMessage.WindowSize = inputOptions?.WindowSize ?? StreamOptions.DefaultWindowsSize;
             }
 

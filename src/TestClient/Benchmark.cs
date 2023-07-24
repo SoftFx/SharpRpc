@@ -18,6 +18,7 @@ using System.Dynamic;
 using System.IO;
 using ProtoBuf.Serializers;
 using SharpRpc.Lib;
+using Microsoft.VisualBasic;
 
 namespace TestClient
 {
@@ -35,7 +36,9 @@ namespace TestClient
         public void LaunchTestSeries(int multiplier)
         {
             //LaunchTestSeriesOndeSide(_address, multiplier, TestOptions.None);
-            LaunchTestSeriesOndeSide(_address, multiplier, TestOptions.Backwards);
+            LaunchTestSeriesOndeSide(_address, multiplier, TestOptions.SSL);
+            //LaunchTestSeriesOndeSide(_address, multiplier, TestOptions.ToServer);
+            //LaunchTestSeriesOndeSide(_address, multiplier, TestOptions.ToServer | TestOptions.SSL);
         }
 
         private void LaunchTestSeriesOndeSide(string address, int multiplier, TestOptions options)
@@ -47,30 +50,16 @@ namespace TestClient
             DoOneWayTestSeries(address, 20000, 30, multiplier, options);
             //DoOneWayTestSeries(address, 10000, 50, multiplier, options);
 
-            // one way (SSL)
-
-            //DoOneWayTestSeries(address, 500000, 1, multiplier, options | TestOptions.SSL);
-            //DoOneWayTestSeries(address, 50000, 10, multiplier, options | TestOptions.SSL);
-            //DoOneWayTestSeries(address, 10000, 50, multiplier, options | TestOptions.SSL);
-
             // streams
 
-            if (!options.HasFlag(TestOptions.Backwards))
-            {
-                //DoTest(address, 500000 * multiplier, 1, options | TestOptions.Stream);
-                //DoTest(address, 50000 * multiplier, 10, options | TestOptions.Stream);
-                //DoTest(address, 20000 * multiplier, 30, options | TestOptions.Stream);
-            }
+            DoTest(address, 500000 * multiplier, 1, options | TestOptions.Stream);
+            //DoTest(address, 50000 * multiplier, 10, options | TestOptions.Stream);
+            DoTest(address, 20000 * multiplier, 30, options | TestOptions.Stream);
 
             // request-response
 
             //DoTest(address, 1000 * multiplier, 1, TestOptions.None);
             //DoTest(address, 1000 * multiplier, 1, TestOptions.Async);
-
-            // request-response (SSL)
-
-            //DoTest(address, 1000 * multiplier, 1, TestOptions.SSL);
-            //DoTest(address, 1000 * multiplier, 1, TestOptions.Async | TestOptions.SSL);
         }
 
         private void DoOneWayTestSeries(string address, int msgCount, int clientCount, int multiplier, TestOptions baseOptions)
@@ -124,7 +113,7 @@ namespace TestClient
 
             foreach (var testCase in Cases)
             {
-                var side = testCase.Backwards ? "Server" : "Client";
+                var side = testCase.ToServer ? "Server" : "Client";
                 var msgPreSec = testCase.Failed ? "FAILED" : testCase.MessagePerSecond.ToString("n0");
                 var elapsed = testCase.Elapsed.TotalSeconds.ToString("n1") + "s";
 
@@ -149,7 +138,7 @@ namespace TestClient
             var nameBuilder = new StringBuilder();
             nameBuilder.Append("Test: ");
             nameBuilder.Append("X").Append(testCase.ClientCount);
-            nameBuilder.Append(" ").Append(testCase.Backwards ? "ToClient" : "ToServer");
+            nameBuilder.Append(" ").Append(testCase.ToServer ? "ClientToServer" : "ServerToClient");
 
             if (testCase.Stream)
                 nameBuilder.Append(" | Stream");
@@ -193,14 +182,14 @@ namespace TestClient
 
             if (testCase.Ex == null)
             {
-                if (testCase.Backwards)
-                    ServerToClientTest(clients, testCase);
-                else
+                if (testCase.ToServer)
                     ClientToServerTest(clients, testCase);
+                else
+                    ServerToClientTest(clients, testCase);
             }
 
 #if PF_COUNTERS
-            var rep = CollectPerfCounters(clients, testCase.Backwards);
+            var rep = CollectPerfCounters(clients, !testCase.ToServer);
 #endif
 
             var closeTasks = clients
@@ -221,9 +210,9 @@ namespace TestClient
                 Console.WriteLine("\tbandwidth: {0:f0} ", testCase.MessagePerSecond);
 
 #if PF_COUNTERS
-                Console.WriteLine("\ttot. rx page count: {0:f0}", rep.RxMessagePageCount);
-                Console.WriteLine("\tavg. rx page size: {0:f0}", rep.AverageRxMessagePageSize);
-                Console.WriteLine("\tavg. rx chunk size: {0:f0}", rep.AverageRxChunkSize);
+                Console.WriteLine("\tavg. rx messages size: {0:f0}", rep.AverageRxMessageSize);
+                Console.WriteLine("\tavg. rx messages in buffer: {0:f0}", rep.AverageRxMessagesPerBuffer);
+                Console.WriteLine("\tavg. rx buffer size: {0:f0}", rep.AverageRxBufferSize);
 #endif
             }
             else
@@ -267,7 +256,7 @@ namespace TestClient
                         var client = clients[i];
 
                         if (testCase.Stream)
-                            sendLoops[i] = StreamEntitiesAsync(client.Stub, testCase.MessageCount, gens[i]);
+                            sendLoops[i] = UpstreamEntitiesAsync(client.Stub, testCase.MessageCount, gens[i]);
                         else if (testCase.OneWay)
                             sendLoops[i] = SendMessages(client.Stub, testCase.MessageCount, gens[i], prebuildGens[i], testCase.Async, testCase.Prebuilt);
                         else
@@ -285,11 +274,23 @@ namespace TestClient
 
         private static void ServerToClientTest(List<BenchmarkClient> clients, TestCase testCase)
         {
+            if (testCase.Stream)
+            {
+                if (testCase.Prebuilt)
+                    throw new Exception("Streams do not support prebuild items yet!");
+                ServerToClientStreamTest(clients, testCase);
+            }
+            else
+                ServerToClientMessagesTest(clients, testCase);
+        }
+
+        private static void ServerToClientMessagesTest(List<BenchmarkClient> clients, TestCase testCase)
+        {
             testCase.Elapsed = MeasureTime(() =>
             {
                 try
                 {
-                    var rep = clients[0].Stub.MulticastUpdateToClients(testCase.MessageCount, testCase.Prebuilt);
+                    var rep = clients[0].Stub.MulticastUpdateToClients(testCase.MessageCount, testCase.Prebuilt, false);
                     testCase.MessageFailedCount = rep.MessageFailed;
                     //Console.WriteLine("ELAPSED ON SERVER " + rep.Elapsed);
                 }
@@ -297,6 +298,27 @@ namespace TestClient
                 {
                     testCase.Ex = aex.InnerException;
                 }
+            });
+        }
+
+        private static void ServerToClientStreamTest(List<BenchmarkClient> clients, TestCase testCase)
+        {
+            var streamCfg = new StreamOptions() { WindowSize = 2000 };
+            var readLoops = clients.Select(c => DownstreamEntitiesAsync(c.Stub, streamCfg)).ToArray();
+
+            testCase.Elapsed = MeasureTime(() =>
+            {
+                try
+                {
+                    var rep = clients[0].Stub.MulticastUpdateToClients(testCase.MessageCount, testCase.Prebuilt, true);
+                    testCase.MessageFailedCount = rep.MessageFailed;
+                }
+                catch (AggregateException aex)
+                {
+                    testCase.Ex = aex.InnerException;
+                }
+
+                Task.WaitAll(readLoops);
             });
         }
 
@@ -334,7 +356,7 @@ namespace TestClient
         //    });
         //}
 
-        private static async Task StreamEntitiesAsync(BenchmarkContract_Gen.Client client, int msgCount, EntitySet<FooEntity> set)
+        private static async Task UpstreamEntitiesAsync(BenchmarkContract_Gen.Client client, int msgCount, EntitySet<FooEntity> set)
         {
             await Task.Factory.Dive();
 
@@ -348,6 +370,28 @@ namespace TestClient
             }
 
             await call.InputStream.CompleteAsync();
+        }
+
+        private static async Task DownstreamEntitiesAsync(BenchmarkContract_Gen.Client client, StreamOptions streamCfg)
+        {
+            var call = client.DownstreamUpdates(streamCfg);
+
+            await Task.Delay(1);
+
+#if NET5_0_OR_GREATER
+
+            await foreach (var e in call.OutputStream)
+            {
+                
+            }
+#else
+            var e = call.OutputStream.GetEnumerator();
+            while (await e.MoveNextAsync())
+            {
+
+            }
+#endif
+
         }
 
         private static void SendMessageLoop(BenchmarkContract_Gen.Client client, int msgCount, EntitySet<FooEntity> set,
@@ -409,19 +453,21 @@ namespace TestClient
 
             if (queryServer)
             {
-                result.RxMessagePageCount = clients.Sum(c => c.Channel.GetRxMessagePageCount());
-                result.AverageRxChunkSize = clients.Average(c => c.Channel.GetAverageRxChunkSize());
-                result.AverageRxMessagePageSize = clients.Average(c => c.Channel.GetAverageRxMessagePageSize());
+                result.RxMessageCount = clients.Sum(c => c.Channel.GetRxMessageCount());
+                result.AverageRxMessageSize = clients.Average(c => c.Channel.GetAverageRxMessageSize());
+                result.AverageRxBufferSize = clients.Average(c => c.Channel.GetAverageRxBufferSize());
+                result.AverageRxMessagesPerBuffer = clients.Average(c => c.Channel.GetAverageRxMessageBatchSize());
             }
             else
             {
-                var tasks = clients.Select(c => c.Stub.GetPerfCountersAsync()).ToArray();
+                var tasks = clients.Select(c => c.Stub.Async.GetPerfCounters()).ToArray();
                 Task.WaitAll(tasks);
                 var reps = tasks.Select(t => t.Result).ToArray();
 
-                result.RxMessagePageCount = reps.Sum(r => r.RxMessagePageCount);
-                result.AverageRxChunkSize = reps.Average(r => r.AverageRxChunkSize);
-                result.AverageRxMessagePageSize = reps.Average(r => r.AverageRxMessagePageSize);
+                result.RxMessageCount = reps.Sum(r => r.RxMessageCount);
+                result.AverageRxMessageSize = reps.Average(r => r.AverageRxMessageSize);
+                result.AverageRxBufferSize = reps.Average(r => r.AverageRxBufferSize);
+                result.AverageRxMessagesPerBuffer = reps.Average(r => r.AverageRxMessagesPerBuffer);
             }
 
             return result;
@@ -466,7 +512,7 @@ namespace TestClient
             Async = 2,
             SSL = 4,
             Prebuild = 8,
-            Backwards = 16,
+            ToServer = 16,
             Stream = 32
         }
 
@@ -481,7 +527,7 @@ namespace TestClient
                 Async = options.HasFlag(TestOptions.Async);
                 Ssl = options.HasFlag(TestOptions.SSL);
                 Prebuilt = options.HasFlag(TestOptions.Prebuild);
-                Backwards = options.HasFlag(TestOptions.Backwards);
+                ToServer = options.HasFlag(TestOptions.ToServer);
                 Stream = options.HasFlag(TestOptions.Stream);
             }
 
@@ -492,7 +538,7 @@ namespace TestClient
             public bool Async { get; }
             public bool Ssl { get; }
             public bool Prebuilt { get; }
-            public bool Backwards { get; }
+            public bool ToServer { get; }
             public bool Stream { get; }
 
             // Results

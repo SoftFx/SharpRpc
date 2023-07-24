@@ -29,9 +29,9 @@ namespace SharpRpc
     }
 
 #if NET5_0_OR_GREATER
-    public class PagingStreamReader<T> : StreamReader<T>, IAsyncEnumerable<T>
+    public class ObjectStreamReader<T> : StreamReader<T>, IAsyncEnumerable<T>
 #else
-    public class PagingStreamReader<T> : StreamReader<T>
+    public class ObjectStreamReader<T> : StreamReader<T>
 #endif
     {
         public enum States { Online, Cancellation, Completed  }
@@ -50,7 +50,7 @@ namespace SharpRpc
         private readonly TaskCompletionSource<bool> _closed = new TaskCompletionSource<bool>();
         private string _name;
 
-        internal PagingStreamReader(string callId, TxPipeline tx, IStreamMessageFactory<T> factory, IRpcLogger logger)
+        internal ObjectStreamReader(string callId, TxPipeline tx, IStreamMessageFactory<T> factory, IRpcLogger logger)
         {
             _callId = callId;
             _tx = tx;
@@ -318,14 +318,14 @@ namespace SharpRpc
         private class AsyncEnumerator : IStreamEnumerator<T>, INestedEnumerator
 #endif
         {
-            private readonly PagingStreamReader<T> _stream;
+            private readonly ObjectStreamReader<T> _stream;
             private TaskCompletionSource<bool> _itemWaitSrc;
             //private TaskCompletionSource<bool> _closeWaitSrc;
             private bool _completed;
             private Exception _toThrow;
             private CancellationTokenRegistration _cancelReg;
 
-            public AsyncEnumerator(PagingStreamReader<T> stream, CancellationToken cancellationToken)
+            public AsyncEnumerator(ObjectStreamReader<T> stream, CancellationToken cancellationToken)
             {
                 _stream = stream;
                 _cancelReg = cancellationToken.Register(Cancel);

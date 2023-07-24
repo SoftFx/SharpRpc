@@ -28,6 +28,11 @@ namespace SharpRpc
         /// Specifies how many items can be in transmission simultaneously.
         /// </summary>
         public ushort WindowSize { get; set; } = DefaultWindowsSize;
+
+        public override string ToString()
+        {
+            return $"(WindowSize = {WindowSize})";
+        }
     }
 
     public class DuplexStreamOptions
