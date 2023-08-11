@@ -18,7 +18,7 @@ namespace TestServer
 {
     class Program
     {
-        private const string CertThumbprint = "d58b3c94d39c43aecf1750280db0c4935ed53de8"; //"6e4c04ed965eb8d71a66b8e2b89e5767f2e076d8"
+        private const string CertThumbprint = "ad1a42f5598388af3d656a9a03ebf01823995f5a"; //"6e4c04ed965eb8d71a66b8e2b89e5767f2e076d8"
 
         static void Main(string[] args)
         {

@@ -55,6 +55,7 @@ namespace SharpRpc
         //public event EventHandler<ChannelOpenedArgs> Opened;
         public event AsyncEventHandler<ChannelClosingArgs> Closing;
         public event EventHandler<ChannelClosedArgs> Closed;
+        public event EventHandler<ChannelFailedToConnectArgs> FailedToConnect;
 
         internal Channel(ServiceBinding binding, Endpoint endpoint, ContractDescriptor descriptor, RpcCallHandler msgHandler)
         {
@@ -254,6 +255,7 @@ namespace SharpRpc
                 Logger.Warn(Id, "Failed to establish transport connection! Code: {0}", _channelFault.Code);
                 _connectEvent.SetResult(_channelFault);
                 await _dispatcher.Stop(_channelFault);
+                RiseFailedToConnectEvent(_channelFault);
                 return;
             }
 
@@ -290,8 +292,10 @@ namespace SharpRpc
 
             if (abortConnect)
             {
+                Logger.Warn(Id, "Failed to open a session! Code: {0}", _channelFault.Code);
                 await DisconnectRoutine();
                 _connectEvent.SetResult(_channelFault);
+                RiseFailedToConnectEvent(_channelFault);
             }
             else
             {
@@ -455,7 +459,19 @@ namespace SharpRpc
             }
             catch (Exception ex)
             {
-                Logger.Error(Id, ex, "An opening event handler threw an exception!");
+                Logger.Error(Id, ex, "An Closed event handler threw an exception!");
+            }
+        }
+
+        internal void RiseFailedToConnectEvent(RpcResult fault)
+        {
+            try
+            {
+                FailedToConnect?.Invoke(this, new ChannelFailedToConnectArgs(fault));
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(Id, ex, "An FailedToConnect event handler threw an exception!");
             }
         }
 
@@ -505,9 +521,20 @@ namespace SharpRpc
         internal ChannelClosedArgs(RpcResult reason, bool isFaulted)
         {
             Reason = reason;
+            IsFaulted = isFaulted;
         }
 
         public RpcResult Reason { get; }
         public bool IsFaulted { get; }
+    }
+
+    public class ChannelFailedToConnectArgs : EventArgs
+    {
+        public ChannelFailedToConnectArgs(RpcResult reason)
+        {
+            Reason = reason;
+        }
+
+        public RpcResult Reason { get; }
     }
 }
