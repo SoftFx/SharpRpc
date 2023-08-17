@@ -85,25 +85,18 @@ namespace SharpRpc.Tcp
                 if (Logger.VerboseEnabled)
                     Logger.Verbose(_logId, "Accepted new connection.");
 
+                SocketTransport unsecuredTransport = null;
+
                 try
                 {
 
                     // do handshake
-                    var unsecuredTransport = new SocketTransport(socket, _endpoint.TaskQueue);
+                    unsecuredTransport = new SocketTransport(socket, _endpoint.TaskQueue);
                     var handshakeResult = await handshaker.DoServerSideHandshake(unsecuredTransport, _services, new Log(_logId, Logger));
 
                     if (!handshakeResult.WasAccepted)
                     {
-                        try
-                        {
-                            await socket.DisconnectAsync(_endpoint.TaskQueue);
-                        }
-                        catch (Exception)
-                        {
-                        }
-
-                        CloseSocket(socket);
-
+                        await CloseTransport(unsecuredTransport);
                         continue;
                     }
 
@@ -113,7 +106,7 @@ namespace SharpRpc.Tcp
                         Logger.Verbose(_logId, "Handshake completed.");
 
                     // secure
-                    var transport = await serviceConfig.Security.SecureTransport(socket, _endpoint);
+                    var transport = await serviceConfig.Security.SecureTransport(unsecuredTransport, _endpoint);
 
                     // open new session
                     _context.OnNewConnection(serviceConfig, transport);
@@ -121,9 +114,28 @@ namespace SharpRpc.Tcp
                 catch (Exception ex)
                 {
                     Logger.Error(_logId, ex.Message);
-                    CloseSocket(socket);
+
+                    if (unsecuredTransport != null)
+                        await CloseTransport(unsecuredTransport);
+                    else
+                        CloseSocket(socket);
                 }
             }
+        }
+
+        private async Task CloseTransport(ByteTransport transport)
+        {
+            try
+            {
+                await transport.Shutdown().ConfigureAwait(false);
+            }
+            catch { }
+
+            try
+            {
+                transport.Dispose();
+            }
+            catch { }
         }
 
         private void CloseSocket(Socket socket)
@@ -132,11 +144,14 @@ namespace SharpRpc.Tcp
             {
                 //await socket.DisconnectAsync(_endpoint.TaskQueue);
                 socket.Close();
+            }
+            catch { }
+
+            try
+            {
                 socket.Dispose();
             }
-            catch
-            {
-            }
+            catch { }
         }
     }
 

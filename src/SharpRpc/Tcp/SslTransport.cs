@@ -74,6 +74,8 @@ namespace SharpRpc
             try
             {
                 await _stream.ShutdownAsync();
+
+                _stream.Close();
             }
             catch (Exception ex)
             {

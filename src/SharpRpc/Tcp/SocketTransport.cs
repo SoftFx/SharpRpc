@@ -27,8 +27,11 @@ namespace SharpRpc
         {
             _socket = socket;
             _taskQueue = taskQueue;
-            _stream = new NetworkStream(socket, false);
+            _stream = new NetworkStream(socket, true);
         }
+
+        internal NetworkStream Stream => _stream;
+        internal Socket Socket => _socket;
 
 #if NET5_0_OR_GREATER
         public override bool StopRxByShutdown => false;
