@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -6,7 +6,7 @@
     <Configurations>Debug;Release;ReleasePfCounters</Configurations>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+  <PropertyGroup Condition="'$(Configuration)'=='Debug'">
     <NoWarn>1701;1702</NoWarn>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <DebugType>full</DebugType>
@@ -22,10 +22,6 @@
     <DefineConstants>TRACE;PF_COUNTERS</DefineConstants>
     <Optimize>true</Optimize>
   </PropertyGroup>
-
-  <ItemGroup>
-    <PackageReference Include="protobuf-net" Version="3.0.73" />
-  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\SharpRpc\SharpRpc.csproj" />

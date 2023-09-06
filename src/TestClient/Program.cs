@@ -28,6 +28,7 @@ namespace TestClient
             Console.WriteLine("3. Keep connected");
             Console.WriteLine("4. Stress test");
             Console.WriteLine("5. Connection tests");
+            Console.WriteLine("6. Load test");
             Console.Write(">");
 
             var choice = Console.ReadLine();
@@ -106,31 +107,40 @@ namespace TestClient
             }
             else if (choice == "4")
             {
-                var test = new StressTest(address)
-                {
-                    MaxParallelRequests = 8,
-                    MaxRequestsPerSession = 1000,
-                    MaxItemsPerCall = 300,
-                    ParallelConnections = 30
-                };
+                //var test = new StressTest(address)
+                //{
+                //    MaxParallelRequests = 8,
+                //    MaxRequestsPerSession = 1000,
+                //    MaxItemsPerCall = 300,
+                //    ParallelConnections = 30
+                //};
 
-                Console.WriteLine("Starting...");
-                test.Start();
-                Console.WriteLine("Test has been started. Press enter key to stop...");
-                Console.Read();
-                Console.WriteLine("Stopping...");
-                test.Stop();
-                Console.WriteLine("Test has been stopped. Errors count: " + test.Errors.Count);
-                if (test.Errors.Count > 0)
-                {
-                    Console.WriteLine("Top 100 errors:");
-                    test.PrintTopErrors(100);
-                }
+                //Console.WriteLine("Starting...");
+                //test.Start();
+                //Console.WriteLine("Test has been started. Press enter key to stop...");
+                //Console.Read();
+                //Console.WriteLine("Stopping...");
+                //test.Stop();
+                //Console.WriteLine("Test has been stopped. Errors count: " + test.Errors.Count);
+                //if (test.Errors.Count > 0)
+                //{
+                //    Console.WriteLine("Top 100 errors:");
+                //    test.PrintTopErrors(100);
+                //}
             }
             else if (choice == "5")
             {
                 ConnectionTest.RunAll(address);
                 Console.Read();
+            }
+            else if (choice == "6")
+            {
+                var loadTest = new LoadTest(address, 12);
+                loadTest.Start();
+                Console.WriteLine("Test has been started. Press enter key to stop...");
+                Console.Read();
+                loadTest.Stop();
+                Console.WriteLine("Done.");
             }
             else
                 Console.WriteLine("Invalid input.");

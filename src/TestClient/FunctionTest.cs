@@ -51,6 +51,7 @@ namespace TestClient
 
             runner.AddCases(new Call1Test().GetCases(clientName, client));
             runner.AddCases(new Call2Test().GetCases(clientName, client));
+            runner.AddCases(new BigObjectTest().GetCases(clientName, client));
             runner.AddCases(new ComplexDataTest().GetCases(clientName, client));
             runner.AddCases(new RegularFaultTest().GetCases(clientName, client));
             runner.AddCases(new CrashFaultTest().GetCases(clientName, client));
@@ -394,6 +395,33 @@ namespace TestClient
 
                 if (r1[2].Item1 != 20)
                     throw new Exception();
+            }
+        }
+
+        private class BigObjectTest : TestBase
+        {
+            public IEnumerable<TestCase> GetCases(string clientDescription, FunctionTestContract_Gen.Client client)
+            {
+                yield return CreateCase(clientDescription, client);
+            }
+
+            private TestCase CreateCase(string clientDescription, FunctionTestContract_Gen.Client client)
+            {
+                return new TestCase(this)
+                    .SetParam("client", clientDescription, client);
+            }
+
+            public override void RunTest(TestCase tCase)
+            {
+                var data = new FooData();
+                data.Name = "1231239432943214812[812[3812[38912-3[12391283-01823-128423-1411-20481-238012-3812-381230812";
+                data.Relatives = new List<FooData>();
+
+                for (int i = 0; i < 100000; i++)
+                    data.Relatives.Add(new FooData() { Name = data.Name });
+
+                var client = tCase.GetParam<FunctionTestContract_Gen.Client>("client");
+                client.TestCall3(data);
             }
         }
 

@@ -24,17 +24,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="MessagePack" Version="2.3.58-alpha" />
-    <PackageReference Include="protobuf-net" Version="3.0.73" />
+    <ProjectReference Include="..\SharpRpc\SharpRpc.csproj" />
+    <ProjectReference Include="..\TestCommon\TestCommon.csproj" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
     <PackageReference Include="System.Threading.Tasks.Dataflow" Version="5.0.0" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\SharpRpc\SharpRpc.csproj" />
-    <ProjectReference Include="..\TestCommon\TestCommon.csproj" />
   </ItemGroup>
 
 </Project>

@@ -146,7 +146,7 @@ namespace TestClient
                     _states[no] = WorkerState.GeneratingTasks;
 
                     var execBlockOptions = new ExecutionDataflowBlockOptions()
-                        {MaxDegreeOfParallelism = reqParallelism, CancellationToken = _stopSrc.Token};
+                    { MaxDegreeOfParallelism = reqParallelism, CancellationToken = _stopSrc.Token };
                     var execBlock = new ActionBlock<StressTask>(r => ExecRequest(r, client, callbackHandler), execBlockOptions);
 
                     for (int i = 0; i < reqNumber; i++)
@@ -211,7 +211,7 @@ namespace TestClient
             }
             else if (task.Type == RequestType.Downstream)
             {
-                var streamOpt = new StreamOptions() {WindowSize = 10};
+                var streamOpt = new StreamOptions() { WindowSize = 10 };
                 var call = client.DownstreamEntities(streamOpt, task.GetRequestConfig(), task.MessageCount);
 
                 var e = call.OutputStream.GetEnumerator();

@@ -29,51 +29,54 @@ namespace TestCommon
         string TestCall2(int p1, string p2);
 
         [RpcContract(3, RpcType.Call)]
-        string TestCrash(int p1, string p2);
+        string TestCall3(FooData data);
 
         [RpcContract(4, RpcType.Call)]
-        string TestRpcException(int p1, string p2);
+        string TestCrash(int p1, string p2);
 
         [RpcContract(5, RpcType.Call)]
+        string TestRpcException(int p1, string p2);
+
+        [RpcContract(6, RpcType.Call)]
         [RpcFault(0, typeof(TestFault1))]
         [RpcFault(1, typeof(TestFault2))]
         void TestCallFault(int faultNo);
 
-        [RpcContract(6, RpcType.Call)]
+        [RpcContract(7, RpcType.Call)]
         string InvokeCallback(int callbackNo, int p1, string p2);
 
-        [RpcContract(7, RpcType.CallbackMessage)]
+        [RpcContract(8, RpcType.CallbackMessage)]
         void TestCallbackNotify1(int p1, string p2);
 
-        [RpcContract(8, RpcType.Callback)]
+        [RpcContract(9, RpcType.Callback)]
         void TestCallback1(int p1, string p2);
 
-        [RpcContract(9, RpcType.Callback)]
+        [RpcContract(10, RpcType.Callback)]
         int TestCallback2(int p1, string p2);
 
-        [RpcContract(10, RpcType.Callback)]
+        [RpcContract(11, RpcType.Callback)]
         string TestCallback3(int p1, string p2);
 
-        [RpcContract(11, RpcType.Call)]
+        [RpcContract(12, RpcType.Call)]
         List<Tuple<int>> ComplexTypesCall(List<DateTime> list, List<List<DateTime>> listOfLists, Dictionary<int, int> dictionary);
 
-        [RpcContract(12, RpcType.Call)]
+        [RpcContract(13, RpcType.Call)]
         [RpcStreamOutput(typeof(int))]
         StreamCallResult TestOutStream(TimeSpan delay, int count, StreamTestOptions options);
 
-        [RpcContract(13, RpcType.Call)]
+        [RpcContract(14, RpcType.Call)]
         [RpcStreamInput(typeof(int))]
         StreamCallResult TestInStream(TimeSpan delay, StreamTestOptions options);
 
-        [RpcContract(14, RpcType.Call)]
+        [RpcContract(15, RpcType.Call)]
         [RpcStreamInput(typeof(int))]
         [RpcStreamOutput(typeof(int))]
         int TestDuplexStream(TimeSpan delay, StreamTestOptions options);
 
-        [RpcContract(15, RpcType.Call)]
+        [RpcContract(16, RpcType.Call)]
         bool CancellableCall(TimeSpan delay);
 
-        [RpcContract(16, RpcType.Call)]
+        [RpcContract(17, RpcType.Call)]
         string GetSessionSharedProperty(string name);
     }
 
@@ -146,5 +149,18 @@ namespace TestCommon
         {
             return CustomCode.GetHashCode();
         }
+    }
+
+    [MessagePackObject]
+    public class FooData
+    {
+        [Key(1)]
+        public string Name { get; set; }
+
+        [Key(2)]
+        public int Age { get; set; }
+
+        [Key(3)]
+        public List<FooData> Relatives { get; set; }
     }
 }

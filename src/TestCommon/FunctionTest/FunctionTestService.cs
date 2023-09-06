@@ -46,6 +46,15 @@ namespace TestCommon
         }
 
 #if NET5_0_OR_GREATER
+        public override ValueTask<string> TestCall3(CallContext context, FooData data)
+#else
+        public override Task<string> TestCall3(CallContext context, FooData data)
+#endif
+        {
+            return FwAdapter.WrappResult(data?.Name);
+        }
+
+#if NET5_0_OR_GREATER
         public override ValueTask<string> TestCrash(CallContext context, int p1, string p2)
 #else
         public override Task<string> TestCrash(CallContext context, int p1, string p2)

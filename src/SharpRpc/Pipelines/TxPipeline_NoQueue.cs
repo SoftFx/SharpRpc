@@ -9,7 +9,6 @@ using SharpRpc.Lib;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Drawing.Drawing2D;
 using System.Runtime.Serialization;
 using System.Text;
 using System.Threading;

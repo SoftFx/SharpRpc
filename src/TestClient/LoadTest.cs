@@ -1,0 +1,133 @@
+﻿// Copyright © 2022 Soft-Fx. All rights reserved.
+// Author: Andrei Hilevich
+//
+// This Source Code Form is subject to the terms of the Mozilla
+// Public License, v. 2.0. If a copy of the MPL was not distributed
+// with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+using SharpRpc;
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using TestCommon;
+
+namespace TestClient
+{
+    internal class LoadTest
+    {
+        private readonly int _threadsCount;
+        private readonly string _address;
+        private List<Task> _threads;
+        private CancellationTokenSource _stopSrc;
+
+        public LoadTest(string address, int threads)
+        {
+            _address = address;
+            _threadsCount = threads;
+        }
+
+        public void Start()
+        {
+            _stopSrc = new CancellationTokenSource();
+            _threads = Enumerable.Range(0, _threadsCount)
+                .Select(MessageLoadLoop)
+                .ToList();
+        }
+
+        private async Task MessageLoadLoop(int index)
+        {
+            try
+            {
+                var client = CreateClient();
+                var payload = CreatePayload(100);
+
+                while (true)
+                {
+                    foreach (var entity in payload)
+                    {
+                        if (_stopSrc.IsCancellationRequested)
+                            break;
+
+                        await Task.Delay(4);
+                        await client.Async.LoadMessage(Guid.NewGuid(), entity, true);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex);
+            }
+        }
+
+        private async Task UpstreamLoadLoop(int index)
+        {
+            var client = CreateClient();
+            var payload = CreatePayload(100);
+
+            var streamCall = client.UpstreamEntities(new StreamOptions { }, new RequestConfig { PerItemPauseMs = 1 });
+
+            streamCall.InputStream.EnableCancellation(_stopSrc.Token);
+
+            while (true)
+            {
+                foreach (var entity in payload)
+                {
+                    if (_stopSrc.IsCancellationRequested)
+                        break;
+
+                    var writeResult = await streamCall.InputStream.WriteAsync(entity);
+
+                    if (!writeResult.IsOk)
+                        return;
+                }
+            }
+        }
+
+        private StressTestContract_Gen.Client CreateClient()
+        {
+            var endpoint = new TcpClientEndpoint(_address, 813, TcpSecurity.None);
+            var callbackHandler = new CallbackHandler();
+            return StressTestContract_Gen.CreateClient(endpoint, callbackHandler);
+        }
+
+        private IEnumerable<StressEntity> CreatePayload(int size)
+        {
+            for (int i = 0; i < size; i++)
+            {
+                var entity = new StressEntity
+                {
+                    EntityProperty = new SomeOtherEntity { StrProperty = "1111111111111111111" },
+                    StrArrayProperty = new List<string>(),
+                    StrProperty = "1111111111111111111111111111111111"
+                };
+
+                for (var j = 0; j < 5000 + i * 50; j++)
+                    entity.StrArrayProperty.Add("5555555555555555555555555555555555555555555555555555");
+
+                yield return entity;
+            }
+        }
+
+        public void Stop()
+        {
+            _stopSrc.Cancel();
+            Task.WhenAll(_threads);
+        }
+
+        private class CallbackHandler : StressTestContract_Gen.CallbackServiceBase
+        {
+#if NET5_0_OR_GREATER
+            public override ValueTask CallbackMessage(Guid requestId, StressEntity entity)
+#else
+            public override Task CallbackMessage(Guid requestId, StressEntity entity)
+#endif
+            {
+                return FwAdapter.AsyncVoid;
+            }
+        }
+    }
+}

@@ -20,25 +20,6 @@ namespace TestCommon.StressTest
         private readonly Random _rndSeed = new Random();
 
 #if NET5_0_OR_GREATER
-        public override async ValueTask DownstreamEntities(CallContext context, StreamWriter<StressEntity> outputStream, RequestConfig cfg, int count)
-#else
-        public override async Task DownstreamEntities(CallContext context, StreamWriter<StressEntity> outputStream, RequestConfig cfg, int count)
-#endif
-        {
-            ThrowIfRequested(cfg);
-
-            var generator = new StressEntityGenerator();
-
-            for (int i = 0; i < count; i++)
-            {
-                var wResult = await outputStream.WriteAsync(generator.Next());
-
-                if (!wResult.IsOk)
-                    throw new RpcFaultException("Streaming faulted: " + wResult.Code);
-            }
-        }
-
-#if NET5_0_OR_GREATER
         public override async ValueTask RequestMessages(CallContext context, int count, RequestConfig cfg)
 #else
         public override async Task RequestMessages(CallContext context, int count, RequestConfig cfg)
@@ -61,6 +42,18 @@ namespace TestCommon.StressTest
             ThrowIfRequested(cfg);
 
             return FwAdapter.WrappResult(entity);
+        }
+
+#if NET5_0_OR_GREATER
+        public override ValueTask LoadMessage(Guid requestId, StressEntity entity, bool sendBack)
+#else
+        public override Task LoadMessage(Guid requestId, StressEntity entity, bool sendBack)
+#endif
+        {
+            if (sendBack)
+                Client.CallbackMessage(requestId, entity);
+
+            return FwAdapter.AsyncVoid;
         }
 
 #if NET5_0_OR_GREATER
@@ -101,6 +94,25 @@ namespace TestCommon.StressTest
                 await RandomItemDelay(cfg, rnd);
 
             return count;
+        }
+
+#if NET5_0_OR_GREATER
+        public override async ValueTask DownstreamEntities(CallContext context, StreamWriter<StressEntity> outputStream, RequestConfig cfg, int count)
+#else
+        public override async Task DownstreamEntities(CallContext context, StreamWriter<StressEntity> outputStream, RequestConfig cfg, int count)
+#endif
+        {
+            ThrowIfRequested(cfg);
+
+            var generator = new StressEntityGenerator();
+
+            for (int i = 0; i < count; i++)
+            {
+                var wResult = await outputStream.WriteAsync(generator.Next());
+
+                if (!wResult.IsOk)
+                    throw new RpcFaultException("Streaming faulted: " + wResult.Code);
+            }
         }
 
 #if NET5_0_OR_GREATER

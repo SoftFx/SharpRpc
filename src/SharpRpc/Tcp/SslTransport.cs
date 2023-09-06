@@ -73,8 +73,9 @@ namespace SharpRpc
         {
             try
             {
+#if !NETSTANDARD
                 await _stream.ShutdownAsync();
-
+#endif
                 _stream.Close();
             }
             catch (Exception ex)

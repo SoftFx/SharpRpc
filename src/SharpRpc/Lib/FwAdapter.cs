@@ -16,11 +16,11 @@ namespace SharpRpc
     public static class FwAdapter
     {
 #if NET5_0_OR_GREATER
-        public static ValueTask AsyncVoid => new ValueTask();
-        public static ValueTask<bool> AsyncTrue => ValueTask.FromResult(true);
-        public static ValueTask<bool> AsyncFalse => ValueTask.FromResult(false);
-        public static ValueTask<RpcResult> AsyncRpcOk => ValueTask.FromResult(RpcResult.Ok);
-        public static ValueTask<List<IMessage>> AsyncNullMessageBatch => ValueTask.FromResult<List<IMessage>>(null);
+        public static ValueTask AsyncVoid { get; } = new ValueTask();
+        public static ValueTask<bool> AsyncTrue { get; } = ValueTask.FromResult(true);
+        public static ValueTask<bool> AsyncFalse { get; } = ValueTask.FromResult(false);
+        public static ValueTask<RpcResult> AsyncRpcOk { get; } = ValueTask.FromResult(RpcResult.Ok);
+        public static ValueTask<List<IMessage>> AsyncNullMessageBatch { get; } = ValueTask.FromResult<List<IMessage>>(null);
 
         public static ValueTask WrappResult(Task task)
         {
@@ -59,10 +59,10 @@ namespace SharpRpc
         }
 
 #else
-        public static Task AsyncVoid => Task.CompletedTask;
-        public static Task<bool> AsyncTrue = Task.FromResult(true);
-        public static Task<bool> AsyncFalse = Task.FromResult(false);
-        public static Task<RpcResult> AsyncRpcOk => Task.FromResult(RpcResult.Ok);
+        public static Task AsyncVoid { get; } = Task.CompletedTask;
+        public static Task<bool> AsyncTrue { get; } = Task.FromResult(true);
+        public static Task<bool> AsyncFalse { get; } = Task.FromResult(false);
+        public static Task<RpcResult> AsyncRpcOk { get; } = Task.FromResult(RpcResult.Ok);
 
         public static Task WrappResult(Task task)
         {

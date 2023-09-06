@@ -40,6 +40,9 @@ namespace TestCommon
         [RpcStreamInput(typeof(StressEntity))]
         [RpcStreamOutput(typeof(StressEntity))]
         void DuplexStreamEntities(RequestConfig cfg);
+
+        [RpcContract(7, RpcType.Message)]
+        void LoadMessage(Guid requestId, StressEntity entity, bool sendBack);
     }
 
     [MessagePackObject]

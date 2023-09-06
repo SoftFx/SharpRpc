@@ -28,15 +28,22 @@ namespace TestServer
             Console.WriteLine(GetAssemblyInfo(Assembly.GetExecutingAssembly()));
             Console.WriteLine(GetAssemblyInfo(typeof(RpcServer).Assembly));
 
-            var srv1 = StartBenchmarkServer();
-            var srv2 = StartFunctionTestServer();
-            var srv3 = StartStressServer();
+            try
+            {
+                var srv1 = StartBenchmarkServer();
+                var srv2 = StartFunctionTestServer();
+                var srv3 = StartStressServer();
 
-            Console.Read();
+                Console.Read();
 
-            srv1.StopAsync().Wait();
-            srv2.StopAsync().Wait();
-            srv3.StopAsync().Wait();
+                srv1.StopAsync().Wait();
+                srv2.StopAsync().Wait();
+                srv3.StopAsync().Wait();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex);
+            }
 
             Console.Read();
         }
