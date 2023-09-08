@@ -74,11 +74,7 @@ namespace SharpRpc
                 var dataLeftInSegment = currSegment.Count - _currOffset;
                 var toCopy = Math.Min(count, dataLeftInSegment);
 
-#if NET5_0_OR_GREATER
-                Buffer.BlockCopy(currSegment.Array, currSegment.Offset + _currOffset, buffer, offset, toCopy);
-#else
                 Array.Copy(currSegment.Array, currSegment.Offset + _currOffset, buffer, offset, toCopy);
-#endif
 
                 copied += toCopy;
                 offset += toCopy;

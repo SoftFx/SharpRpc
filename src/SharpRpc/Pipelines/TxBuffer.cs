@@ -48,7 +48,7 @@ namespace SharpRpc
 
             //_dataArrivedEvent = dataArrivedCallback;
 
-            _memManager = MemoryManager.Create(segmentSize, 5);
+            _memManager = new PoolBasedManager(segmentSize);
             //_minAllocSize = minSizeHint;
             _streamProxy = new StreamProxy(this);
 
@@ -60,7 +60,7 @@ namespace SharpRpc
         public bool IsCurrentSegmentLocked { get; private set; }
         public bool IsDataAvailable => IsCurrentDataAvailable || HasCompletedSegments;
 
-        public int DataSize { get; private set; }
+        public long DataSize { get; private set; }
         public int CurrentWriteSize { get; private set; }
 
         private byte[] CurrentSegment { get; set; }

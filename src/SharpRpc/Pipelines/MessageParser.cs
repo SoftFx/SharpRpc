@@ -27,7 +27,9 @@ namespace SharpRpc
         public IReadOnlyList<ArraySegment<byte>> MessageBody => _messageFragments;
 
         // message size plus size of all headers
-        public int MessageBrutto { get; private set; }
+        public long MessageBrutto { get; private set; }
+
+        public long MaxMessageSize { get; set; } = long.MaxValue;
 
         public void SetNextSegment(ArraySegment<byte> segment)
         {
@@ -81,6 +83,9 @@ namespace SharpRpc
                     MessageBrutto += fragmentSize;
                     _segmentOffset += fragmentSize;
 
+                    if (MessageBrutto > MaxMessageSize)
+                        return RetCodes.MaxMessageSizeReached;
+
                     if (_currentChunkSize == _specifiedChunkSize)
                     {
                         if (_isLastChunk)
@@ -106,7 +111,7 @@ namespace SharpRpc
 
         private enum States { EndOfMessage, Header, Body, ChunkHeader  }
 
-        public enum RetCodes { MessageParsed, EndOfSegment, InvalidHeader }
+        public enum RetCodes { MessageParsed, EndOfSegment, InvalidHeader, MaxMessageSizeReached }
 
 #if DEBUG
         public string MessagBodyString

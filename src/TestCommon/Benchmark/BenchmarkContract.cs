@@ -87,8 +87,6 @@ namespace TestCommon
 
             endpoint.RxBufferSegmentSize = short.MaxValue * 1;
             endpoint.TxBufferSegmentSize = short.MaxValue * 1;
-
-            endpoint.AsyncMessageParsing = false;
         }
     }
 }

@@ -8,6 +8,7 @@
 using SharpRpc.Lib;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
@@ -23,8 +24,6 @@ namespace SharpRpc
         private readonly ByteTransport _transport;
         private readonly IRpcSerializer _serializer;
         private readonly MessageDispatcher _msgDispatcher;
-        //private readonly List<IMessage> _page = new List<IMessage>();
-        //private readonly List<IMessage> _oneWayMsgPage = new List<IMessage>();
         private readonly SessionCoordinator _coordinator;
         private readonly CancellationTokenSource _rxCancelSrc = new CancellationTokenSource();
         private Task _rxLoop;
@@ -37,6 +36,7 @@ namespace SharpRpc
             _msgDispatcher = messageConsumer;
             _coordinator = coordinator;
             _taskQueue = config.TaskQueue;
+            _parser.MaxMessageSize = config.MaxMessageSize;
         }
 
         protected MessageDispatcher MessageConsumer => _msgDispatcher;
@@ -115,14 +115,12 @@ namespace SharpRpc
             CommunicationFaulted?.Invoke(fault);
         }
 
-        protected RpcResult ParseAndDeserialize(ArraySegment<byte> segment, out int bytesConsumed)
+        protected RpcResult ParseAndDeserialize(ArraySegment<byte> segment, out long bytesConsumed)
         {
             bytesConsumed = 0;
 
             var container = _msgDispatcher.IncomingMessages;
 
-            //_page.Clear();
-            //_oneWayMsgPage.Clear();
             _parser.SetNextSegment(segment);
 
             while (true)
@@ -130,37 +128,27 @@ namespace SharpRpc
                 var pCode = _parser.ParseFurther();
 
                 if (pCode == MessageParser.RetCodes.EndOfSegment)
+                {
+                    //Console.WriteLine("EoS");
                     break;
+                }
                 else if (pCode == MessageParser.RetCodes.MessageParsed)
                 {
                     _reader.Init(_parser.MessageBody);
 
-                    try
-                    {
-                        var msg = _serializer.Deserialize(_reader);
+                    var result = DeserializeMessage(container);
 
-                        //Debug.WriteLine("RX " + msg.GetType().Name);
+                    if (!result.IsOk)
+                        return result;
 
-                        if (msg is ISystemMessage sysMsg)
-                        {
-                            var sysMsgResult = OnSystemMessage(sysMsg);
-                            if (sysMsgResult.Code != RpcRetCode.Ok)
-                                return sysMsgResult;
-                        }
-                        else
-                        {
-                            container.Add(msg);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        return new RpcResult(RpcRetCode.DeserializationError, ex.JoinAllMessages());
-                    }
+                    bytesConsumed = _parser.MessageBrutto;
 
-                    bytesConsumed += _parser.MessageBrutto;
+                    //Console.WriteLine("Consumed " + bytesConsumed);
 
                     _reader.Clear();
                 }
+                else if (pCode == MessageParser.RetCodes.MaxMessageSizeReached)
+                    return new RpcResult(RpcRetCode.MaxMessageSizeReached, "An incoming message is too big! Max message size is reached!");
                 else
                     return new RpcResult(RpcRetCode.MessageMarkupError, "A violation of message markup has been detected! Code: " + pCode);
             }
@@ -168,6 +156,35 @@ namespace SharpRpc
             RegisterMessageBatch(container.Count);
 
             return RpcResult.Ok;
+        }
+
+        private RpcResult DeserializeMessage(List<IMessage> container)
+        {
+            try
+            {
+                var msg = _serializer.Deserialize(_reader);
+
+                //Console.WriteLine("Msg " + msg.GetType().Name);
+
+                //Debug.WriteLine("RX " + msg.GetType().Name);
+
+                if (msg is ISystemMessage sysMsg)
+                {
+                    var sysMsgResult = OnSystemMessage(sysMsg);
+                    if (sysMsgResult.Code != RpcRetCode.Ok)
+                        return sysMsgResult;
+                }
+                else
+                {
+                    container.Add(msg);
+                }
+
+                return RpcResult.Ok;
+            }
+            catch (Exception ex)
+            {
+                return new RpcResult(RpcRetCode.DeserializationError, ex.JoinAllMessages());
+            }
         }
 
 #if NET5_0_OR_GREATER

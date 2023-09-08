@@ -62,14 +62,14 @@ namespace SharpRpc
             return new ArraySegment<byte>(_currentSegment.Bytes, offset, dataSize);
         }
 
-        public void CommitDataConsume(int dataSize)
+        public void CommitDataConsume(long dataSize)
         {
             while (_tail.Count > 0)
             {
                 var segment = _tail[0];
 
                 var leftToConsume = segment.Count - segment.ConsumedCount;
-                var toConsume = Math.Min(dataSize, leftToConsume);
+                var toConsume = (int)Math.Min(dataSize, leftToConsume);
 
                 segment.ConsumedCount += toConsume;
 
@@ -87,7 +87,7 @@ namespace SharpRpc
             var leftToConsumeInCurrent = _currentSegment.Count - _currentSegment.ConsumedCount;
 
             if (leftToConsumeInCurrent >= dataSize)
-                _currentSegment.ConsumedCount += dataSize;
+                _currentSegment.ConsumedCount += (int)dataSize;
             else
                 throw new Exception("There is no more data in buffer to consume!");
         }
@@ -105,18 +105,12 @@ namespace SharpRpc
 
         private void AllocateSegment()
         {
-#if NET5_0_OR_GREATER
             _currentSegment = new RxSegment(System.Buffers.ArrayPool<byte>.Shared.Rent(_segmentSize));
-#else
-            _currentSegment = new RxSegment(new byte[_segmentSize]);
-#endif
         }
 
         private void DisposeSegment(RxSegment segment)
         {
-#if NET5_0_OR_GREATER
             System.Buffers.ArrayPool<byte>.Shared.Return(segment.Bytes);
-#endif
         }
 
         private int GetFreeSpace(RxSegment segment)

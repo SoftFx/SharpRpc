@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <TargetFrameworks>net6.0;net472;netstandard2.0</TargetFrameworks>
+    <Configurations>Debug;Release;ReleasePfCounters;ReleaseIde</Configurations>
     <Version>1.7.9</Version>
     <Company>Soft-Fx</Company>
     <Authors>Andrei Hilevich</Authors>
@@ -12,7 +13,6 @@
     <PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
     <Description>A high performance, open source  RPC framework for C#</Description>
     <RepositoryUrl>https://github.com/SoftFx/SharpRpc</RepositoryUrl>
-    <Configurations>Debug;Release;ReleasePfCounters;ReleaseIde</Configurations>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)'=='Debug'">
@@ -36,5 +36,9 @@
     <DefineConstants>TRACE;PF_COUNTERS</DefineConstants>
     <Optimize>true</Optimize>
   </PropertyGroup>
+
+  <ItemGroup Condition="'$(Framework)'!='net6.0'">
+    <PackageReference Include="System.Buffers" Version="4.5.1" />
+  </ItemGroup>
 
 </Project>

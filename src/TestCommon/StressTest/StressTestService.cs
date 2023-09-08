@@ -5,6 +5,7 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+using MessagePack;
 using SharpRpc;
 using System;
 using System.Collections.Generic;
@@ -45,15 +46,13 @@ namespace TestCommon.StressTest
         }
 
 #if NET5_0_OR_GREATER
-        public override ValueTask LoadMessage(Guid requestId, StressEntity entity, bool sendBack)
+        public override async ValueTask LoadMessage(Guid requestId, StressEntity entity, bool sendBack)
 #else
-        public override Task LoadMessage(Guid requestId, StressEntity entity, bool sendBack)
+        public override async Task LoadMessage(Guid requestId, StressEntity entity, bool sendBack)
 #endif
         {
             if (sendBack)
-                Client.CallbackMessage(requestId, entity);
-
-            return FwAdapter.AsyncVoid;
+                await Client.Async.CallbackMessage(requestId, entity);
         }
 
 #if NET5_0_OR_GREATER

@@ -10,6 +10,8 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Net.Http;
+using System.Reflection;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -24,15 +26,19 @@ namespace TestClient
         private List<Task> _threads;
         private CancellationTokenSource _stopSrc;
 
+        // for debug puprpose
+        private StressTestContract_Gen.Client[] _clients;
+
         public LoadTest(string address, int threads)
         {
             _address = address;
-            _threadsCount = threads;
+            _threadsCount = 1; // threads;
         }
 
         public void Start()
         {
             _stopSrc = new CancellationTokenSource();
+            _clients = new StressTestContract_Gen.Client[_threadsCount];
             _threads = Enumerable.Range(0, _threadsCount)
                 .Select(MessageLoadLoop)
                 .ToList();
@@ -42,8 +48,10 @@ namespace TestClient
         {
             try
             {
-                var client = CreateClient();
-                var payload = CreatePayload(100);
+                var client = CreateClient(index);
+                var payload = CreatePayload(500);
+
+                _clients[index] = client;
 
                 while (true)
                 {
@@ -52,8 +60,11 @@ namespace TestClient
                         if (_stopSrc.IsCancellationRequested)
                             break;
 
-                        await Task.Delay(4);
+                        //await Task.Delay(1000);
+
                         await client.Async.LoadMessage(Guid.NewGuid(), entity, true);
+
+                        Console.WriteLine($"[{index}] - message sent");
                     }
                 }
             }
@@ -65,8 +76,10 @@ namespace TestClient
 
         private async Task UpstreamLoadLoop(int index)
         {
-            var client = CreateClient();
+            var client = CreateClient(index);
             var payload = CreatePayload(100);
+
+            _clients[index] = client;
 
             var streamCall = client.UpstreamEntities(new StreamOptions { }, new RequestConfig { PerItemPauseMs = 1 });
 
@@ -83,20 +96,22 @@ namespace TestClient
 
                     if (!writeResult.IsOk)
                         return;
+
+                    Console.WriteLine($"[{index}] - message sent");
                 }
             }
         }
 
-        private StressTestContract_Gen.Client CreateClient()
+        private StressTestContract_Gen.Client CreateClient(int index)
         {
             var endpoint = new TcpClientEndpoint(_address, 813, TcpSecurity.None);
-            var callbackHandler = new CallbackHandler();
+            var callbackHandler = new CallbackHandler(index);
             return StressTestContract_Gen.CreateClient(endpoint, callbackHandler);
         }
 
         private IEnumerable<StressEntity> CreatePayload(int size)
         {
-            for (int i = 0; i < size; i++)
+            //for (int i = 0; i < size; i++)
             {
                 var entity = new StressEntity
                 {
@@ -105,8 +120,8 @@ namespace TestClient
                     StrProperty = "1111111111111111111111111111111111"
                 };
 
-                for (var j = 0; j < 5000 + i * 50; j++)
-                    entity.StrArrayProperty.Add("5555555555555555555555555555555555555555555555555555");
+                for (var j = 0; j < 40000000; j++)
+                    entity.StrArrayProperty.Add("5555555555555555555555555555555555555555555555555555555");
 
                 yield return entity;
             }
@@ -120,12 +135,21 @@ namespace TestClient
 
         private class CallbackHandler : StressTestContract_Gen.CallbackServiceBase
         {
+            private readonly int _index;
+
+            public CallbackHandler(int index)
+            {
+                _index = index;
+            }
+
 #if NET5_0_OR_GREATER
             public override ValueTask CallbackMessage(Guid requestId, StressEntity entity)
 #else
             public override Task CallbackMessage(Guid requestId, StressEntity entity)
 #endif
             {
+                Console.WriteLine($"[{_index}] - message received");
+
                 return FwAdapter.AsyncVoid;
             }
         }

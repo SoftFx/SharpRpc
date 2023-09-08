@@ -134,7 +134,7 @@ namespace SharpRpc
                     OnParseFailed(parseRes);       
             }
 
-            private void OnParseCompleted(int dataSize)
+            private void OnParseCompleted(long dataSize)
             {
                 TaskCompletionSource<bool> toSignal = null;
                 bool isNotClosed;

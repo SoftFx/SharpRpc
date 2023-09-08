@@ -13,17 +13,8 @@ namespace SharpRpc
 {
     partial class TxBuffer
     {
-        private abstract class MemoryManager
+        internal abstract class MemoryManager
         {
-            public static MemoryManager Create(int segmentSize, int maxSegmentsToCache)
-            {
-#if NET5_0_OR_GREATER
-                return new PoolBasedManager(segmentSize);
-#else
-                return new CacheBasedManager(segmentSize, maxSegmentsToCache);
-#endif
-            }
-
             public int SegmentSize { get; protected set; }
 
             public abstract byte[] AllocateSegment();
@@ -32,8 +23,7 @@ namespace SharpRpc
             public void FreeSegment(ArraySegment<byte> segment) => FreeSegment(segment.Array);
         }
 
-#if NET5_0_OR_GREATER
-        private class PoolBasedManager : MemoryManager
+        internal class PoolBasedManager : MemoryManager
         {
             public PoolBasedManager(int segmentSize)
             {
@@ -50,32 +40,31 @@ namespace SharpRpc
                 System.Buffers.ArrayPool<byte>.Shared.Return(segBuffer, false);
             }
         }
-#endif
 
-        private class CacheBasedManager : MemoryManager
-        {
-            private readonly Queue<byte[]> _cache = new Queue<byte[]>();
-            private readonly int _maxCacheSize;
+        //private class CacheBasedManager : MemoryManager
+        //{
+        //    private readonly Queue<byte[]> _cache = new Queue<byte[]>();
+        //    private readonly int _maxCacheSize;
 
-            public CacheBasedManager(int segmentSize, int maxSegmentsToCache)
-            {
-                SegmentSize = segmentSize;
-                _maxCacheSize = maxSegmentsToCache;
-            }
+        //    public CacheBasedManager(int segmentSize, int maxSegmentsToCache)
+        //    {
+        //        SegmentSize = segmentSize;
+        //        _maxCacheSize = maxSegmentsToCache;
+        //    }
 
-            public override byte[] AllocateSegment()
-            {
-                if (_cache.Count > 0)
-                    return _cache.Dequeue();
-                else
-                    return new byte[SegmentSize];
-            }
+        //    public override byte[] AllocateSegment()
+        //    {
+        //        if (_cache.Count > 0)
+        //            return _cache.Dequeue();
+        //        else
+        //            return new byte[SegmentSize];
+        //    }
 
-            public override void FreeSegment(byte[] segBuffer)
-            {
-                if (_cache.Count < _maxCacheSize)
-                    _cache.Enqueue(segBuffer);
-            }
-        }
+        //    public override void FreeSegment(byte[] segBuffer)
+        //    {
+        //        if (_cache.Count < _maxCacheSize)
+        //            _cache.Enqueue(segBuffer);
+        //    }
+        //}
     }
 }

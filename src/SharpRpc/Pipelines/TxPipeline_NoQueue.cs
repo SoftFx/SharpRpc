@@ -441,7 +441,7 @@ namespace SharpRpc
 
         private void _buffer_SpaceFreed(TxBuffer sender)
         {
-            if (_isStarted && !_isProcessingItem)
+            if (_isStarted && !_isProcessingItem && HasRoomForNextMessage)
                 EnqueueNextItem();
         }
     }

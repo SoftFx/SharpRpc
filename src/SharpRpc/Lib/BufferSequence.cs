@@ -18,9 +18,9 @@ namespace SharpRpc.Lib
     {
         private readonly List<Segment> _cachedSegments = new List<Segment>();
         private int _lastIndex = -1;
-        private int _totalSize;
+        private long _totalSize;
 
-        public int Count => _totalSize;
+        public long DataSize => _totalSize;
 
         public ReadOnlySequence<T> GetSequence()
         {
@@ -67,7 +67,7 @@ namespace SharpRpc.Lib
 
         private class Segment : ReadOnlySequenceSegment<T>
         {
-            public void Init(ArraySegment<T> buffer, Segment nextSegment, int size)
+            public void Init(ArraySegment<T> buffer, Segment nextSegment, long size)
             {
                 Memory = buffer;
                 Next = nextSegment;

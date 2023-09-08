@@ -20,7 +20,8 @@ namespace SharpRpc
         private int _rxSegmentSize = ushort.MaxValue * 1;
         private int _txSegmentSize = ushort.MaxValue * 1;
         private TimeSpan _rxTimeout = TimeSpan.FromMinutes(1);
-        private bool _asyncMessageParse = false;
+        private long _maxMessageSize = long.MaxValue;
+        //private bool _asyncMessageParse = false;
         private TaskScheduler _scheduler = null;
 
         public Endpoint()
@@ -45,28 +46,29 @@ namespace SharpRpc
                 lock (LockObject)
                 {
                     ThrowIfImmutable();
+                    CheckGreaterZanZero(value);
                     _rxSegmentSize = value;
                 }
             }
         }
 
-        /// <summary>
-        /// Enabling this option moves message parsing to a separate thread.
-        /// Otherwise, message are parsed in the same thread they are recieved. (Default)
-        /// Improves channel bandwidth in a cost of higher CPU consumption.
-        /// </summary>
-        public bool AsyncMessageParsing
-        {
-            get => _asyncMessageParse;
-            set
-            {
-                lock (LockObject)
-                {
-                    ThrowIfImmutable();
-                    _asyncMessageParse = value;
-                }
-            }
-        }
+        ///// <summary>
+        ///// Enabling this option moves message parsing to a separate thread.
+        ///// Otherwise, message are parsed in the same thread they are recieved. (Default)
+        ///// Improves channel bandwidth in a cost of higher CPU consumption.
+        ///// </summary>
+        //public bool AsyncMessageParsing
+        //{
+        //    get => _asyncMessageParse;
+        //    set
+        //    {
+        //        lock (LockObject)
+        //        {
+        //            ThrowIfImmutable();
+        //            _asyncMessageParse = value;
+        //        }
+        //    }
+        //}
 
         public int TxBufferSegmentSize
         {
@@ -76,7 +78,22 @@ namespace SharpRpc
                 lock (LockObject)
                 {
                     ThrowIfImmutable();
+                    CheckGreaterZanZero(value);
                     _txSegmentSize = value;
+                }
+            }
+        }
+
+        public long MaxMessageSize
+        {
+            get => _maxMessageSize;
+            set
+            {
+                lock (LockObject)
+                {
+                    ThrowIfImmutable();
+                    CheckGreaterZanZero(value);
+                    _maxMessageSize = value;
                 }
             }
         }
@@ -136,6 +153,12 @@ namespace SharpRpc
             }
             else
                 TaskQueue = Task.Factory;
+        }
+
+        private void CheckGreaterZanZero(long value)
+        {
+            if (value <= 0)
+                throw new ArgumentException("A value must be greater than zero.");
         }
     }
 }

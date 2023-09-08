@@ -113,7 +113,7 @@ namespace TestServer
 
             var server = new RpcServer();
             server.AddEndpoint(tcpEndpoint);
-            //server.SetLogger(new ConsoleLogger(false, true));
+            server.SetLogger(new ConsoleLogger(false, true));
             server.Start();
 
             return server;
