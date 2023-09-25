@@ -13,9 +13,10 @@ namespace SharpRpc
     [Flags]
     public enum MessageFlags : byte
     {
-        None                = 0,
-        EndOfMessage        = 1,
-        TotalMask           = 0b1
+        None                = 0b0,
+        EndOfMessage        = 0b1,
+        SeMessage           = 0b10, // simplified encoding
+        TotalMask           = 0b11,
     }
 
     //public enum MessageType
@@ -46,20 +47,15 @@ namespace SharpRpc
 
     internal class HeaderWriter
     {
-        private readonly BitTools _bitConverter = BitTools.Create();
+        private readonly BitTools _bitConverter = BitTools.Instance;
 
-        public int GetMessageHeaderSize(MessageHeader currentHeader)
+        //public int GetMessageHeaderSize(MessageHeader currentHeader)
+        //{
+        //    return MessageHeader.HeaderSize;
+        //}
+
+        public void WriteChunkHeader(byte[] buffer, int offset, ushort chunkSize, MessageFlags flags)
         {
-            return MessageHeader.HeaderSize;
-        }
-
-        public void WriteChunkHeader(byte[] buffer, int offset, ushort chunkSize, bool isEndOfMessage)
-        {
-            var flags = MessageFlags.None;
-
-            if (isEndOfMessage)
-                flags |= MessageFlags.EndOfMessage;
-
             // write flags
             buffer[offset++] = (byte)flags;
 
@@ -70,7 +66,7 @@ namespace SharpRpc
 
     internal class HeaderParser
     {
-        private readonly BitTools _bitConverter = BitTools.Create();
+        private readonly BitTools _bitConverter = BitTools.Instance;
         private readonly byte[] _bytes = new byte[MessageHeader.HeaderSize];
         private int _bytesCount = 0;
         private int _bytesToRead = 0;
@@ -80,6 +76,7 @@ namespace SharpRpc
         public bool IsChunk { get; private set; }
         public ushort ChunkSize { get; private set; }
         public bool IsEoM { get; private set; }
+        public bool IsSeMessage {get; private set; }
         //public int StreamId { get; private set; }
 
         public ParserRetCode ParseNextByte(byte b)
@@ -117,6 +114,7 @@ namespace SharpRpc
 
             IsEoM = (flags & MessageFlags.EndOfMessage) > 0;
             IsChunk = !IsEoM;
+            IsSeMessage = (flags & MessageFlags.SeMessage) > 0;
 
             // read size
             ChunkSize = _bitConverter.ReadUshort(_bytes, ref offset);

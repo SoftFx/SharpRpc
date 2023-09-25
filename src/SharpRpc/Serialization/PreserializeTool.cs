@@ -109,12 +109,13 @@ namespace SharpRpc
             }
 
             #region IBufferWriter<byte>
-#if NET5_0_OR_GREATER
+
             public void Advance(int count)
             {
                 _currentOffset += count;
             }
 
+#if NET5_0_OR_GREATER
             public Memory<byte> GetMemory(int sizeHint = 0)
             {
                 EnsureSpace(sizeHint);
@@ -128,6 +129,17 @@ namespace SharpRpc
             }
 #endif
             #endregion
+
+            public void AdvanceWriteBuffer(int count)
+            {
+                Advance(count);
+            }
+
+            public ArraySegment<byte> AllocateWriteBuffer(int sizeHint = 0)
+            {
+                EnsureSpace(sizeHint);
+                return new ArraySegment<byte>(_currentSegment, _currentOffset, _currentSegment.Length - _currentOffset);
+            }
 
             #region Stream
 
@@ -161,7 +173,7 @@ namespace SharpRpc
                     count -= copySize;
                 }
             }
-            
+
             #endregion
         }
     }

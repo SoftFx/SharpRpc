@@ -85,5 +85,10 @@ namespace SharpRpc.MsTest.MockObjects
         {
             return true;
         }
+
+        public void TrySendBytePage(string callId, ArraySegment<byte> page, Action<RpcResult> onSendCompletedCallback)
+        {
+            
+        }
     }
 }

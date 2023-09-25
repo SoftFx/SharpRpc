@@ -63,7 +63,7 @@ namespace SharpRpc
                 if (IsBlocked)
                     return false;
 
-                return Context.PageSize >= Context.MaxPageSize
+                return Context.QueueSize >= Context.MaxPageSize
                     || Context.IsCompleted;
             }   
         }
@@ -91,9 +91,9 @@ namespace SharpRpc
                 if (WindowFill < 2)
                     return true;
                 else if (WindowFill < 5)
-                    return Context.PageSize >= _firstThreshold || Context.IsCompleted;
+                    return Context.QueueSize >= _firstThreshold || Context.IsCompleted;
                 else
-                    return Context.PageSize >= _secondThreshold || Context.IsCompleted;
+                    return Context.QueueSize >= _secondThreshold || Context.IsCompleted;
             }
         }
     }
@@ -101,9 +101,10 @@ namespace SharpRpc
     internal interface IStreamCoordinatorContext
     {
         object SyncObj { get; }
-        int PageSize { get; }
+        int QueueSize { get; }
         int MaxPageSize { get; }
         int MaxPageCount { get; }
         bool IsCompleted { get; }
     }
 }
+    

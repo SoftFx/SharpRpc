@@ -6,6 +6,7 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 using SharpRpc.Lib;
+using SharpRpc.Streaming;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -36,6 +37,7 @@ namespace SharpRpc
         private readonly Action<RpcResult> _commErrorHandler;
         private readonly Action _connectionRequestHandler;
         private readonly TxTransportFeed _feed;
+        private readonly IRpcSerializer _messageSerializer;
 
         public TxPipeline_NoQueue(string channeldId, ContractDescriptor descriptor, Endpoint config, Action<RpcResult> commErrorHandler, Action connectionRequestHandler)
         {
@@ -44,10 +46,12 @@ namespace SharpRpc
             _commErrorHandler = commErrorHandler;
             _connectionRequestHandler = connectionRequestHandler;
 
+            _messageSerializer = descriptor.SerializationAdapter;
+
             TaskQueue = config.TaskQueue;
             MessageFactory = descriptor.SystemMessages;
 
-            _buffer = new TxBuffer(_lockObj, config.TxBufferSegmentSize, descriptor.SerializationAdapter);
+            _buffer = new TxBuffer(_lockObj, config.TxBufferSegmentSize);
             _bufferSizeThreshold = config.TxBufferSegmentSize * 2;
             _buffer.SpaceFreed += _buffer_SpaceFreed;
 
@@ -94,7 +98,7 @@ namespace SharpRpc
                 _buffer.Lock();
             }
 
-            return ProcessMessage(message);
+            return WriteMessageToBuffer(message);
         }
 
 #if NET5_0_OR_GREATER
@@ -121,7 +125,7 @@ namespace SharpRpc
                 }
             }
 
-            return FwAdapter.WrappResult(ProcessMessage(message));
+            return FwAdapter.WrappResult(WriteMessageToBuffer(message));
         }
 
         public void TrySendAsync(IMessage message, Action<RpcResult> onSendCompletedCallback)
@@ -147,7 +151,34 @@ namespace SharpRpc
                 }
             }
 
-            ProcessMessage(message);
+            WriteMessageToBuffer(message);
+
+            onSendCompletedCallback(RpcResult.Ok);
+        }
+
+        public void TrySendBytePage(string callId, ArraySegment<byte> page, Action<RpcResult> onSendCompletedCallback)
+        {
+            lock (_lockObj)
+            {
+                if (_fault.Code != RpcRetCode.Ok)
+                    onSendCompletedCallback(_fault);
+
+                CheckConnectionFlags();
+
+                if (!CanProcessUserMessage)
+                {
+                    var message = new BinaryStreamPage(callId, page);
+                    _asyncGate.Enqueue(message, onSendCompletedCallback);
+                    return;
+                }
+                else
+                {
+                    _isProcessingItem = true;
+                    _buffer.Lock();
+                }
+            }
+
+            WriteBinStreamPageToBuffer(callId, page);
 
             onSendCompletedCallback(RpcResult.Ok);
         }
@@ -176,7 +207,7 @@ namespace SharpRpc
                 }
             }
 
-            return FwAdapter.WrappResult(ProcessMessage(message));
+            return FwAdapter.WrappResult(WriteMessageToBuffer(message));
         }
 
         private void SendOrForget(ISystemMessage message)
@@ -192,7 +223,7 @@ namespace SharpRpc
                 _buffer.Lock();
             }
 
-            ProcessMessage(message);
+            WriteMessageToBuffer(message);
         }
 
 #if NET5_0_OR_GREATER
@@ -218,7 +249,7 @@ namespace SharpRpc
                 }
             }
 
-            ProcessMessage(message).ThrowIfNotOk();
+            WriteMessageToBuffer(message).ThrowIfNotOk();
 
             return FwAdapter.AsyncVoid;
         }
@@ -252,11 +283,18 @@ namespace SharpRpc
             _connectionRequestHandler();
         }
 
-        private RpcResult ProcessMessage(IMessage msg)
+        private RpcResult WriteMessageToBuffer(IMessage msg)
         {
             try
             {
-                _buffer.WriteMessage(msg);
+                _buffer.StartMessageWrite(false);
+
+                if (msg is IPrebuiltMessage mmsg)
+                    mmsg.WriteTo(0, _buffer);
+                else
+                    _messageSerializer.Serialize(msg, _buffer);
+
+                _buffer.EndMessageWrite();
                 return RpcResult.Ok;
             }
             catch (RpcException rex)
@@ -269,19 +307,48 @@ namespace SharpRpc
             }
             finally
             {
-                //Debug.Assert(!Monitor.IsEntered(_lockObj));
+                EndMessageProcessing();
+            }
+        }
 
-                lock (_lockObj)
+        private RpcResult WriteBinStreamPageToBuffer(string callId, ArraySegment<byte> pageData)
+        {
+            try
+            {
+                _buffer.StartMessageWrite(true);
+                BinaryStreamPage.WriteHeader(_buffer, callId);
+                BinaryStreamPage.WriteBody(_buffer, pageData);
+                _buffer.EndMessageWrite();
+                return RpcResult.Ok;
+            }
+            catch (RpcException rex)
+            {
+                return OnTxError(rex.ToRpcResult());
+            }
+            catch (Exception ex)
+            {
+                return OnTxError(new RpcResult(RpcRetCode.SerializationError, ex.JoinAllMessages()));
+            }
+            finally
+            {
+                EndMessageProcessing();
+            }
+        }
+
+        private void EndMessageProcessing()
+        {
+            //Debug.Assert(!Monitor.IsEntered(_lockObj));
+
+            lock (_lockObj)
+            {
+                _isProcessingItem = false;
+
+                if (!_isClosing)
+                    EnqueueNextItem();
+                else
                 {
-                    _isProcessingItem = false;
-
-                    if (!_isClosing)
-                        EnqueueNextItem();
-                    else
-                    {
-                        if (_asyncGate.UserQueueSize == 0)
-                            CompleteClose();
-                    }
+                    if (_asyncGate.UserQueueSize == 0)
+                        CompleteClose();
                 }
             }
         }
@@ -315,7 +382,7 @@ namespace SharpRpc
                 TaskQueue.StartNew(p =>
                 {
                     var task = (TxAsyncGate.Item)p;
-                    task.OnResult(ProcessMessage(task.Message));
+                    task.OnResult(WriteMessageToBuffer(task.Message));
                 }, nextPending);
             }
             else

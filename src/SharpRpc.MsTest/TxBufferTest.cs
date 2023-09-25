@@ -21,7 +21,8 @@ namespace SharpRpc.MsTest
         public void TxBuffer_NoOverflow()
         {
             var syncObj = new object();
-            var buffer = new TxBuffer(syncObj, 200, new BufferBasedMockSerializer());
+            var serializer = new BufferBasedMockSerializer();
+            var buffer = new TxBuffer(syncObj, 200);
             var msg = MockMessage.Generate(100);
 
             var expectedHeader = new byte[] { 1, 0, 103 };
@@ -29,7 +30,9 @@ namespace SharpRpc.MsTest
             var expectedBytes = expectedHeader.Add(expectedBody);
 
             lock (syncObj) buffer.Lock();
-            buffer.WriteMessage(msg);
+            buffer.StartMessageWrite(false);
+            serializer.Serialize(msg, buffer);
+            buffer.EndMessageWrite();
             var segment = buffer.DequeueNext().GetAwaiter().GetResult();
 
             CollectionAssert.AreEqual(expectedBytes, segment.ToArray());
@@ -45,7 +48,8 @@ namespace SharpRpc.MsTest
             var bodySize2 = messageSize - bodySize1;
 
             var syncObj = new object();
-            var buffer = new TxBuffer(syncObj, segmentSize, new BufferBasedMockSerializer());
+            var serializer = new BufferBasedMockSerializer();
+            var buffer = new TxBuffer(syncObj, segmentSize);
             var msg = MockMessage.Generate(messageSize);
 
             var expectedHeader1 = new byte[] { (byte)MessageFlags.None, 0, (byte)segmentSize };
@@ -57,7 +61,9 @@ namespace SharpRpc.MsTest
             var expectedSegment2 = expectedHeader2.Add(expectedBody2);
 
             lock (syncObj) buffer.Lock();
-            buffer.WriteMessage(msg);
+            buffer.StartMessageWrite(false);
+            serializer.Serialize(msg, buffer);
+            buffer.EndMessageWrite();
 
             var resultingSegments = new List<ArraySegment<byte>>();
             resultingSegments.Add(buffer.DequeueNext().GetAwaiter().GetResult());
@@ -78,7 +84,8 @@ namespace SharpRpc.MsTest
             var bodySize2 = messageSize - bodySize1;
 
             var syncObj = new object();
-            var buffer = new TxBuffer(syncObj, segmentSize, new BufferBasedMockSerializer());
+            var serializer = new BufferBasedMockSerializer();
+            var buffer = new TxBuffer(syncObj, segmentSize);
             var msg = MockPrebuiltMessage.Generate(messageSize);
 
             var expectedHeader1 = new byte[] { (byte)MessageFlags.None, 0, (byte)segmentSize };
@@ -90,7 +97,9 @@ namespace SharpRpc.MsTest
             var expectedSegment2 = expectedHeader2.Add(expectedBody2);
 
             lock (syncObj) buffer.Lock();
-            buffer.WriteMessage(msg);
+            buffer.StartMessageWrite(false);
+            serializer.Serialize(msg, buffer);
+            buffer.EndMessageWrite();
 
             var resultingSegments = new List<ArraySegment<byte>>();
             resultingSegments.Add(buffer.DequeueNext().GetAwaiter().GetResult());

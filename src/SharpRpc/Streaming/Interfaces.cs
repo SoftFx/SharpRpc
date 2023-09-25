@@ -30,7 +30,7 @@ namespace SharpRpc
         ushort? WindowSize { get; set; }
     }
 
-    public interface IStreamAuxMessage : IInteropMessage
+    public interface IStreamAuxMessage : IGeneratedInteropMessage
     {
         //string StreamId { get; }
     }
@@ -105,5 +105,23 @@ namespace SharpRpc
         Task<RpcResult> CompleteAsync();
 
         void EnableCancellation(CancellationToken cancelToken);
+    }
+
+    internal interface IStreamWriterFixture<T> : StreamWriter<T>
+    {
+        Task Closed { get; }
+
+        void AllowSend();
+        void Abort(RpcResult fault);
+        bool OnMessage(IInteropMessage auxMessage, out RpcResult result);
+    }
+
+    internal interface IStreamReaderFixture<T> : StreamReader<T>
+    {
+        Task Closed { get; }
+
+        void Abort(RpcResult fault);
+        void Cancel(bool dropRemItems);
+        bool OnMessage(IInteropMessage auxMessage, out RpcResult result);
     }
 }

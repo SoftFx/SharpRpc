@@ -20,6 +20,7 @@ namespace SharpRpc
             private int _headerPos;
             private HeaderWriter _writer = new HeaderWriter();
             private bool _isChunkOpened;
+            private bool _isSeMessage;
 
             public MessageMarker(TxBuffer buffer)
             {
@@ -28,8 +29,9 @@ namespace SharpRpc
 
             //public bool IsWritingMessage { get; private set; }
 
-            public void OnMessageStart()
+            public void OnMessageStart(bool isSeMessage)
             {
+                _isSeMessage = isSeMessage;
                 //_currentHeader = header;
                 //IsWritingMessage = true;
             }
@@ -75,7 +77,15 @@ namespace SharpRpc
                 var segment = _buffer.CurrentSegment;
                 var chunkSize = (ushort)(_buffer.CurrentOffset - _headerPos);
 
-                _writer.WriteChunkHeader(segment, _headerPos, chunkSize, isEoM);
+                var flags = MessageFlags.None;
+
+                if (isEoM)
+                    flags |= MessageFlags.EndOfMessage;
+
+                if (_isSeMessage)
+                    flags |= MessageFlags.SeMessage;
+
+                _writer.WriteChunkHeader(segment, _headerPos, chunkSize, flags);
             }
 
             //private int CalcChunkCapacity()

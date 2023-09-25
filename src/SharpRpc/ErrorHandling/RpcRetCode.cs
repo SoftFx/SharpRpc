@@ -43,6 +43,7 @@ namespace SharpRpc
         HostUnreachable = 33,
         ConnectionRefused = 34,
         MaxMessageSizeReached = 35,
+        InvalidOperation = 36,
 
         RequestFault = 50,
 

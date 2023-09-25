@@ -8,10 +8,12 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using SharpRpc;
+using SharpRpc.Streaming;
 
 namespace TestCommon
 {
@@ -247,6 +249,40 @@ namespace TestCommon
                 await outputStream.CompleteAsync();
 
             return context.CancellationToken.IsCancellationRequested ? -1 : 0;
+        }
+
+#if NET5_0_OR_GREATER
+        public async override ValueTask<StreamCallResult> TestOutBinStream(CallContext context, StreamWriter<byte> outputStream, string fileName, StreamTestOptions options)
+#else
+        public async override Task<StreamCallResult> TestOutBinStream(CallContext context, StreamWriter<byte> outputStream, string fileName, StreamTestOptions options)
+#endif
+        {
+            if (options == StreamTestOptions.JustExit)
+                return new StreamCallResult(StreamCallExitCode.ImmediateExit, 0);
+            else if (options == StreamTestOptions.ImmediateFault)
+                throw new RpcFaultException("Test fault");
+            else if (options == StreamTestOptions.ImmediateCustomFault)
+                throw RpcFaultException.Create(new TestFault1());
+
+            using (var fileStream = new FileStream(fileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            {
+                var wResult = await outputStream.TryWriteAllAsync(fileStream);
+
+                if (!wResult.IsOk)
+                {
+                    if (wResult.Code == RpcRetCode.OperationCanceled)
+                        return new StreamCallResult(StreamCallExitCode.StreamWriteCancelled, 0);
+                    else if (wResult.Code == RpcRetCode.StreamCompleted)
+                        return new StreamCallResult(StreamCallExitCode.StreamCompleted, 0);
+                    else
+                        return new StreamCallResult(StreamCallExitCode.Error, 0);
+                }
+            }
+
+            if (options == StreamTestOptions.InvokeCompletion)
+                await outputStream.CompleteAsync();
+
+            return new StreamCallResult(StreamCallExitCode.StreamCompleted, 0);
         }
 
 #if NET5_0_OR_GREATER

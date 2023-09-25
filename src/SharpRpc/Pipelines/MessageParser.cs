@@ -28,8 +28,9 @@ namespace SharpRpc
 
         // message size plus size of all headers
         public long MessageBrutto { get; private set; }
-
+        public long MessageSize { get; private set; }
         public long MaxMessageSize { get; set; } = long.MaxValue;
+        public bool IsSeMessage { get; private set; }
 
         public void SetNextSegment(ArraySegment<byte> segment)
         {
@@ -45,16 +46,13 @@ namespace SharpRpc
                 {
                     _messageFragments.Clear();
                     MessageBrutto = 0;
+                    MessageSize = 0;
                     _phase = States.Header;
                 }
 
                 if (_phase == States.Header || _phase == States.ChunkHeader)
                 {
-#if NET5_0_OR_GREATER
-                    var rCode = _headerParser.ParseNextByte(_segment[_segmentOffset++]);
-#else
                     var rCode = _headerParser.ParseNextByte(_segment.Array[_segment.Offset + _segmentOffset++]);
-#endif
 
                     if (rCode == ParserRetCode.Error)
                         return RetCodes.InvalidHeader;
@@ -63,10 +61,8 @@ namespace SharpRpc
 
                     if (rCode == ParserRetCode.Complete)
                     {
-                        if (_phase == States.ChunkHeader)
-                        {
-                            // TO DO : check
-                        }
+                        if (_phase == States.Header)
+                            IsSeMessage = _headerParser.IsSeMessage;
 
                         _phase = States.Body;
                         _specifiedChunkSize = _headerParser.ChunkSize;
@@ -81,9 +77,10 @@ namespace SharpRpc
                     AddMessageFragment(_segment, _segmentOffset, fragmentSize);
                     _currentChunkSize += fragmentSize;
                     MessageBrutto += fragmentSize;
+                    MessageSize += fragmentSize;
                     _segmentOffset += fragmentSize;
 
-                    if (MessageBrutto > MaxMessageSize)
+                    if (MessageSize > MaxMessageSize)
                         return RetCodes.MaxMessageSizeReached;
 
                     if (_currentChunkSize == _specifiedChunkSize)

@@ -6,6 +6,7 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 using SharpRpc.Disptaching;
+using SharpRpc.Streaming;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -24,6 +25,8 @@ namespace SharpRpc
 
     public class ServiceStreamingCallContext<TInItem, TOutItem> : IStreamContext, IDispatcherOperation
     {
+        private readonly IStreamReaderFixture<TInItem> _reader;
+        private readonly IStreamWriterFixture<TOutItem> _writer;
         private readonly CancellationTokenSource _cancelSrc;
 
         internal ServiceStreamingCallContext(IOpenStreamRequest request, TxPipeline msgTx, IDispatcher dispatcher,
@@ -43,20 +46,17 @@ namespace SharpRpc
                 CancellationToken = CancellationToken.None;
 
             if (inFactory != null)
-                InputStream = new ObjectStreamReader<TInItem>(CallId, msgTx, inFactory, dispatcher.Logger);
+                _reader = RpcStreams.CreateReader(CallId, msgTx, inFactory, dispatcher.Logger);
 
             if (outFactory != null)
-            {
-                OutputStream = new ObjectStreamWriter<TOutItem>(CallId, msgTx, outFactory, true,
-                    new StreamOptions(request), dispatcher.Logger);
-            }
+                _writer = RpcStreams.CreateWriter(CallId, msgTx, outFactory, true, new StreamOptions(request), dispatcher.Logger);
 
             dispatcher.Register(this);
         }
 
         public string CallId { get; }
-        public ObjectStreamReader<TInItem> InputStream { get; }
-        public ObjectStreamWriter<TOutItem> OutputStream { get; }
+        public StreamReader<TInItem> InputStream => _reader;
+        public StreamWriter<TOutItem> OutputStream => _writer;
         public IRequestMessage RequestMessage { get; }
         public CancellationToken CancellationToken { get; }
 
@@ -65,7 +65,7 @@ namespace SharpRpc
         public async Task Close(Channel ch)
         {
             // Cancel the stream reader. Since the execution of the handler is ended, and no one is reading the stream.
-            InputStream?.Cancel(true);
+            _reader?.Cancel(true);
 
             if (OutputStream != null)
                 await OutputStream.CompleteAsync();
@@ -75,41 +75,27 @@ namespace SharpRpc
 
         public void Abort(RpcResult fault)
         {
-            InputStream?.Abort(fault);
-            OutputStream?.Abort(fault);
+            _reader?.Abort(fault);
+            _writer?.Abort(fault);
         }
 
         RpcResult IDispatcherOperation.OnUpdate(IInteropMessage auxMessage)
         {
             //System.Diagnostics.Debug.WriteLine("RX " + CallId + " A.MSG " + auxMessage.GetType().Name);
 
-            if (auxMessage is IStreamPage<TInItem> page)
+            if (_writer != null)
             {
-                InputStream.OnRx(page);
-                return RpcResult.Ok;
-            }
-            else if (auxMessage is IStreamCloseMessage closeMsg)
-            {
-                InputStream.OnRx(closeMsg);
-                return RpcResult.Ok;
-            }
-            else if (auxMessage is IStreamCancelMessage cancelMsg)
-            {
-                OutputStream.OnRx(cancelMsg);
-                return RpcResult.Ok;
-            }
-            else if (auxMessage is IStreamPageAck ack)
-            {
-                OutputStream.OnRx(ack);
-                return RpcResult.Ok;
-            }
-            else if (auxMessage is ICancelRequestMessage)
-            {
-                _cancelSrc?.Cancel();
-                InputStream?.Abort(RpcResult.Ok);
+                if (_writer.OnMessage(auxMessage, out var result))
+                    return result;
             }
 
-            return new RpcResult(RpcRetCode.ProtocolViolation, "");
+            if (_reader != null)
+            {
+                if (_reader.OnMessage(auxMessage, out var result))
+                    return result;
+            }
+
+            return RpcResult.UnexpectedMessage(auxMessage.GetType(), GetType());
         }
 
         void IDispatcherOperation.OnRequestCancelled() { }

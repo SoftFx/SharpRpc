@@ -6,6 +6,7 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 using SharpRpc.Lib;
+using SharpRpc.Serialization;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -13,24 +14,32 @@ using System.Text;
 
 namespace SharpRpc
 {
-    internal class RxMessageReader : Stream, MessageReader
+    internal class RxMessageReader : Stream, MessageReader, ISegmetedBufferEnumerator
     {
         private IReadOnlyList<ArraySegment<byte>> _data;
+        private ArraySegment<byte> _currSegmet;
         private int _currSegmentNo;
-        private int _currOffset;
+        private int _currIndex;
+
+        public RxMessageReader()
+        {
+            Se = new SimplifiedDecoder(this);
+        }
 
 #if NET5_0_OR_GREATER
         private readonly BufferSequence<byte> _bsAdapter = new BufferSequence<byte>();
 #endif
 
-        public void Init(IReadOnlyList<ArraySegment<byte>> segments)
+        public void Init(IReadOnlyList<ArraySegment<byte>> segments, long messageSize)
         {
 #if NET5_0_OR_GREATER
             _bsAdapter.AddRange(segments);
 #endif
+            MessageSize = messageSize;
             _data = segments;
             _currSegmentNo = 0;
-            _currOffset = 0;
+            _currIndex = 0;
+            _currSegmet = segments[0];
         }
 
         //public int MsgSize => _bsAdapter.Count;
@@ -46,7 +55,43 @@ namespace SharpRpc
         public System.Buffers.ReadOnlySequence<byte> ByteBuffer => _bsAdapter.GetSequence();
 #endif
 
+        public long MessageSize { get; private set; }
+        //public IReadOnlyList<ArraySegment<byte>> RawData => _data;
+        public SimplifiedDecoder Se { get; }
         public Stream ByteStream => this;
+
+        private void GetNextSegmentIfRequired()
+        {
+            if (_currIndex >= _currSegmet.Count)
+                GetNextSegment();
+        }
+
+        private void GetNextSegment()
+        {
+            _currSegmentNo++;
+            _currIndex = 0;
+
+            if (_currSegmentNo < _data.Count)
+                _currSegmet = _data[_currSegmentNo];
+            else
+                _currSegmet = default;
+        }
+
+        private void AdvancePosition(int byValue)
+        {
+            _currIndex += byValue;
+            GetNextSegmentIfRequired();
+        }
+
+        #region ISegmetedBufferEnumerator
+
+        byte[] ISegmetedBufferEnumerator.Page => _currSegmet.Array;
+        int ISegmetedBufferEnumerator.PageSize => _currSegmet.Count;
+        int ISegmetedBufferEnumerator.PageOffset => _currSegmet.Offset;
+        int ISegmetedBufferEnumerator.PageIndex => _currIndex;
+        void ISegmetedBufferEnumerator.Advance(int value) => AdvancePosition(value);
+
+        #endregion
 
         #region Stream implementation
 
@@ -67,27 +112,19 @@ namespace SharpRpc
 
             while (count > 0)
             {
-                if (_currSegmentNo >= _data.Count)
+                if (_currSegmet.Array == null)
                     return copied;
 
-                var currSegment = _data[_currSegmentNo];
-                var dataLeftInSegment = currSegment.Count - _currOffset;
-                var toCopy = Math.Min(count, dataLeftInSegment);
+                var dataLeftInSegment = _currSegmet.Count - _currIndex;
+                var copySize = Math.Min(count, dataLeftInSegment);
 
-                Array.Copy(currSegment.Array, currSegment.Offset + _currOffset, buffer, offset, toCopy);
+                Array.Copy(_currSegmet.Array, _currSegmet.Offset + _currIndex, buffer, offset, copySize);
 
-                copied += toCopy;
-                offset += toCopy;
-                count -= toCopy;
+                copied += copySize;
+                offset += copySize;
+                count -= copySize;
 
-                if (toCopy == dataLeftInSegment)
-                {
-                    _currSegmentNo++;
-                    _currOffset = 0;
-                }
-                else
-                    _currOffset += toCopy;
-
+                AdvancePosition(copySize);
             }
 
             return copied;
@@ -108,6 +145,6 @@ namespace SharpRpc
             throw new NotSupportedException();
         }
 
-#endregion
+        #endregion
     }
 }

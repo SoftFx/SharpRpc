@@ -31,11 +31,10 @@ namespace SharpRpc
         private readonly SlimAwaitable<ArraySegment<byte>> _dequeueWaitHandle;
         private bool _isDequeueAwaited;
         //private readonly Action _dataArrivedEvent;
-        private readonly IRpcSerializer _serializer;
         private ArraySegment<byte> _dequeuedSegment;
         private bool _isClosed;
 
-        public TxBuffer(object lockObj, int segmentSize, IRpcSerializer serializer)
+        public TxBuffer(object lockObj, int segmentSize)
         {
             _lockObj = lockObj;
 
@@ -43,8 +42,6 @@ namespace SharpRpc
 
             //if (segmentSize > ushort.MaxValue)
             //    throw new ArgumentException("Segment size must be less than " + ushort.MaxValue + ".");
-
-            _serializer = serializer;
 
             //_dataArrivedEvent = dataArrivedCallback;
 
@@ -84,21 +81,17 @@ namespace SharpRpc
             IsCurrentSegmentLocked = true;
         }
 
-        public void WriteMessage(IMessage message)
+        public void StartMessageWrite(bool isSimplEncoding)
         {
             Debug.Assert(!Monitor.IsEntered(_lockObj));
             Debug.Assert(IsCurrentSegmentLocked);
 
-            _marker.OnMessageStart();
+            _marker.OnMessageStart(isSimplEncoding);
+        }
 
-            if (message is IPrebuiltMessage mmsg)
-                mmsg.WriteTo(0, this);
-            else
-                _serializer.Serialize(message, this);
-
+        public void EndMessageWrite()
+        {
             _marker.OnMessageEnd();
-
-            //DequeueRequest toSignal = null;
 
             lock (_lockObj)
             {
@@ -108,8 +101,6 @@ namespace SharpRpc
                 ApplyCurrentDataSize();
                 SignalDataAvailable();
             }
-
-            //toSignal?.Signal();
         }
 
         // should be called under lock
@@ -184,12 +175,13 @@ namespace SharpRpc
         }
 
         #region IBufferWriter implementation
-#if NET5_0_OR_GREATER
+
         public void Advance(int count)
         {
             MoveOffset(count);
         }
 
+#if NET5_0_OR_GREATER
         public Memory<byte> GetMemory(int sizeHint = 0)
         {
             EnsureSpace(sizeHint);
@@ -203,6 +195,17 @@ namespace SharpRpc
         }
 #endif
         #endregion
+
+        public void AdvanceWriteBuffer(int count)
+        {
+            Advance(count);
+        }
+
+        public ArraySegment<byte> AllocateWriteBuffer(int sizeHint = 0)
+        {
+            EnsureSpace(sizeHint);
+            return new ArraySegment<byte>(CurrentSegment, CurrentOffset, SegmentSize - CurrentOffset);
+        }
 
         private void EnsureSpace(int sizeHint)
         {

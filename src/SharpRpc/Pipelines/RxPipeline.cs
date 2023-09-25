@@ -6,6 +6,7 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 using SharpRpc.Lib;
+using SharpRpc.Streaming;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -103,10 +104,15 @@ namespace SharpRpc
                     return;
                 }
 
-                await OnBytesArrived(byteCount);
-
-                //if (!await OnBytesArrived(byteCount))
-                //    break;
+                try
+                {
+                    await OnBytesArrived(byteCount);
+                }
+                catch (Exception ex)
+                {
+                    OnCommunicationError(new RpcResult(RpcRetCode.UnknownError, "An exception has occurred in the message parser!", ex.Message));
+                    return;
+                }
             }
         }
 
@@ -134,9 +140,9 @@ namespace SharpRpc
                 }
                 else if (pCode == MessageParser.RetCodes.MessageParsed)
                 {
-                    _reader.Init(_parser.MessageBody);
+                    _reader.Init(_parser.MessageBody, _parser.MessageSize);
 
-                    var result = DeserializeMessage(container);
+                    var result = _parser.IsSeMessage ? DeserializeSimplifiedMessage(container) : DeserializeMessage(container);
 
                     if (!result.IsOk)
                         return result;
@@ -180,6 +186,29 @@ namespace SharpRpc
                 }
 
                 return RpcResult.Ok;
+            }
+            catch (Exception ex)
+            {
+                return new RpcResult(RpcRetCode.DeserializationError, ex.JoinAllMessages());
+            }
+        }
+
+        private RpcResult DeserializeSimplifiedMessage(List<IMessage> container)
+        {
+            try
+            {
+                if (!_reader.Se.TryReadByte(out var msgTypeCode))
+                    return new RpcResult(RpcRetCode.MessageMarkupError, "");
+
+                if (msgTypeCode == 1)
+                {
+                    var parseResult = BinaryStreamPage.Read(_reader, out var pageMsg);
+                    if (parseResult.IsOk)
+                        container.Add(pageMsg);
+                    return parseResult;
+                }
+                else
+                    return new RpcResult(RpcRetCode.MessageMarkupError, "");
             }
             catch (Exception ex)
             {

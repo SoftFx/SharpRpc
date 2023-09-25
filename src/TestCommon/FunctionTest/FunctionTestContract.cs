@@ -78,6 +78,10 @@ namespace TestCommon
 
         [RpcContract(17, RpcType.Call)]
         string GetSessionSharedProperty(string name);
+
+        [RpcContract(18, RpcType.Call)]
+        [RpcStreamOutput(typeof(byte))]
+        StreamCallResult TestOutBinStream(string fileName, StreamTestOptions options);
     }
 
     public enum StreamTestOptions

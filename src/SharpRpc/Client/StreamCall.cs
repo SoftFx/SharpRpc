@@ -6,6 +6,7 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 using SharpRpc.Disptaching;
+using SharpRpc.Streaming;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -63,8 +64,8 @@ namespace SharpRpc
         private readonly TaskCompletionSource<RpcResult<TReturn>> _typedCompletion;
         private readonly TaskCompletionSource<RpcResult> _voidCompletion;
 
-        private readonly ObjectStreamWriter<TInItem> _writer;
-        private readonly ObjectStreamReader<TOutItem> _reader;
+        private readonly IStreamWriterFixture<TInItem> _writer;
+        private readonly IStreamReaderFixture<TOutItem> _reader;
 
         private readonly IOpenStreamRequest _requestMessage;
         private readonly IDispatcher _dispatcher;
@@ -83,11 +84,11 @@ namespace SharpRpc
             CallId = dispatcher.GenerateOperationId();
 
             if (inFactory != null)
-                _writer = new ObjectStreamWriter<TInItem>(CallId, msgTransmitter, inFactory, false, inputOptions, dispatcher.Logger);
+                _writer = RpcStreams.CreateWriter(CallId, msgTransmitter, inFactory, false, inputOptions, dispatcher.Logger);
 
             if (outFactory != null)
             {
-                _reader = new ObjectStreamReader<TOutItem>(CallId, msgTransmitter, outFactory, dispatcher.Logger);
+                _reader = RpcStreams.CreateReader(CallId, msgTransmitter, outFactory, dispatcher.Logger);
                 _requestMessage.WindowSize = inputOptions?.WindowSize ?? StreamOptions.DefaultWindowsSize;
             }
 
@@ -197,39 +198,16 @@ namespace SharpRpc
 
         RpcResult IDispatcherOperation.OnUpdate(IInteropMessage auxMessage)
         {
-            if (auxMessage is IStreamPage<TOutItem> page)
+            if (_writer != null)
             {
-                if (_reader == null)
-                    return RpcResult.UnexpectedMessage(auxMessage.GetType(), GetType());
-                _reader.OnRx(page);
-                return RpcResult.Ok;
+                if (_writer.OnMessage(auxMessage, out var result))
+                    return result;
             }
-            else if (auxMessage is IStreamCloseMessage closeMsg)
+
+            if (_reader != null)
             {
-                if (_reader == null)
-                    return RpcResult.UnexpectedMessage(auxMessage.GetType(), GetType());
-                _reader.OnRx(closeMsg);
-                return RpcResult.Ok;
-            }
-            else if (auxMessage is IStreamCloseAckMessage closeAckMsg)
-            {
-                if (_writer == null)
-                    return RpcResult.UnexpectedMessage(auxMessage.GetType(), GetType());
-                return _writer.OnRx(closeAckMsg);
-            }
-            else if (auxMessage is IStreamCancelMessage complRequest)
-            {
-                if (_writer == null)
-                    return RpcResult.UnexpectedMessage(auxMessage.GetType(), GetType());
-                _writer.OnRx(complRequest);
-                return RpcResult.Ok;
-            }
-            else if (auxMessage is IStreamPageAck ack)
-            {
-                if (_writer == null)
-                    return RpcResult.UnexpectedMessage(auxMessage.GetType(), GetType());
-                _writer.OnRx(ack);
-                return RpcResult.Ok;
+                if (_reader.OnMessage(auxMessage, out var result))
+                    return result;
             }
 
             return RpcResult.UnexpectedMessage(auxMessage.GetType(), GetType());

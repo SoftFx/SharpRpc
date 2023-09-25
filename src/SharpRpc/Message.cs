@@ -21,12 +21,22 @@ namespace SharpRpc
         void WriteTo(ushort serializedId, MessageWriter writer);
     }
 
-    public interface IInteropMessage : IMessage
+    public interface IBinaryMessage : IMessage
     {
-        string CallId { get; set; }
+        void WriteTo(MessageWriter writer);
     }
 
-    public interface IRequestMessage : IInteropMessage
+    public interface IInteropMessage : IMessage
+    {
+        string CallId { get; }
+    }
+
+    public interface IGeneratedInteropMessage : IInteropMessage
+    {
+        new string CallId { get; set; }
+    }
+
+    public interface IRequestMessage : IGeneratedInteropMessage
     {
         RequestOptions Options { get; set; }
     }
@@ -38,7 +48,7 @@ namespace SharpRpc
         CancellationEnabled = 1
     }
 
-    public interface IResponseMessage : IInteropMessage
+    public interface IResponseMessage : IGeneratedInteropMessage
     {
     }
 
@@ -47,11 +57,11 @@ namespace SharpRpc
         T Result { get; }
     }
 
-    public interface ICancelRequestMessage : IInteropMessage
+    public interface ICancelRequestMessage : IGeneratedInteropMessage
     {
     }
 
-    public interface ICancelStreamingMessage : IInteropMessage
+    public interface ICancelStreamingMessage : IGeneratedInteropMessage
     {
     }
 
@@ -78,6 +88,9 @@ namespace SharpRpc
         System.Buffers.IBufferWriter<byte> ByteBuffer { get; }
 #endif
         Stream ByteStream { get; }
+
+        void AdvanceWriteBuffer(int count);
+        ArraySegment<byte> AllocateWriteBuffer(int sizeHint = 0);
     }
 
     public interface MessageReader

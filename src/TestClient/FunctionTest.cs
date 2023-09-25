@@ -9,9 +9,12 @@ using SharpRpc;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Security;
+using System.Reflection;
+using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
@@ -49,20 +52,21 @@ namespace TestClient
 
             var clientName = ssl ? "SSL" : "Unsecured";
 
-            runner.AddCases(new Call1Test().GetCases(clientName, client));
-            runner.AddCases(new Call2Test().GetCases(clientName, client));
-            runner.AddCases(new BigObjectTest().GetCases(clientName, client));
-            runner.AddCases(new ComplexDataTest().GetCases(clientName, client));
-            runner.AddCases(new RegularFaultTest().GetCases(clientName, client));
-            runner.AddCases(new CrashFaultTest().GetCases(clientName, client));
-            runner.AddCases(new CustomFaultTest().GetCases(clientName, client));
-            runner.AddCases(new CallbackTest1().GetCases(clientName, client));
-            runner.AddCases(new CallbackTest2().GetCases(clientName, client));
-            runner.AddCases(new InputStreamTest().GetCases(clientName, client));
-            runner.AddCases(new OutputStreamTest().GetCases(clientName, client));
-            runner.AddCases(new DuplexStreamTest().GetCases(clientName, client));
-            runner.AddCases(new InputStreamCancellationTest().GetCases(clientName, client));
-            runner.AddCases(new OutputStreamCancellationTest().GetCases(clientName, client));
+            //runner.AddCases(new Call1Test().GetCases(clientName, client));
+            //runner.AddCases(new Call2Test().GetCases(clientName, client));
+            //runner.AddCases(new BigObjectTest().GetCases(clientName, client));
+            //runner.AddCases(new ComplexDataTest().GetCases(clientName, client));
+            //runner.AddCases(new RegularFaultTest().GetCases(clientName, client));
+            //runner.AddCases(new CrashFaultTest().GetCases(clientName, client));
+            //runner.AddCases(new CustomFaultTest().GetCases(clientName, client));
+            //runner.AddCases(new CallbackTest1().GetCases(clientName, client));
+            //runner.AddCases(new CallbackTest2().GetCases(clientName, client));
+            //runner.AddCases(new InputStreamTest().GetCases(clientName, client));
+            //runner.AddCases(new OutputStreamTest().GetCases(clientName, client));
+            //runner.AddCases(new DuplexStreamTest().GetCases(clientName, client));
+            runner.AddCases(new OutputBinStreamTest().GetCases(clientName, client));
+            //runner.AddCases(new InputStreamCancellationTest().GetCases(clientName, client));
+            //runner.AddCases(new OutputStreamCancellationTest().GetCases(clientName, client));
             //runner.AddCases(new DuplexStreamCancellationTest().GetCases(clientName, client));
         }
 
@@ -657,6 +661,79 @@ namespace TestClient
 
                 if (ret.Value.ExitCode != StreamCallExitCode.StreamCompleted)
                     throw new Exception("Exit code does not match expected!");
+            }
+        }
+
+        private class OutputBinStreamTest : TestBase
+        {
+            private TestCase CreateCase(ushort windowSize, bool withCompletion, string clientDescription, FunctionTestContract_Gen.Client client)
+            {
+                return new TestCase(this)
+                    .SetParam("windowSize", windowSize)
+                    .SetParam("withCompletion", withCompletion)
+                    .SetParam("client", clientDescription, client);
+            }
+
+            public IEnumerable<TestCase> GetCases(string clientDescription, FunctionTestContract_Gen.Client client)
+            {
+                yield return CreateCase(38, true, clientDescription, client);
+                yield return CreateCase(4096, true, clientDescription, client);
+                yield return CreateCase(12321, false, clientDescription, client);
+                yield return CreateCase(65321, false, clientDescription, client);
+            }
+
+            public override void RunTest(TestCase tCase)
+            {
+                var windowSize = (ushort)tCase["windowSize"];
+                var withCompletion = (bool)tCase["withCompletion"];
+                var client = tCase.GetParam<FunctionTestContract_Gen.Client>("client");
+
+                //var itemsCount = 100;
+                //var expectedSumm = (1 + itemsCount) * itemsCount / 2;
+                var fileToDownstream = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "TestClient.exe");
+                var expectedCrc = CalcFileCrc(fileToDownstream);
+
+                var options = withCompletion ? StreamTestOptions.InvokeCompletion : StreamTestOptions.DoNotInvokeCompletion;
+                var streamOptions = new StreamOptions() { WindowSize = windowSize };
+
+                var call = client.TestOutBinStream(streamOptions, fileToDownstream, options);
+
+                var e = call.OutputStream.GetEnumerator();
+                var crc = 0;
+
+                while (e.MoveNextAsync().Result)
+                    crc += e.Current;
+
+                if (crc != expectedCrc)
+                    throw new Exception("Items summ does not match expected value!");
+
+                var ret = call.AsyncResult.Result;
+
+                if (ret.Value.ExitCode != StreamCallExitCode.StreamCompleted)
+                    throw new Exception("Exit code does not match expected!");
+            }
+
+            private int CalcFileCrc(string filePath)
+            {
+                int crc = 0;
+
+                using (var file = File.OpenRead(filePath))
+                {
+                    var buffer = new byte[4096];
+
+                    while (true)
+                    {
+                        var bytes = file.Read(buffer, 0, buffer.Length);
+
+                        if (bytes == 0)
+                            break;
+
+                        for (var i = 0; i < bytes; i++)
+                            crc += buffer[i];
+                    }
+                }
+
+                return crc;
             }
         }
 

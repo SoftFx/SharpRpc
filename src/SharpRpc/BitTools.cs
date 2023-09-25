@@ -14,7 +14,9 @@ namespace SharpRpc
 {
     internal abstract class BitTools
     {
-        public static BitTools Create()
+        public static BitTools Instance { get; } = Create();
+
+        private static BitTools Create()
         {
             if (BitConverter.IsLittleEndian)
                 return new LeTools();
@@ -27,6 +29,8 @@ namespace SharpRpc
 
         public abstract ushort ReadUshort(byte[] buffer, ref int offset);
         public abstract int ReadInt(byte[] buffer, ref int offset);
+
+        public abstract ushort GetUshort(byte byte1, byte byte2);
 
         private class BeTools : BitTools
         {
@@ -42,6 +46,14 @@ namespace SharpRpc
                 var proxy = new UhsortProxy();
                 proxy.Byte1 = buffer[offset++];
                 proxy.Byte2 = buffer[offset++];
+                return proxy.Value;
+            }
+
+            public override ushort GetUshort(byte byte1, byte byte2)
+            {
+                var proxy = new UhsortProxy();
+                proxy.Byte1 = byte1;
+                proxy.Byte2 = byte2;
                 return proxy.Value;
             }
 
@@ -79,6 +91,14 @@ namespace SharpRpc
                 var proxy = new UhsortProxy();
                 proxy.Byte2 = buffer[offset++];
                 proxy.Byte1 = buffer[offset++];
+                return proxy.Value;
+            }
+
+            public override ushort GetUshort(byte byte1, byte byte2)
+            {
+                var proxy = new UhsortProxy();
+                proxy.Byte2 = byte1;
+                proxy.Byte1 = byte2;
                 return proxy.Value;
             }
 
