@@ -112,7 +112,7 @@ namespace SharpRpc.Streaming
 
         protected override ArraySegment<byte> ReserveBulkWriteBuffer()
         {
-            var availableSpace = _queue.Array.Length - _queue.Count - _queue.Offset;
+            var availableSpace = MaxPageSize - _queue.Count;
             return new ArraySegment<byte>(_queue.Array, _queue.Offset + _queue.Count, availableSpace);
         }
 

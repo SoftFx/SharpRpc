@@ -6,6 +6,7 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 using System;
+using System.Buffers;
 using System.Text;
 
 namespace SharpRpc.Serialization
@@ -48,10 +49,16 @@ namespace SharpRpc.Serialization
             }
         }
 
-        public bool TryReadByteArray(long count, out byte[] bytes)
+        public bool TryReadByteArray(int count, out byte[] bytes)
         {
             bytes = new byte[count];
             return TryReadByteArray(new ArraySegment<byte>(bytes));
+        }
+
+        public bool TryReadByteArray(int count, out byte[] bytes, ArrayPool<byte> memorySrc)
+        {
+            bytes = memorySrc.Rent(count);
+            return TryReadByteArray(new ArraySegment<byte>(bytes, 0, count));
         }
 
         public bool TryReadByteArray(ArraySegment<byte> targetBuffer)
@@ -61,6 +68,9 @@ namespace SharpRpc.Serialization
 
             while (toRead > 0)
             {
+                if (_enumator.Page == null)
+                    return false;
+
                 var bytesLeftInSegment = _enumator.PageSize - _enumator.PageIndex;
                 var copySize = Math.Min(bytesLeftInSegment, toRead);
                 Array.Copy(_enumator.Page, _enumator.PageOffset + _enumator.PageIndex, targetBuffer.Array, targetBuffer.Offset + index, copySize);

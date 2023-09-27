@@ -7,6 +7,7 @@
 
 using SharpRpc.Serialization;
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -71,10 +72,13 @@ namespace SharpRpc.Streaming
 
             var bodySize = reader.MessageSize - 1 - callIdLen;
 
-            if (!reader.Se.TryReadByteArray(bodySize, out var bytes))
+            if (bodySize > int.MaxValue)
+                return new RpcResult(RpcRetCode.ProtocolViolation, "");
+
+            if (!reader.Se.TryReadByteArray((int)bodySize, out var bytes, ArrayPool<byte>.Shared))
                 return new RpcResult(RpcRetCode.MessageMarkupError, "");
 
-            page = new BinaryStreamPage(callId, new ArraySegment<byte>(bytes));
+            page = new BinaryStreamPage(callId, new ArraySegment<byte>(bytes, 0, (int)bodySize));
             return RpcResult.Ok;
         }
     }

@@ -8,13 +8,14 @@
 using SharpRpc.Disptaching;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
 namespace SharpRpc.Streaming
 {
-    internal static class RpcStreams
+    public static class RpcStreams
     {
         internal static IStreamWriterFixture<T> CreateWriter<T>(string callId, TxPipeline msgTransmitter, IStreamMessageFactory<T> factory,
             bool allowSending, StreamOptions options, IRpcLogger logger)
@@ -31,6 +32,48 @@ namespace SharpRpc.Streaming
                 return (IStreamReaderFixture<T>)new BinaryStreamReader(callId, tx, factory, logger);
             else
                 return new ObjectStreamReader<T>(callId, tx, factory, logger);
+        }
+
+#if NET5_0_OR_GREATER
+        public static async ValueTask<RpcResult> WriteAllAsync(this StreamWriter<byte> writer, Stream stream)
+#else
+        public static async Task<RpcResult> WriteAllAsync(this StreamWriter<byte> writer, Stream stream)
+#endif
+        {
+            var binWriter = (BinaryStreamWriter)writer;
+
+            while (true)
+            {
+                var startResult = await binWriter.StartBulkWrite();
+
+                if (!startResult.IsOk)
+                    return startResult;
+
+                var buffer = startResult.Value;
+                var bytesRead = await stream.ReadAsync(buffer.Array, buffer.Offset, buffer.Count);
+
+                if (bytesRead == 0)
+                    return RpcResult.Ok;
+
+                binWriter.CommitBulkWrite(bytesRead);
+            }
+        }
+
+#if NET5_0_OR_GREATER
+        public static async ValueTask ReadAllAsync(this StreamReader<byte> reader, Stream targetStream)
+#else
+        public static async Task ReadAllAsync(this StreamReader<byte> reader, Stream targetStream)
+#endif
+        {
+            var binReader = (BinaryStreamReader)reader;
+
+            var e = binReader.GetPageEnumerator();
+
+            while (await e.MoveNextAsync())
+            {
+                var segment = e.Current;
+                await targetStream.WriteAsync(segment.Array, segment.Offset, segment.Count);
+            }
         }
     }
 }

@@ -266,7 +266,7 @@ namespace TestCommon
 
             using (var fileStream = new FileStream(fileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
             {
-                var wResult = await outputStream.TryWriteAllAsync(fileStream);
+                var wResult = await outputStream.WriteAllAsync(fileStream);
 
                 if (!wResult.IsOk)
                 {
