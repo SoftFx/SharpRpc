@@ -84,7 +84,6 @@ namespace SharpRpc.MsTest
             var bodySize2 = messageSize - bodySize1;
 
             var syncObj = new object();
-            var serializer = new BufferBasedMockSerializer();
             var buffer = new TxBuffer(syncObj, segmentSize);
             var msg = MockPrebuiltMessage.Generate(messageSize);
 
@@ -98,7 +97,7 @@ namespace SharpRpc.MsTest
 
             lock (syncObj) buffer.Lock();
             buffer.StartMessageWrite(false);
-            serializer.Serialize(msg, buffer);
+            msg.WriteTo(0, buffer);
             buffer.EndMessageWrite();
 
             var resultingSegments = new List<ArraySegment<byte>>();
