@@ -11,6 +11,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace SharpRpc.Streaming
@@ -32,6 +33,16 @@ namespace SharpRpc.Streaming
                 return (IStreamReaderFixture<T>)new BinaryStreamReader(callId, tx, factory, logger);
             else
                 return new ObjectStreamReader<T>(callId, tx, factory, logger);
+        }
+
+        public static IStreamBulkEnumerator<byte> GetBulkEnumerator(this StreamReader<byte> reader)
+        {
+            return GetBulkEnumerator(reader, CancellationToken.None);
+        }
+
+        public static IStreamBulkEnumerator<byte> GetBulkEnumerator(this StreamReader<byte> reader, CancellationToken cToken)
+        {
+            return ((BinaryStreamReader)reader).GetBulkEnumeratorInternal(cToken);
         }
 
 #if NET5_0_OR_GREATER
@@ -67,12 +78,13 @@ namespace SharpRpc.Streaming
         {
             var binReader = (BinaryStreamReader)reader;
 
-            var e = binReader.GetPageEnumerator();
-
-            while (await e.MoveNextAsync())
+            using (var e = binReader.GetPageEnumerator())
             {
-                var segment = e.Current;
-                await targetStream.WriteAsync(segment.Array, segment.Offset, segment.Count);
+                while (await e.MoveNextAsync())
+                {
+                    var segment = e.Current;
+                    await targetStream.WriteAsync(segment.Array, segment.Offset, segment.Count);
+                }
             }
         }
     }

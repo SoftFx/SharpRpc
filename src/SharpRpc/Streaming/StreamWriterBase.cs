@@ -179,7 +179,7 @@ namespace SharpRpc
                 if (HasSpaceInQueue)
                 {
                     var buffer = ReserveBulkWriteBuffer();
-                    return FwAdapter.WrappResult(RpcResult.FromResult(buffer));
+                    return FwAdapter.WrappResult(RpcResult.Result(buffer));
                 }
                 else
                 {
@@ -211,6 +211,42 @@ namespace SharpRpc
 
             if (sendNextPage)
                 SendNextPage();
+        }
+
+#if NET5_0_OR_GREATER
+        public async ValueTask<RpcResult> BulkWrite(ReadOnlyMemory<T> items)
+        {
+            var index = 0;
+            var leftToCopy = items.Length;
+#else
+        public async Task<RpcResult> BulkWrite(ArraySegment<T> items)
+        {
+            var index = items.Offset;
+            var leftToCopy = items.Count;
+#endif
+
+            while (leftToCopy > 0)
+            {
+                var bulk = await StartBulkWrite();
+
+                if (!bulk.IsOk)
+                    return bulk;
+
+                var copySize = Math.Min(bulk.Value.Count, leftToCopy);
+
+#if NET5_0_OR_GREATER
+                items.Slice(index, copySize).CopyTo(bulk.Value);
+#else
+                Array.Copy(items.Array, index, bulk.Value.Array, bulk.Value.Offset, copySize); 
+#endif
+
+                leftToCopy -= copySize;
+                index += copySize;
+
+                CommitBulkWrite(copySize);
+            }
+
+            return RpcResult.Ok;
         }
 
         #region Control methods
@@ -506,7 +542,7 @@ namespace SharpRpc
 
             public void Confirm(StreamWriterBase2<T> writer)
             {
-                Result = RpcResult.FromResult(writer.ReserveBulkWriteBuffer());
+                Result = RpcResult.Result(writer.ReserveBulkWriteBuffer());
                 System.Threading.Tasks.Task.Factory.StartNew(Signal);
             }
 

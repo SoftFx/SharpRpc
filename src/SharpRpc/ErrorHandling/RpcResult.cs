@@ -6,15 +6,47 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 using System;
-using System.Data.Common;
+using System.Threading.Tasks;
 
 namespace SharpRpc
 {
     public struct RpcResult
     {
-        public static RpcResult<T1> FromResult<T1>(T1 result)
+        public static RpcResult<T1> Result<T1>(T1 result)
         {
             return new RpcResult<T1>(result);
+        }
+
+#if NET5_0_OR_GREATER
+        public static ValueTask<RpcResult<T>> AsyncResult<T>(T result)
+        {
+            return new ValueTask<RpcResult<T>>(Result<T>(result));
+        }
+
+        public static ValueTask<RpcResult<T>> AsyncFault<T>(RpcResult fault)
+        {
+            return new ValueTask<RpcResult<T>>(Fault<T>(fault));
+        }
+#else
+        public static Task<RpcResult<T>> AsyncResult<T>(T result)
+        {
+            return Task.FromResult(Result<T>(result));
+        }
+
+        public static Task<RpcResult<T>> AsyncFault<T>(RpcResult fault)
+        {
+            return Task.FromResult(Fault<T>(fault));
+        }
+#endif
+
+        public static RpcResult<T2> Fault<T2>(RpcResult fault)
+        {
+            return new RpcResult<T2>(fault.Code, fault.FaultMessage);
+        }
+
+        public static RpcResult<T2> Fault<T2>(RpcRetCode code, string faultText)
+        {
+            return new RpcResult<T2>(code, faultText);
         }
 
         internal RpcResult(RpcRetCode code, string faultText, object customFaultData = null)

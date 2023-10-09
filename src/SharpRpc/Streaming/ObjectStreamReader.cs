@@ -18,13 +18,24 @@ using System.Xml.XPath;
 
 namespace SharpRpc
 {
-    public interface IStreamEnumerator<T>
+    public interface IStreamEnumerator<T> : IDisposable
     {
         T Current { get; }
 #if NET5_0_OR_GREATER
         ValueTask<bool> MoveNextAsync();
 #else
         Task<bool> MoveNextAsync();
+#endif
+    }
+
+    public interface IStreamBulkEnumerator<T> : IDisposable
+    {
+#if NET5_0_OR_GREATER
+        ValueTask<RpcResult<int>> Read(ArraySegment<T> buffer);
+        ValueTask<RpcResult<int>> GreedyRead(ArraySegment<T> buffer);
+#else
+        Task<RpcResult<int>> Read(ArraySegment<T> buffer);
+        Task<RpcResult<int>> GreedyRead(ArraySegment<T> buffer);
 #endif
     }
 
@@ -37,6 +48,7 @@ namespace SharpRpc
         protected override bool IsNull(IStreamPage<T> page) => page == null;
         protected override T GetItem(IStreamPage<T> page, int index) => page.Items[index];
         protected override int GetItemsCount(IStreamPage<T> page) => page.Items.Count;
+        protected override void CopyItems(IStreamPage<T> page, int pageIndex, T[] destArray, int destIndex, int count) => throw new NotImplementedException();
 
         internal override bool OnMessage(IInteropMessage auxMessage, out RpcResult result)
         {

@@ -252,9 +252,9 @@ namespace TestCommon
         }
 
 #if NET5_0_OR_GREATER
-        public async override ValueTask<StreamCallResult> TestOutBinStream(CallContext context, StreamWriter<byte> outputStream, string fileName, StreamTestOptions options)
+        public async override ValueTask<StreamCallResult> TestOutBinStream(CallContext context, StreamWriter<byte> outputStream, string fileName, StreamTestOptions options, StreamWriteOptions writeMode)
 #else
-        public async override Task<StreamCallResult> TestOutBinStream(CallContext context, StreamWriter<byte> outputStream, string fileName, StreamTestOptions options)
+        public async override Task<StreamCallResult> TestOutBinStream(CallContext context, StreamWriter<byte> outputStream, string fileName, StreamTestOptions options, StreamWriteOptions writeMode)
 #endif
         {
             if (options == StreamTestOptions.JustExit)
@@ -266,16 +266,45 @@ namespace TestCommon
 
             using (var fileStream = new FileStream(fileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
             {
-                var wResult = await outputStream.WriteAllAsync(fileStream);
-
-                if (!wResult.IsOk)
+                if (writeMode == StreamWriteOptions.BulkStartCommit)
                 {
-                    if (wResult.Code == RpcRetCode.OperationCanceled)
-                        return new StreamCallResult(StreamCallExitCode.StreamWriteCancelled, 0);
-                    else if (wResult.Code == RpcRetCode.StreamCompleted)
-                        return new StreamCallResult(StreamCallExitCode.StreamCompleted, 0);
-                    else
-                        return new StreamCallResult(StreamCallExitCode.Error, 0);
+                    var wResult = await outputStream.WriteAllAsync(fileStream);
+
+                    if (!wResult.IsOk)
+                        return ToStreamCallResult(wResult);
+                }
+                else if (writeMode == StreamWriteOptions.OneByOne)
+                {
+                    var buffer = new byte[4096];
+
+                    while (true)
+                    {
+                        var readCount = await fileStream.ReadAsync(buffer, 0, buffer.Length);
+                        if (readCount <= 0)
+                            break;
+
+                        for (int i = 0; i < readCount; i++)
+                        {
+                            var wResult = await outputStream.WriteAsync(buffer[i]);
+                            if (!wResult.IsOk)
+                                return ToStreamCallResult(wResult);
+                        }
+                    }
+                }
+                else if (writeMode == StreamWriteOptions.Bulk)
+                {
+                    var buffer = new byte[4096];
+
+                    while (true)
+                    {
+                        var readCount = await fileStream.ReadAsync(buffer, 0, buffer.Length);
+                        if (readCount <= 0)
+                            break;
+
+                        var wResult = await outputStream.BulkWrite(new ArraySegment<byte>(buffer, 0, readCount));
+                        if (!wResult.IsOk)
+                            return ToStreamCallResult(wResult);
+                    }
                 }
             }
 
@@ -283,6 +312,16 @@ namespace TestCommon
                 await outputStream.CompleteAsync();
 
             return new StreamCallResult(StreamCallExitCode.StreamCompleted, 0);
+        }
+
+        private StreamCallResult ToStreamCallResult(RpcResult rcpError)
+        {
+            if (rcpError.Code == RpcRetCode.OperationCanceled)
+                return new StreamCallResult(StreamCallExitCode.StreamWriteCancelled, 0);
+            else if (rcpError.Code == RpcRetCode.StreamCompleted)
+                return new StreamCallResult(StreamCallExitCode.StreamCompleted, 0);
+            else
+                return new StreamCallResult(StreamCallExitCode.Error, 0);
         }
 
 #if NET5_0_OR_GREATER

@@ -183,7 +183,7 @@ namespace SharpRpc
             if (!HandshakeRequest.TryParseBody(_msgEncoder, pVersion, out var request))
                 return new RpcResult(RpcRetCode.InvalidHandshake, "TO DO");
 
-            return RpcResult.FromResult(request);
+            return RpcResult.Result(request);
         }
 
         public async Task<RpcResult<HandshakeResponse>> TryReceiveResponse(ByteTransport transport, CancellationToken timeoutToken)
@@ -214,7 +214,7 @@ namespace SharpRpc
             if (!HandshakeResponse.TryParseBody(_msgEncoder, pVersion, out var request))
                 return new RpcResult(RpcRetCode.InvalidHandshake, "TO DO");
 
-            return RpcResult.FromResult(request);
+            return RpcResult.Result(request);
         }
     }
 

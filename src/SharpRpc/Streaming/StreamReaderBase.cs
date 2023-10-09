@@ -15,6 +15,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using static SharpRpc.TxAsyncGate;
 
 namespace SharpRpc
 {
@@ -26,7 +27,7 @@ namespace SharpRpc
         private readonly Queue<TPage> _pages = new Queue<TPage>();
         private TPage _currentPage;
         private int _currentPageIndex;
-        private bool _isPageConsumed;
+        //private bool _isPageConsumed;
         private INestedEnumerator _enumerator;
         private readonly StreamReadCoordinator _coordinator;
         private readonly TxPipeline _tx;
@@ -35,6 +36,7 @@ namespace SharpRpc
         private RpcResult _fault;
         private readonly TaskCompletionSource<bool> _closed = new TaskCompletionSource<bool>();
         private string _name;
+        //private TaskCompletionSource<bool> _readWaitSrc;
 
         internal StreamReaderBase(string callId, TxPipeline tx, IStreamMessageFactory factory, IRpcLogger logger)
         {
@@ -59,6 +61,7 @@ namespace SharpRpc
         protected abstract T GetItem(TPage page, int index);
         protected abstract bool IsNull(TPage page);
         protected virtual void FreePage(TPage page) { }
+        protected abstract void CopyItems(TPage page, int pageIndex, T[] destArray, int destIndex, int count);
 
         private void ChangeState(States newState)
         {
@@ -183,16 +186,17 @@ namespace SharpRpc
             return false;
         }
 
-        private T GetNextItem(out IStreamPageAck ack)
+        private void IncreasePageIndexBy(int readSize, bool keepPages, out IStreamPageAck ack)
         {
-            var item = GetItem(_currentPage, _currentPageIndex++);
+            _currentPageIndex += readSize;
 
             if (_currentPageIndex >= GetItemsCount(_currentPage))
             {
                 _currentPageIndex = 0;
-                
+
                 var consumedPageSize = GetItemsCount(_currentPage);
-                FreePage(_currentPage);
+                if (!keepPages)
+                    FreePage(_currentPage);
 
                 if (_pages.Count > 0)
                     _currentPage = _pages.Dequeue();
@@ -203,15 +207,15 @@ namespace SharpRpc
             }
             else
                 ack = null;
-
-            return item;
         }
 
         private NextItemCode TryGetNextItem(out T item, out IStreamPageAck pageAck)
         {
             if (!IsNull(_currentPage))
             {
-                item = GetNextItem(out pageAck);
+                item = GetItem(_currentPage, _currentPageIndex);
+                IncreasePageIndexBy(1, false, out pageAck);
+                //item = GetNextItem(out pageAck);
                 return NextItemCode.Ok;
             }
 
@@ -224,46 +228,37 @@ namespace SharpRpc
             return NextItemCode.NoItems;
         }
 
-        private bool GetNextPage(out IStreamPageAck ack)
-        {
-            if (_isPageConsumed)
-            {
-                var consumedPageSize = GetItemsCount(_currentPage);
-                ack = _coordinator.OnPageConsume(consumedPageSize);
-                FreePage(_currentPage);
-                _currentPage = default;
-                _isPageConsumed = false;
-            }
-            else
-                ack = null;
-
-            if (!IsNull(_currentPage))
-            {
-                _isPageConsumed = true;
-                return true;
-            }
-            else if (_pages.Count > 0)
-            {
-                _currentPage = _pages.Dequeue();
-                _isPageConsumed = true;
-                return true;
-            }
-            else
-            {
-                _currentPage = default;
-                return false;
-            }
-        }
-
         internal NextItemCode TryGetNextPage(out TPage page, out IStreamPageAck pageAck)
         {
-            if (GetNextPage(out pageAck))
+            if (!IsNull(_currentPage))
             {
                 page = _currentPage;
+                IncreasePageIndexBy(GetItemsCount(page), true, out pageAck);
                 return NextItemCode.Ok;
             }
 
             page = default;
+            pageAck = null;
+
+            if (State == States.Completed)
+                return NextItemCode.Completed;
+
+            return NextItemCode.NoItems;
+        }
+
+        private NextItemCode TryBulkRead(ArraySegment<T> buffer, out int count, out IStreamPageAck pageAck)
+        {
+            if (!IsNull(_currentPage))
+            {
+                // copy
+                count = Math.Min(buffer.Count, GetItemsCount(_currentPage) - _currentPageIndex);
+                CopyItems(_currentPage, _currentPageIndex, buffer.Array, buffer.Offset, count);
+                IncreasePageIndexBy(count, false, out pageAck);
+                return NextItemCode.Ok;
+            }
+
+            count = 0;
+            pageAck = null;
 
             if (State == States.Completed)
                 return NextItemCode.Completed;
@@ -316,6 +311,8 @@ namespace SharpRpc
             return !fault.IsOk;
         }
 
+        internal void OnPageConsumed(TPage page) => FreePage(page);
+
         private string GetName()
         {
             if (_name == null)
@@ -327,6 +324,12 @@ namespace SharpRpc
         {
             lock (LockObj) return SetEnumerator(new AsyncEnumerator(this, cancellationToken));
         }
+
+        internal IStreamBulkEnumerator<T> GetBulkEnumeratorInternal(CancellationToken cancellationToken = default)
+        {
+            lock (LockObj) return SetEnumerator(new BulkEnumerator(this, cancellationToken));
+        }
+
 
 #if NET5_0_OR_GREATER
         public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default)
@@ -350,8 +353,7 @@ namespace SharpRpc
         {
             Ok,
             NoItems,
-            Completed,
-            Aborted
+            Completed
         }
 
         protected interface INestedEnumerator
@@ -376,6 +378,7 @@ namespace SharpRpc
             public StreamReaderBase<T, TPage> Stream { get; }
 
             public abstract NextItemCode GetNextItem(out IStreamPageAck pageAck);
+            public virtual void Dispose() { }
 
 #if NET5_0_OR_GREATER
             public ValueTask DisposeAsync()
@@ -494,6 +497,146 @@ namespace SharpRpc
                 var code =  Stream.TryGetNextItem(out T item, out pageAck);
                 Current = item;
                 return code;
+            }
+        }
+
+        internal class BulkEnumerator : INestedEnumerator, IStreamBulkEnumerator<T>
+        {
+            private readonly StreamReaderBase<T, TPage> _stream;
+            private TaskCompletionSource<RpcResult<int>> _itemWaitSrc;
+            private ArraySegment<T> _bufferToFill;
+            private RpcResult<int> _resultToFire;
+            private CancellationTokenRegistration _cancelReg;
+
+            public BulkEnumerator(StreamReaderBase<T, TPage> stream, CancellationToken cancellationToken)
+            {
+                _stream = stream;
+                _cancelReg = cancellationToken.Register(Cancel);
+            }
+
+            public bool OnDataArrived(out IStreamPageAck ack)
+            {
+                if (_itemWaitSrc != null)
+                {
+                    var code = _stream.TryBulkRead(_bufferToFill, out var count, out ack);
+                    _bufferToFill = default;
+
+                    if (code == NextItemCode.Completed)
+                        _resultToFire = GetCompletionResult();
+                    else if (code == NextItemCode.Ok)
+                        _resultToFire = new RpcResult<int>(count);
+                    else
+                        throw new Exception("Unexpected code: " + count);
+
+                    return true;
+                }
+
+                ack = null;
+                return false;
+            }
+
+            public void WakeUpListener()
+            {
+                var eventCpy = _itemWaitSrc;
+                _itemWaitSrc = null;
+
+                eventCpy.SetResult(_resultToFire);
+            }
+
+#if NET5_0_OR_GREATER
+            public async ValueTask<RpcResult<int>> GreedyRead(ArraySegment<T> buffer)
+#else
+            public async Task<RpcResult<int>> GreedyRead(ArraySegment<T> buffer)
+#endif
+            {
+                var leftToFill = buffer.Count;
+                var array = buffer.Array;
+                var offset = buffer.Offset;
+
+                while (leftToFill > 0)
+                {
+                    var readResult = await Read(new ArraySegment<T>(array, offset, leftToFill));
+
+                    if (!readResult.IsOk)
+                        return readResult;
+
+                    if (readResult.Value == 0)
+                        break;
+
+                    leftToFill -= readResult.Value;
+                    offset += readResult.Value;
+                }
+
+                return RpcResult.Result(buffer.Count - leftToFill);
+            }
+
+#if NET5_0_OR_GREATER
+            public ValueTask<RpcResult<int>> Read(ArraySegment<T> buffer)
+#else
+            public Task<RpcResult<int>> Read(ArraySegment<T> buffer)
+#endif
+            {
+                IStreamPageAck pageAck = null;
+                IStreamCloseAckMessage closeAck = null;
+                Exception toThrow = null;
+#if NET5_0_OR_GREATER
+                ValueTask<RpcResult<int>> result;
+#else
+                Task<RpcResult<int>> result;
+#endif
+
+                lock (_stream.LockObj)
+                {
+                    var code = _stream.TryBulkRead(buffer, out var count, out pageAck);
+
+                    if (code == NextItemCode.Ok)
+                        result = FwAdapter.WrappResult(new RpcResult<int>(count));
+                    else if (code == NextItemCode.NoItems)
+                    {
+                        if (_itemWaitSrc != null)
+                            throw new InvalidOperationException("Concurrent reads from a stream are prohibited!");
+
+                        _bufferToFill = buffer;
+                        _itemWaitSrc = new TaskCompletionSource<RpcResult<int>>();
+                        result = FwAdapter.WrappResult(_itemWaitSrc.Task);
+                    }
+                    else //NextItemCode.Completed
+                    {
+                        closeAck = _stream._factory.CreateCloseAcknowledgement(_stream._callId);
+
+                        if (_stream.TryGetFault(out var fault))
+                            toThrow = fault.ToException();
+
+                        result = FwAdapter.WrappResult(GetCompletionResult());
+                    }
+                }
+
+                if (pageAck != null) _stream.SendAck(pageAck);
+                if (closeAck != null) _stream.SendCloseAck(closeAck);
+                if (toThrow != null) throw toThrow;
+
+                return result;
+            }
+
+            private RpcResult<int> GetCompletionResult()
+            {
+                var fault = _stream._fault;
+
+                if (fault.IsOk)
+                    return new RpcResult<int>(0);
+                else
+                    return new RpcResult<int>(fault.Code, fault.FaultMessage, fault.CustomFaultData);
+            }
+
+            public void Dispose()
+            {
+                _cancelReg.Dispose();
+            }
+
+            private void Cancel()
+            {
+                // Notify the stream writer to stop. Keep all already enqueued items to process.
+                _stream.Cancel(false);
             }
         }
     }

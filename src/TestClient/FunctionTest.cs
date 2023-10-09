@@ -667,39 +667,50 @@ namespace TestClient
 
         private class OutputBinStreamTest : TestBase
         {
-            private TestCase CreateCase(ushort windowSize, bool useMemStream, string clientDescription, FunctionTestContract_Gen.Client client)
+            private TestCase CreateCase(ushort windowSize, StreamWriteOptions writeMode, StreamReadOptions readMode,
+                string clientDescription, FunctionTestContract_Gen.Client client)
             {
                 return new TestCase(this)
                     .SetParam("windowSize", windowSize)
-                    .SetParam("useMemStream", useMemStream)
+                    .SetParam("readMode", readMode)
+                    .SetParam("writeMode", writeMode)
                     .SetParam("client", clientDescription, client);
             }
 
             public IEnumerable<TestCase> GetCases(string clientDescription, FunctionTestContract_Gen.Client client)
             {
-                yield return CreateCase(38, true, clientDescription, client);
-                yield return CreateCase(38, false, clientDescription, client);
-                yield return CreateCase(4096, true, clientDescription, client);
-                yield return CreateCase(4096, false, clientDescription, client);
-                yield return CreateCase(12321, true, clientDescription, client);
-                yield return CreateCase(12321, false, clientDescription, client);
-                yield return CreateCase(65321, true, clientDescription, client);
-                yield return CreateCase(65321, false, clientDescription, client);
+                foreach (var testCase in GetCases(38, clientDescription, client))
+                    yield return testCase;
+
+                foreach (var testCase in GetCases(54363, clientDescription, client))
+                    yield return testCase;
+            }
+
+            private IEnumerable<TestCase> GetCases(ushort windowSize, string clientDescription, FunctionTestContract_Gen.Client client)
+            {
+                yield return CreateCase(windowSize, StreamWriteOptions.OneByOne, StreamReadOptions.OneByOne, clientDescription, client);
+                yield return CreateCase(windowSize, StreamWriteOptions.Bulk, StreamReadOptions.OneByOne, clientDescription, client);
+                yield return CreateCase(windowSize, StreamWriteOptions.BulkStartCommit, StreamReadOptions.OneByOne, clientDescription, client);
+
+                yield return CreateCase(windowSize, StreamWriteOptions.OneByOne, StreamReadOptions.OneByOne, clientDescription, client);
+                yield return CreateCase(windowSize, StreamWriteOptions.OneByOne, StreamReadOptions.Paged, clientDescription, client);
+                yield return CreateCase(windowSize, StreamWriteOptions.OneByOne, StreamReadOptions.Bulk, clientDescription, client);
             }
 
             public override void RunTest(TestCase tCase)
             {
                 var windowSize = (ushort)tCase["windowSize"];
-                var useMemStream = (bool)tCase["useMemStream"];
+                var wirteMode = (StreamWriteOptions)tCase["writeMode"];
+                var readMode = (StreamReadOptions)tCase["readMode"];
                 var client = tCase.GetParam<FunctionTestContract_Gen.Client>("client");
 
                 var fileToDownstream = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "TestClient.exe");
                 var expectedCrc = CalcFileCrc(fileToDownstream);
                 var streamOptions = new StreamOptions() { WindowSize = windowSize };
-                var call = client.TestOutBinStream(streamOptions, fileToDownstream, StreamTestOptions.None);
+                var call = client.TestOutBinStream(streamOptions, fileToDownstream, StreamTestOptions.None, wirteMode);
                 var crc = 0;
 
-                if (useMemStream)
+                if (readMode == StreamReadOptions.Paged)
                 {
                     using (var memStream = new MemoryStream())
                     {
@@ -708,11 +719,28 @@ namespace TestClient
                         crc = CalcFileCrc(memStream);
                     }
                 }
-                else
+                else if (readMode == StreamReadOptions.OneByOne)
                 {
                     var e = call.OutputStream.GetEnumerator();
                     while (e.MoveNextAsync().Result)
                         crc += e.Current;
+                }
+                else if (readMode == StreamReadOptions.Bulk)
+                {
+                    var e = call.OutputStream.GetBulkEnumerator();
+                    var buffer = new byte[4096];
+
+                    while (true)
+                    {
+                        var result = e.Read(new ArraySegment<byte>(buffer)).Result;
+                        var bytesRed = result.GetValueOrThrow();
+
+                        if (bytesRed == 0)
+                            break;
+
+                        for (int i = 0; i < bytesRed; i++)
+                            crc += buffer[i];
+                    }
                 }
 
                 if (crc != expectedCrc)

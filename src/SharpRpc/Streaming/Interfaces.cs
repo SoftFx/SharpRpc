@@ -98,8 +98,10 @@ namespace SharpRpc
     {
 #if NET5_0_OR_GREATER
         ValueTask<RpcResult> WriteAsync(T item);
+        ValueTask<RpcResult> BulkWrite(ReadOnlyMemory<T> items);
 #else
         Task<RpcResult> WriteAsync(T item);
+        Task<RpcResult> BulkWrite(ArraySegment<T> items);
 #endif
 
         Task<RpcResult> CompleteAsync();

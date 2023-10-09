@@ -81,7 +81,7 @@ namespace TestCommon
 
         [RpcContract(18, RpcType.Call)]
         [RpcStreamOutput(typeof(byte))]
-        StreamCallResult TestOutBinStream(string fileName, StreamTestOptions options);
+        StreamCallResult TestOutBinStream(string fileName, StreamTestOptions options, StreamWriteOptions writeMode);
     }
 
     public enum StreamTestOptions
@@ -94,6 +94,20 @@ namespace TestCommon
         ImmediateCustomFault,
         FollowingFault,
         FollowingCustomFault
+    }
+
+    public enum StreamReadOptions
+    {
+        OneByOne,
+        Bulk,
+        Paged
+    }
+
+    public enum StreamWriteOptions
+    {
+        OneByOne,
+        Bulk,
+        BulkStartCommit,
     }
 
     [MessagePackObject]

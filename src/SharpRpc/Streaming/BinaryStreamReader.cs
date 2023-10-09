@@ -9,6 +9,7 @@ using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -47,6 +48,8 @@ namespace SharpRpc.Streaming
         protected override byte GetItem(ArraySegment<byte> page, int index) => page.Array[page.Offset + index];
         protected override int GetItemsCount(ArraySegment<byte> page) => page.Count;
         protected override void FreePage(ArraySegment<byte> page) => ArrayPool<byte>.Shared.Return(page.Array, false);
+        protected override void CopyItems(ArraySegment<byte> page, int pageIndex, byte[] destArray, int destIndex, int count)
+            => Array.Copy(page.Array, page.Offset + pageIndex, destArray, destIndex, count);
 
         internal override bool OnMessage(IInteropMessage auxMessage, out RpcResult result)
         {
@@ -76,11 +79,12 @@ namespace SharpRpc.Streaming
             lock (LockObj) return SetEnumerator(new PageEnumerator(this, cancellationToken));
         }
 
+        private void Free(ArraySegment<byte> page) => ArrayPool<byte>.Shared.Return(page.Array, false);
 
 #if NET5_0_OR_GREATER
-        private class PageEnumerator : AsyncEnumeratorBase, IAsyncEnumerator<ArraySegment<byte>>, IStreamEnumerator<ArraySegment<byte>>
+        private class PageEnumerator : AsyncEnumeratorBase, IAsyncEnumerator<ArraySegment<byte>>, IStreamEnumerator<ArraySegment<byte>>, IDisposable
 #else
-        private class PageEnumerator : AsyncEnumeratorBase, IStreamEnumerator<ArraySegment<byte>>
+        private class PageEnumerator : AsyncEnumeratorBase, IStreamEnumerator<ArraySegment<byte>>, IDisposable
 #endif
         {
             public PageEnumerator(StreamReaderBase<byte, ArraySegment<byte>> stream, CancellationToken cancellationToken)
@@ -92,9 +96,21 @@ namespace SharpRpc.Streaming
 
             public override NextItemCode GetNextItem(out IStreamPageAck pageAck)
             {
+                if (Current.Array != null)
+                    Stream.OnPageConsumed(new ArraySegment<byte>(Current.Array));
+
                 var code = Stream.TryGetNextPage(out var page, out pageAck);
                 Current = page;
                 return code;
+            }
+
+            public override void Dispose()
+            {
+                if (Current.Array != null)
+                {
+                    Stream.OnPageConsumed(Current);
+                    Current = default;
+                }
             }
         }
     }
