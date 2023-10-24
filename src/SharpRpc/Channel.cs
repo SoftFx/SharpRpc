@@ -211,13 +211,13 @@ namespace SharpRpc
 
         internal void OnCommunicationError(RpcResult fault)
         {
-            if (Logger.VerboseEnabled)
+            if (fault.Code == RpcRetCode.ConnectionAbortedByPeer)
             {
-                if (fault.Code == RpcRetCode.ConnectionAbortedByPeer)
+                if (Logger.VerboseEnabled)
                     Logger.Verbose(Id, "The transport has been closed by the other side.");
-                else
-                    Logger.Verbose(Id, "Communication error: " + fault.Code);
             }
+            else
+                Logger.Error(Id, "Communication error: " + fault.Code);
 
             Abort(fault);
         }

@@ -291,6 +291,8 @@ namespace SharpRpc
 
                 if (msg is IPrebuiltMessage mmsg)
                     mmsg.WriteTo(0, _buffer);
+                else if (msg is IBinaryMessage bmsg)
+                    bmsg.WriteTo(_buffer);
                 else
                     _messageSerializer.Serialize(msg, _buffer);
 

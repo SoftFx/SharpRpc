@@ -107,26 +107,26 @@ namespace TestClient
             }
             else if (choice == "4")
             {
-                //var test = new StressTest(address)
-                //{
-                //    MaxParallelRequests = 8,
-                //    MaxRequestsPerSession = 1000,
-                //    MaxItemsPerCall = 300,
-                //    ParallelConnections = 30
-                //};
+                var test = new StressTest(address)
+                {
+                    MaxParallelRequests = 8,
+                    MaxRequestsPerSession = 1000,
+                    MaxItemsPerCall = 300,
+                    ParallelConnections = 30
+                };
 
-                //Console.WriteLine("Starting...");
-                //test.Start();
-                //Console.WriteLine("Test has been started. Press enter key to stop...");
-                //Console.Read();
-                //Console.WriteLine("Stopping...");
-                //test.Stop();
-                //Console.WriteLine("Test has been stopped. Errors count: " + test.Errors.Count);
-                //if (test.Errors.Count > 0)
-                //{
-                //    Console.WriteLine("Top 100 errors:");
-                //    test.PrintTopErrors(100);
-                //}
+                Console.WriteLine("Starting...");
+                test.Start();
+                Console.WriteLine("Test has been started. Press enter key to stop...");
+                Console.Read();
+                Console.WriteLine("Stopping...");
+                test.Stop();
+                Console.WriteLine("Test has been stopped. Errors count: " + test.Errors.Count);
+                if (test.Errors.Count > 0)
+                {
+                    Console.WriteLine("Top 100 errors:");
+                    test.PrintTopErrors(100);
+                }
             }
             else if (choice == "5")
             {
