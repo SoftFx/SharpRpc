@@ -10,7 +10,6 @@ using SharpRpc.Streaming;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Runtime.Serialization;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -287,14 +286,20 @@ namespace SharpRpc
         {
             try
             {
-                _buffer.StartMessageWrite(false);
-
-                if (msg is IPrebuiltMessage mmsg)
-                    mmsg.WriteTo(0, _buffer);
-                else if (msg is IBinaryMessage bmsg)
+                if (msg is IBinaryMessage bmsg)
+                {
+                    _buffer.StartMessageWrite(true);
                     bmsg.WriteTo(_buffer);
+                }
                 else
-                    _messageSerializer.Serialize(msg, _buffer);
+                {
+                    _buffer.StartMessageWrite(false);
+
+                    if (msg is IPrebuiltMessage mmsg)
+                        mmsg.WriteTo(0, _buffer);
+                    else
+                        _messageSerializer.Serialize(msg, _buffer);
+                }
 
                 _buffer.EndMessageWrite();
                 return RpcResult.Ok;

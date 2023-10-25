@@ -193,97 +193,157 @@ namespace TestClient
         {
             if (task.Type == RequestType.CallbackMessages)
             {
-                var callResult = await client.TryAsync.RequestMessages(task.MessageCount, task.GetRequestConfig());
-
-                if (callResult.Code != RpcRetCode.Ok)
-                    RegisterError("CallbackMessages call failed: " + callResult.FaultMessage);
-
-                var rxMessages = callback.GetCount(task.RequestId);
-
-                if (rxMessages != task.MessageCount)
-                    RegisterError("Received " + rxMessages + "messages  while requested " + task.MessageCount + " messages");
-
-                lock (_statLockObj)
-                {
-                    _callCount++;
-                    _entityCount += rxMessages;
-                }
+                await CallbackMessages(task, client, callback);
             }
             else if (task.Type == RequestType.Downstream)
             {
-                var streamOpt = new StreamOptions() { WindowSize = 10 };
-                var call = client.DownstreamEntities(streamOpt, task.GetRequestConfig(), task.MessageCount);
-
-                var e = call.OutputStream.GetEnumerator();
-                var rxItemsCount = 0;
-
-                while (await e.MoveNextAsync())
-                    rxItemsCount++;
-
-                if (rxItemsCount != task.MessageCount)
-                    RegisterError("Received " + rxItemsCount + " items while requested " + task.MessageCount + " items");
-
-                lock (_statLockObj)
-                {
-                    _callCount++;
-                    _entityCount += rxItemsCount;
-                }
+                await Downstream(task, client, callback);
             }
             else if (task.Type == RequestType.Upstream)
             {
-                var streamOpt = new StreamOptions() { WindowSize = 10 };
-                var call = client.UpstreamEntities(streamOpt, task.GetRequestConfig());
-                var generator = new StressEntityGenerator();
-
-                var sentItems = 0;
-                var notSentItems = 0;
-
-                for (int i = 0; i < task.MessageCount; i++)
-                {
-                    var item = generator.Next();
-
-                    var writeResult = await call.InputStream.WriteAsync(item);
-                    if (writeResult.IsOk)
-                        sentItems++;
-                    else
-                        notSentItems++;
-                }
-
-                await call.InputStream.CompleteAsync();
-
-                var result = await call.AsyncResult;
-
-                if (result.FaultMessage == null && (result.Code != RpcRetCode.Ok && result.Code != RpcRetCode.OperationCanceled))
-                    RegisterError("Upstream failed: " + result.FaultMessage);
-
-                if (result.FaultMessage != null && result.Code != RpcRetCode.RequestFault)
-                    RegisterError("Upstream failed: " + result.FaultMessage);
-
-                if (result.Value + notSentItems != task.MessageCount)
-                    RegisterError($"Service received {result.Value} items while client sent {task.MessageCount - notSentItems} items");
-
-                lock (_statLockObj)
-                {
-                    _callCount++;
-                    _entityCount += result.Value;
-                }
+                await Upstream(task, client);
             }
             else if (task.Type == RequestType.RequestResponse)
             {
-                var generator = new StressEntityGenerator();
-                var callResult = await client.TryAsync.RequestResponse(generator.Next(), task.GetRequestConfig());
-
-                if (callResult.Code != RpcRetCode.Ok)
-                    RegisterError("RequestResponse call failed: " + callResult.FaultMessage);
-
-                lock (_statLockObj)
-                {
-                    _callCount++;
-                    _entityCount += 2;
-                }
+                await RequestResponse(task, client);   
             }
             else if (task.Type == RequestType.DuplexStream)
             {
+            }
+        }
+
+        private async Task Downstream(StressTask task, StressTestContract_Gen.Client client, CallbackHandler callback)
+        {
+            var streamOpt = new StreamOptions() { WindowSize = 10 };
+            var call = client.DownstreamEntities(streamOpt, task.GetRequestConfig(), task.MessageCount);
+
+            var e = call.OutputStream.GetEnumerator();
+            var rxItemsCount = 0;
+
+            while (await e.MoveNextAsync())
+                rxItemsCount++;
+
+            if (rxItemsCount != task.MessageCount)
+                RegisterError("Received " + rxItemsCount + " items while requested " + task.MessageCount + " items");
+
+            lock (_statLockObj)
+            {
+                _callCount++;
+                _entityCount += rxItemsCount;
+            }
+        }
+
+        private async Task Upstream(StressTask task, StressTestContract_Gen.Client client)
+        {
+            var streamOpt = new StreamOptions() { WindowSize = 10 };
+            var call = client.UpstreamEntities(streamOpt, task.GetRequestConfig());
+            var generator = new StressEntityGenerator();
+
+            var sentItems = 0;
+            var notSentItems = 0;
+
+            for (int i = 0; i < task.MessageCount; i++)
+            {
+                var item = generator.Next();
+
+                var writeResult = await call.InputStream.WriteAsync(item);
+                if (writeResult.IsOk)
+                    sentItems++;
+                else
+                    notSentItems++;
+            }
+
+            await call.InputStream.CompleteAsync();
+
+            var result = await call.AsyncResult;
+
+            if (result.FaultMessage == null && (result.Code != RpcRetCode.Ok && result.Code != RpcRetCode.OperationCanceled))
+                RegisterError("Upstream failed: " + result.FaultMessage);
+
+            if (result.FaultMessage != null && result.Code != RpcRetCode.RequestFault)
+                RegisterError("Upstream failed: " + result.FaultMessage);
+
+            if (result.Value + notSentItems != task.MessageCount)
+                RegisterError($"Service received {result.Value} items while client sent {task.MessageCount - notSentItems} items");
+
+            lock (_statLockObj)
+            {
+                _callCount++;
+                _entityCount += result.Value;
+            }
+        }
+
+        private async Task BinUpstream(StressTask task, StressTestContract_Gen.Client client)
+        {
+            var streamOpt = new StreamOptions() { WindowSize = 10 };
+            var call = client.UpstreamEntities(streamOpt, task.GetRequestConfig());
+            var generator = new StressEntityGenerator();
+
+            var sentItems = 0;
+            var notSentItems = 0;
+
+            for (int i = 0; i < task.MessageCount; i++)
+            {
+                var item = generator.Next();
+
+                var writeResult = await call.InputStream.WriteAsync(item);
+                if (writeResult.IsOk)
+                    sentItems++;
+                else
+                    notSentItems++;
+            }
+
+            await call.InputStream.CompleteAsync();
+
+            var result = await call.AsyncResult;
+
+            if (result.FaultMessage == null && (result.Code != RpcRetCode.Ok && result.Code != RpcRetCode.OperationCanceled))
+                RegisterError("Upstream failed: " + result.FaultMessage);
+
+            if (result.FaultMessage != null && result.Code != RpcRetCode.RequestFault)
+                RegisterError("Upstream failed: " + result.FaultMessage);
+
+            if (result.Value + notSentItems != task.MessageCount)
+                RegisterError($"Service received {result.Value} items while client sent {task.MessageCount - notSentItems} items");
+
+            lock (_statLockObj)
+            {
+                _callCount++;
+                _entityCount += result.Value;
+            }
+        }
+
+        private async Task RequestResponse(StressTask task, StressTestContract_Gen.Client client)
+        {
+            var generator = new StressEntityGenerator();
+            var callResult = await client.TryAsync.RequestResponse(generator.Next(), task.GetRequestConfig());
+
+            if (callResult.Code != RpcRetCode.Ok)
+                RegisterError("RequestResponse call failed: " + callResult.FaultMessage);
+
+            lock (_statLockObj)
+            {
+                _callCount++;
+                _entityCount += 2;
+            }
+        }
+
+        private async Task CallbackMessages(StressTask task, StressTestContract_Gen.Client client, CallbackHandler callback)
+        {
+            var callResult = await client.TryAsync.RequestMessages(task.MessageCount, task.GetRequestConfig());
+
+            if (callResult.Code != RpcRetCode.Ok)
+                RegisterError("CallbackMessages call failed: " + callResult.FaultMessage);
+
+            var rxMessages = callback.GetCount(task.RequestId);
+
+            if (rxMessages != task.MessageCount)
+                RegisterError("Received " + rxMessages + "messages  while requested " + task.MessageCount + " messages");
+
+            lock (_statLockObj)
+            {
+                _callCount++;
+                _entityCount += rxMessages;
             }
         }
 
@@ -293,6 +353,8 @@ namespace TestClient
             Downstream,
             Upstream,
             DuplexStream,
+            BinDownstream,
+            BinUpstream,
             CallbackMessages
         }
 

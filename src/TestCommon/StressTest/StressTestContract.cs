@@ -43,6 +43,14 @@ namespace TestCommon
 
         [RpcContract(7, RpcType.Message)]
         void LoadMessage(Guid requestId, StressEntity entity, bool sendBack);
+
+        //[RpcContract(8, RpcType.Call)]
+        //[RpcStreamOutput(typeof(byte))]
+        //void DownstreamFile(RequestConfig cfg, int size);
+
+        //[RpcContract(9, RpcType.Call)]
+        //[RpcStreamInput(typeof(byte))]
+        //int UpstreamFile(RequestConfig cfg);
     }
 
     [MessagePackObject]
