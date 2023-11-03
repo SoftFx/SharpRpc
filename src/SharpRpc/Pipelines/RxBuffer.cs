@@ -7,12 +7,7 @@
 
 using SharpRpc.Lib;
 using System;
-using System.Collections;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace SharpRpc
 {
@@ -57,7 +52,7 @@ namespace SharpRpc
         {
             var offset = _currentSegment.Count;
 
-            _currentSegment.Count += dataSize;
+            _currentSegment = _currentSegment.IncreaseCount(dataSize);
 
             return new ArraySegment<byte>(_currentSegment.Bytes, offset, dataSize);
         }
@@ -71,7 +66,7 @@ namespace SharpRpc
                 var leftToConsume = segment.Count - segment.ConsumedCount;
                 var toConsume = (int)Math.Min(dataSize, leftToConsume);
 
-                segment.ConsumedCount += toConsume;
+                segment = segment.IncreaseConsumedCount(toConsume);
 
                 if (leftToConsume == toConsume) // fully consumed
                     DisposeSegment(_tail.Dequeue());
@@ -87,7 +82,11 @@ namespace SharpRpc
             var leftToConsumeInCurrent = _currentSegment.Count - _currentSegment.ConsumedCount;
 
             if (leftToConsumeInCurrent >= dataSize)
-                _currentSegment.ConsumedCount += (int)dataSize;
+            {
+                _currentSegment = _currentSegment.IncreaseConsumedCount((int)dataSize);
+                if (_currentSegment.IsFullyConsumed)
+                    _currentSegment = _currentSegment.Reset();
+            }
             else
                 throw new Exception("There is no more data in buffer to consume!");
         }
@@ -118,8 +117,15 @@ namespace SharpRpc
             return _segmentSize - segment.Count;
         }
 
-        private struct RxSegment
+        private readonly struct RxSegment
         {
+            public RxSegment(byte[] buffer, int count, int consumedCount)
+            {
+                Bytes = buffer;
+                Count = count;
+                ConsumedCount = consumedCount;
+            }
+
             public RxSegment(byte[] buffer)
             {
                 Bytes = buffer;
@@ -128,15 +134,24 @@ namespace SharpRpc
             }
 
             public byte[] Bytes { get; }
-            public int Count { get; set; }
-            public int ConsumedCount { get; set; }
+            public int Count { get; }
+            public int ConsumedCount { get; }
 
-            public bool IsFullyConsumed => Count == ConsumedCount;
+            public bool IsFullyConsumed => Count <= ConsumedCount;
 
-            public void Reset()
+            public RxSegment IncreaseCount(int value)
             {
-                Count = 0;
-                ConsumedCount = 0;
+                return new RxSegment(Bytes, Count + value, ConsumedCount);
+            }
+
+            public RxSegment IncreaseConsumedCount(int value)
+            {
+                return new RxSegment(Bytes, Count, ConsumedCount + value);
+            }
+
+            public RxSegment Reset()
+            {
+                return new RxSegment(Bytes);
             }
         }
     }

@@ -135,7 +135,6 @@ namespace SharpRpc
 
                 if (pCode == MessageParser.RetCodes.EndOfSegment)
                 {
-                    //Console.WriteLine("EoS");
                     break;
                 }
                 else if (pCode == MessageParser.RetCodes.MessageParsed)
@@ -147,9 +146,7 @@ namespace SharpRpc
                     if (!result.IsOk)
                         return result;
 
-                    bytesConsumed = _parser.MessageBrutto;
-
-                    //Console.WriteLine("Consumed " + bytesConsumed);
+                    bytesConsumed += _parser.MessageBrutto;
 
                     _reader.Clear();
                 }
@@ -169,10 +166,6 @@ namespace SharpRpc
             try
             {
                 var msg = _serializer.Deserialize(_reader);
-
-                //Console.WriteLine("Msg " + msg.GetType().Name);
-
-                //Debug.WriteLine("RX " + msg.GetType().Name);
 
                 if (msg is ISystemMessage sysMsg)
                 {
