@@ -77,14 +77,19 @@ namespace SharpRpc.Streaming
 #endif
         {
             var binReader = (BinaryStreamReader)reader;
+            var e = binReader.GetPageEnumerator();
 
-            using (var e = binReader.GetPageEnumerator())
+            try
             {
                 while (await e.MoveNextAsync())
                 {
                     var segment = e.Current;
                     await targetStream.WriteAsync(segment.Array, segment.Offset, segment.Count);
                 }
+            }
+            finally
+            {
+                await e.DisposeAsync();
             }
         }
     }

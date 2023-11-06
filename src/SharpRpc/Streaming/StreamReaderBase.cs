@@ -21,7 +21,13 @@ namespace SharpRpc
 {
     public abstract class StreamReaderBase<T, TPage> : IStreamReaderFixture<T>
     {
-        public enum States { Online, Cancellation, Completed }
+        public enum States
+        {
+            Online,
+            Cancellation, // Notify the writer about cancellation while keeping already submitted items.
+            Abortion, // Notify the writer about cancellation and drop already submitted items.
+            Completed
+        }
 
         private readonly IRpcLogger _logger;
         private readonly Queue<TPage> _pages = new Queue<TPage>();
@@ -79,6 +85,8 @@ namespace SharpRpc
 
             if (GetItemsCount(page) == 0)
                 return; // TO DO : signal protocol violation
+            else if (State == States.Abortion)
+                return; // no more data is accepted
 
             lock (LockObj)
             {
@@ -111,8 +119,8 @@ namespace SharpRpc
 
             lock (LockObj)
             {
-                if (State == States.Completed) // TO DO : signal protocol violation if already completed
-                    return;
+                if (State == States.Completed) 
+                    return; // TO DO : signal protocol violation
 
                 State = States.Completed;
                 //_isCloseAckRequested = (msg.Options & StreamCloseOptions.SendAcknowledgment) != 0;
@@ -140,12 +148,7 @@ namespace SharpRpc
 
             lock (LockObj)
             {
-                while (_pages.Count > 0)
-                    FreePage(_pages.Dequeue());
-                if (!IsNull(_currentPage))
-                    FreePage(_currentPage);
-                _currentPage = default;
-                _currentPageIndex = 0;
+                DropAllItems();
                 ChangeState(States.Completed);
                 _fault = fault;
                 wakeupListener = OnDataArrived(out _);
@@ -165,7 +168,13 @@ namespace SharpRpc
             {
                 if (State == States.Online)
                 {
-                    ChangeState(States.Cancellation);
+                    if (dropRemItems)
+                    {
+                        ChangeState(States.Abortion);
+                        DropAllItems();
+                    }
+                    else
+                        ChangeState(States.Cancellation);
 
                     if (_logger.VerboseEnabled)
                         _logger.Verbose(GetName(), $"Cancellation is requested.{(dropRemItems ? "[Drop] " : " ")} [Cancellation]");
@@ -175,7 +184,42 @@ namespace SharpRpc
             }
         }
 
+#if NET5_0_OR_GREATER
+        internal ValueTask CloseByReader()
+#else
+        internal Task CloseByReader()
+#endif
+        {
+            lock (LockObj)
+            {
+                if (_logger.VerboseEnabled)
+                    _logger.Verbose(GetName(), $"Closing...");
+
+                if (State == States.Online)
+                {
+                    ChangeState(States.Abortion);
+                    SendCancelMessage(true);
+                }
+
+#if NET5_0_OR_GREATER
+                return new ValueTask(Closed);
+#else
+                return Closed;
+#endif
+            }
+        }
+
         void IStreamReaderFixture<T>.Cancel(bool dropRemItems) => Cancel(dropRemItems);
+
+        private void DropAllItems()
+        {
+            while (_pages.Count > 0)
+                FreePage(_pages.Dequeue());
+            if (!IsNull(_currentPage))
+                FreePage(_currentPage);
+            _currentPage = default;
+            _currentPageIndex = 0;
+        }
 
         private bool OnDataArrived(out IStreamPageAck ack)
         {
@@ -378,17 +422,17 @@ namespace SharpRpc
             public StreamReaderBase<T, TPage> Stream { get; }
 
             public abstract NextItemCode GetNextItem(out IStreamPageAck pageAck);
-            public virtual void Dispose() { }
+            public void Dispose() => DisposeAsync().Wait();
 
 #if NET5_0_OR_GREATER
-            public ValueTask DisposeAsync()
-            {
-                // close stream ??? 
-                //_stream.Abort();
-                _cancelReg.Dispose();
-                return new ValueTask();
-            }
+            public virtual ValueTask DisposeAsync()
+#else
+            public virtual Task DisposeAsync()
 #endif
+            {
+                _cancelReg.Dispose();
+                return Stream.CloseByReader();
+            }
 
 #if NET5_0_OR_GREATER
             public ValueTask<bool> MoveNextAsync()
@@ -630,7 +674,17 @@ namespace SharpRpc
 
             public void Dispose()
             {
+                DisposeAsync().Wait();
+            }
+
+#if NET5_0_OR_GREATER
+            public ValueTask DisposeAsync()
+#else
+            public Task DisposeAsync()
+#endif
+            {
                 _cancelReg.Dispose();
+                return _stream.CloseByReader();
             }
 
             private void Cancel()

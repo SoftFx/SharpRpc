@@ -649,11 +649,13 @@ namespace TestClient
                 var streamOptions = new StreamOptions() { WindowSize = windowSize };
                 var call = client.TestOutStream(streamOptions, TimeSpan.Zero, itemsCount, options);
 
-                var e = call.OutputStream.GetEnumerator();
                 var summ = 0;
 
-                while (e.MoveNextAsync().Result)
-                    summ += e.Current;
+                using (var e = call.OutputStream.GetEnumerator())
+                {
+                    while (e.MoveNextAsync().Result)
+                        summ += e.Current;
+                }
 
                 if (summ != expectedSumm)
                     throw new Exception("Items summ does not match expected value!");

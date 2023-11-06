@@ -18,17 +18,26 @@ using System.Xml.XPath;
 
 namespace SharpRpc
 {
+#if NET5_0_OR_GREATER
+    public interface IStreamEnumerator<T> : IAsyncDisposable, IDisposable
+#else
     public interface IStreamEnumerator<T> : IDisposable
+#endif
     {
         T Current { get; }
 #if NET5_0_OR_GREATER
         ValueTask<bool> MoveNextAsync();
 #else
         Task<bool> MoveNextAsync();
+        Task DisposeAsync();
 #endif
     }
 
+#if NET5_0_OR_GREATER
+    public interface IStreamBulkEnumerator<T> : IAsyncDisposable, IDisposable
+#else
     public interface IStreamBulkEnumerator<T> : IDisposable
+#endif
     {
 #if NET5_0_OR_GREATER
         ValueTask<RpcResult<int>> Read(ArraySegment<T> buffer);
@@ -36,6 +45,7 @@ namespace SharpRpc
 #else
         Task<RpcResult<int>> Read(ArraySegment<T> buffer);
         Task<RpcResult<int>> GreedyRead(ArraySegment<T> buffer);
+        Task DisposeAsync();
 #endif
     }
 

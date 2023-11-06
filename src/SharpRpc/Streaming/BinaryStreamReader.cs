@@ -104,13 +104,19 @@ namespace SharpRpc.Streaming
                 return code;
             }
 
-            public override void Dispose()
+#if NET5_0_OR_GREATER
+            public override ValueTask DisposeAsync()
+#else
+            public override Task DisposeAsync()
+#endif
             {
                 if (Current.Array != null)
                 {
                     Stream.OnPageConsumed(Current);
                     Current = default;
                 }
+
+                return base.DisposeAsync();
             }
         }
     }
