@@ -8,6 +8,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -17,8 +18,7 @@ namespace SharpRpc
 {
     internal class ClientSessionCoordinator : SessionCoordinator
     {
-        private TaskCompletionSource<ILoginMessage> _loginWaitHandle;
-        //private TaskCompletionSource<ILogoutMessage> _logoutWaitHandle;
+        private TaskCompletionSource<bool> _connectWaitHandle;
         private Credentials _creds;
 
 #if DEBUG
@@ -33,63 +33,22 @@ namespace SharpRpc
             _creds = clientEndpoint.Credentials;
         }
 
-        public override async Task<RpcResult> OnConnect(CancellationToken cToken)
-        {
-            var loginResult = await Login(cToken);
-
-            if (!loginResult.IsOk)
-                return loginResult;
-
-            lock (LockObj)
-            {
-                _loginWaitHandle = null;
-                State = SessionState.OpenEvent;
-            }
-
-            if (!await Channel.RiseOpeningEvent())
-                return new RpcResult(RpcRetCode.ChannelOpenEventFailed, "An error occurred in the channel open event handler!");
-
-            lock (LockObj)
-                State = SessionState.LoggedIn;
-
-            return RpcResult.Ok;
-        }
-
-        private async Task<RpcResult> Login(CancellationToken cToken)
+        public override Task<bool> OnConnect(CancellationToken cToken)
         {
             lock (LockObj)
             {
                 State = SessionState.PendingLogin;
-                _loginWaitHandle = new TaskCompletionSource<ILoginMessage>();
+                _connectWaitHandle = new TaskCompletionSource<bool>();
             }
+
+            cToken.Register(OnLoginTimeout);
 
             // send login
             var loginMsg = Channel.Contract.SystemMessages.CreateLoginMessage();
             _creds.OnBeforeLogin(loginMsg);
-            var sendResult = await Channel.Tx.SendSystemMessage(loginMsg);
+            Channel.Tx.TrySendSystemMessage(loginMsg, OnLoginSendCompleted);
 
-            if (!sendResult.IsOk)
-                return sendResult;
-
-            using (cToken.Register(OnLoginTimeout))
-            {
-                // wait for response login (with timeout)
-                var loginResp = await _loginWaitHandle.Task;
-
-                if (loginResp == null)
-                    return new RpcResult(RpcRetCode.LoginTimeout, "Login oepration timed out!");
-
-                if (loginResp.ResultCode == LoginResult.Ok)
-                {
-                    // enable message queue
-                    Channel.Tx.StartProcessingUserMessages();
-                    return Channel.Dispatcher.Start();
-                }
-                else if (loginResp.ResultCode == LoginResult.InvalidCredentials)
-                    return new RpcResult(RpcRetCode.InvalidCredentials, "Login failed: " + loginResp.ErrorMessage);
-                else
-                    return new RpcResult(RpcRetCode.ProtocolViolation, "Login failed: Invalid or missing result code in login response!");
-            }
+            return _connectWaitHandle.Task;
         }
 
         protected override RpcResult OnLoginMessage(ILoginMessage loginMsg)
@@ -99,10 +58,60 @@ namespace SharpRpc
                 if (State != SessionState.PendingLogin)
                     return new RpcResult(RpcRetCode.ProtocolViolation, "Unexpected login message!");
 
-                State = SessionState.OpenEvent;
-                _loginWaitHandle.TrySetResult(loginMsg);
-                return RpcResult.Ok;
+                if (loginMsg.ResultCode == LoginResult.Ok)
+                {
+                    State = SessionState.OpenEvent;
+                    // enable message queue
+                    Channel.Tx.StartProcessingUserMessages();
+                    Channel.Dispatcher.Start();
+                }
+                else
+                {
+                    State = SessionState.LoginFailed;
+                    Channel.UpdateFault(new RpcResult(RpcRetCode.InvalidCredentials, "Login failed: " + loginMsg.ErrorMessage));
+                }
             }
+
+            Channel.RiseOpeningEvent()
+                .ContinueWith(OnOpenEventCompleted);
+
+            return RpcResult.Ok;
+        }
+
+        private void OnLoginSendCompleted(RpcResult result)
+        {
+            if (!result.IsOk)
+            {
+                lock (LockObj)
+                {
+                    State = SessionState.LoginFailed;
+                    Channel.UpdateFault(result);
+                }
+
+                _connectWaitHandle.SetResult(false);
+            }
+        }
+
+        private void OnOpenEventCompleted(Task<bool> openEventTask)
+        {
+            bool loggedIn;
+
+            lock (LockObj)
+            {
+                if (openEventTask.Result)
+                {
+                    State = SessionState.OpenEvent;
+                    loggedIn = true;
+                }
+                else
+                {
+                    State = SessionState.LoginFailed;
+                    Channel.UpdateFault(new RpcResult(RpcRetCode.ChannelOpenEventFailed, "An error occurred in the channel open event handler!"));
+                    loggedIn = false;
+                }
+            }
+
+            _connectWaitHandle.SetResult(loggedIn);
         }
 
         protected override Task RiseClosingEvent(bool isFaulted)
@@ -112,7 +121,16 @@ namespace SharpRpc
 
         private void OnLoginTimeout()
         {
-            _loginWaitHandle.TrySetResult(null);
+            lock (LockObj)
+            {
+                if (State != SessionState.PendingLogin)
+                    return;
+
+                State = SessionState.LoginFailed;
+                Channel.UpdateFault(new RpcResult(RpcRetCode.LoginTimeout, "Login oepration timed out!"));
+            }
+
+            _connectWaitHandle.TrySetResult(false);
         }
     }
 }

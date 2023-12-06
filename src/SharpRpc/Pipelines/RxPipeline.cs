@@ -28,7 +28,7 @@ namespace SharpRpc
         private readonly SessionCoordinator _coordinator;
         private readonly CancellationTokenSource _rxCancelSrc = new CancellationTokenSource();
         private Task _rxLoop;
-        private readonly TaskFactory _taskQueue;
+        //private readonly TaskFactory _taskQueue;
 
         public RxPipeline(ByteTransport transport, Endpoint config, IRpcSerializer serializer, MessageDispatcher messageConsumer, SessionCoordinator coordinator)
         {
@@ -36,7 +36,7 @@ namespace SharpRpc
             _serializer = serializer;
             _msgDispatcher = messageConsumer;
             _coordinator = coordinator;
-            _taskQueue = config.TaskQueue;
+            //_taskQueue = config.TaskQueue;
             _parser.MaxMessageSize = config.MaxMessageSize;
         }
 
@@ -78,8 +78,6 @@ namespace SharpRpc
 
                     byteCount = await _transport.Receive(buffer, _rxCancelSrc.Token);
 
-                    //await _taskQueue.Dive();
-
                     if (byteCount == 0)
                     {
                         OnCommunicationError(new RpcResult(RpcRetCode.ConnectionAbortedByPeer, "Connection is closed by foreign host."));
@@ -100,7 +98,8 @@ namespace SharpRpc
                 catch (Exception ex)
                 {
                     var fault = _transport.TranslateException(ex);
-                    OnCommunicationError(fault);
+                    if (fault.Code != RpcRetCode.OperationCanceled)
+                        OnCommunicationError(fault);
                     return;
                 }
 
@@ -141,10 +140,19 @@ namespace SharpRpc
                 {
                     _reader.Init(_parser.MessageBody, _parser.MessageSize);
 
-                    var result = _parser.IsSeMessage ? DeserializeSimplifiedMessage(container) : DeserializeMessage(container);
+                    var result = _parser.IsSeMessage ? DeserializeSimplifiedMessage() : DeserializeMessage();
 
                     if (!result.IsOk)
                         return result;
+
+                    if (result.Value is ISystemMessage sysMsg)
+                    {
+                        var sysMsgResult = OnSystemMessage(sysMsg);
+                        if (sysMsgResult.Code != RpcRetCode.Ok)
+                            return sysMsgResult;
+                    }
+                    else
+                        container.Add(result.Value);
 
                     bytesConsumed += _parser.MessageBrutto;
 
@@ -161,24 +169,11 @@ namespace SharpRpc
             return RpcResult.Ok;
         }
 
-        private RpcResult DeserializeMessage(List<IMessage> container)
+        private RpcResult<IMessage> DeserializeMessage()
         {
             try
             {
-                var msg = _serializer.Deserialize(_reader);
-
-                if (msg is ISystemMessage sysMsg)
-                {
-                    var sysMsgResult = OnSystemMessage(sysMsg);
-                    if (sysMsgResult.Code != RpcRetCode.Ok)
-                        return sysMsgResult;
-                }
-                else
-                {
-                    container.Add(msg);
-                }
-
-                return RpcResult.Ok;
+                return new RpcResult<IMessage>(_serializer.Deserialize(_reader));
             }
             catch (Exception ex)
             {
@@ -186,7 +181,7 @@ namespace SharpRpc
             }
         }
 
-        private RpcResult DeserializeSimplifiedMessage(List<IMessage> container)
+        private RpcResult<IMessage> DeserializeSimplifiedMessage()
         {
             try
             {
@@ -197,7 +192,7 @@ namespace SharpRpc
                 {
                     var parseResult = BinaryStreamPage.Read(_reader, out var pageMsg);
                     if (parseResult.IsOk)
-                        container.Add(pageMsg);
+                        return new RpcResult<IMessage>(pageMsg);
                     return parseResult;
                 }
                 else
@@ -210,9 +205,9 @@ namespace SharpRpc
         }
 
 #if NET5_0_OR_GREATER
-        protected ValueTask SubmitParsedBatch()
+        protected ValueTask OnMessagesArrived()
 #else
-        protected Task SubmitParsedBatch()
+        protected Task OnMessagesArrived()
 #endif
         {
             if (_msgDispatcher.IncomingMessages.Count > 0)
@@ -223,7 +218,7 @@ namespace SharpRpc
 
         private RpcResult OnSystemMessage(ISystemMessage msg)
         {
-            // ignore hartbeat (it did his job by just arriving)
+            // ignore the heartbeat message (it did its job by just arriving)
             if (msg is IHeartbeatMessage)
                 return RpcResult.Ok;
 

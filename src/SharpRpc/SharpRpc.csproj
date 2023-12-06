@@ -3,7 +3,7 @@
   <PropertyGroup>
     <TargetFrameworks>net6.0;net472;netstandard2.0</TargetFrameworks>
     <Configurations>Debug;Release;ReleasePfCounters;ReleaseIde</Configurations>
-    <Version>1.8.5</Version>
+    <Version>1.8.6</Version>
     <Company>Soft-Fx</Company>
     <Authors>Andrei Hilevich</Authors>
     <PackageId>SharpRpc.Core</PackageId>
@@ -39,6 +39,10 @@
 
   <ItemGroup Condition="'$(Framework)'!='net6.0'">
     <PackageReference Include="System.Buffers" Version="4.5.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Threading.Tasks.Dataflow" Version="5.0.0" />
   </ItemGroup>
 
 </Project>

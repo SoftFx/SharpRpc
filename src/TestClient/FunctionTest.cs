@@ -31,12 +31,15 @@ namespace TestClient
         public static void Run(string address)
         {
             var runner = new TestRunner();
-            AddCases(runner, address, false);
-            AddCases(runner, address, true);
+            AddCases(runner, address, false, out var client);
+            AddCases(runner, address, true, out var sslClient);
             runner.RunAll();
+
+            client.Channel.CloseAsync().Wait();
+            sslClient.Channel.CloseAsync().Wait();
         }
 
-        private static void AddCases(TestRunner runner, string address, bool ssl)
+        private static void AddCases(TestRunner runner, string address, bool ssl, out FunctionTestContract_Gen.Client client)
         {
             var security = ssl ? new SslSecurity(NullCertValidator) : TcpSecurity.None;
             var port = 812;
@@ -47,7 +50,7 @@ namespace TestClient
                 endpoint.Credentials = new BasicCredentials("Admin", "zzzz");
 
             var callback = new CallbackHandler();
-            var client = FunctionTestContract_Gen.CreateClient(endpoint, callback);
+            client = FunctionTestContract_Gen.CreateClient(endpoint, callback);
 
             var rConnect = client.Channel.TryConnectAsync().Result;
 

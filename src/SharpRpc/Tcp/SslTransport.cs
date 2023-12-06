@@ -31,7 +31,7 @@ namespace SharpRpc
         }
 
 #if NET5_0_OR_GREATER
-        public override bool StopRxByShutdown => false;
+        public override bool StopRxByShutdown => true;
 #else
         public override bool StopRxByShutdown => true;
 #endif
@@ -45,17 +45,17 @@ namespace SharpRpc
 #if NET5_0_OR_GREATER
         public override ValueTask<int> Receive(ArraySegment<byte> buffer, CancellationToken cToken)
         {
-            return _stream.ReadAsync(buffer, cToken);
+            return _stream.ReadAsync(buffer);
         }
 
         public override ValueTask Send(ArraySegment<byte> data, CancellationToken cToken)
         {
-            return _stream.WriteAsync(data, cToken);
+            return _stream.WriteAsync(data);
         }
 #else
         public override Task<int> Receive(ArraySegment<byte> buffer, CancellationToken cToken)
         {
-            return _stream.ReadAsync(buffer.Array, buffer.Offset, buffer.Count, cToken);
+            return _stream.ReadAsync(buffer.Array, buffer.Offset, buffer.Count);
         }
 
         public override Task Send(ArraySegment<byte> data, CancellationToken cToken)
@@ -74,7 +74,7 @@ namespace SharpRpc
             try
             {
 #if !NETSTANDARD
-                await _stream.ShutdownAsync();
+                await _stream.ShutdownAsync().ConfigureAwait(false);
 #endif
                 _stream.Close();
             }

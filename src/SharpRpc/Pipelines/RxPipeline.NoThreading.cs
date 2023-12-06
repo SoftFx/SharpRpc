@@ -60,7 +60,7 @@ namespace SharpRpc
                 }
 
                 if (_msgDispatcher.IncomingMessages.Count > 0)
-                    await SubmitParsedBatch();
+                    await OnMessagesArrived();
 
                 if (bytesConsumed > 0)
                     _buffer.CommitDataConsume(bytesConsumed);

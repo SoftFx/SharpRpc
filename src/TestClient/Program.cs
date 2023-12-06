@@ -1,8 +1,12 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Linq;
+using System.Net;
+using System.Net.Security;
 using System.Reflection;
+using System.Security.Cryptography.X509Certificates;
 using System.Threading;
+using System.Threading.Tasks;
 using SharpRpc;
 using TestCommon;
 
@@ -29,6 +33,7 @@ namespace TestClient
             Console.WriteLine("4. Stress test");
             Console.WriteLine("5. Connection tests");
             Console.WriteLine("6. Load test");
+            Console.WriteLine("7. Auth load test");
             Console.Write(">");
 
             var choice = Console.ReadLine();
@@ -142,6 +147,12 @@ namespace TestClient
                 loadTest.Stop();
                 Console.WriteLine("Done.");
             }
+            else if (choice == "7")
+            {
+                AuthLoadTest(address);
+                Console.WriteLine("Done.");
+                Console.Read();
+            }
             else
                 Console.WriteLine("Invalid input.");
         }
@@ -164,6 +175,34 @@ namespace TestClient
                 return "disabled";
 
             return "enabled";
+        }
+
+        private static void AuthLoadTest(string serverAddress)
+        {
+            var options = new ParallelOptions() { MaxDegreeOfParallelism = 10 };
+
+            Parallel.For(0, 100000, options, i =>
+            {
+                var serviceName = "Bench/Ssl/Messagepack";
+                var endpoint = new TcpClientEndpoint(serverAddress, serviceName, BenchmarkContractCfg.Port, new SslSecurity(NullCertValidator));
+                endpoint.Credentials = new BasicCredentials("Admin", "zzzz11");
+                var client = BenchmarkContract_Gen.CreateClient(endpoint, new BenchmarkClient.CallbackService());
+
+                var result = client.Channel.TryConnectAsync().Result;
+
+                if (result.Code != RpcRetCode.InvalidCredentials)
+                {
+                    //Debugger.Launch();
+                    //Debugger.Break();
+                    //throw new Exception("Assertion failed!");
+                    Console.WriteLine($"assert code={result.Code} ");
+                }
+            });
+        }
+
+        private static bool NullCertValidator(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
+        {
+            return true;
         }
     }
 }

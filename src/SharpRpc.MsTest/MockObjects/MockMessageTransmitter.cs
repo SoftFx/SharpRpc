@@ -69,6 +69,12 @@ namespace SharpRpc.MsTest.MockObjects
             onSendCompletedCallback(result);
         }
 
+        public void TrySendSystemMessage(IMessage message, Action<RpcResult> onSendCompletedCallback)
+        {
+            var result = TrySend(message);
+            onSendCompletedCallback(result);
+        }
+
         public void Start(ByteTransport transport)
         {
         }

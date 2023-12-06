@@ -18,20 +18,20 @@ namespace SharpRpc
     {
         private TaskCompletionSource<ILogoutMessage> _logoutWaitHandle;
 
-        protected object LockObj { get; } = new object();
+        protected object LockObj { get; private set; }
         protected Channel Channel { get; private set; }
 
         public void Init(Channel ch)
         {
             Channel = ch;
+            LockObj = Channel.StateLockObject;
             OnInit();
         }
 
         public abstract TimeSpan LoginTimeout { get; }
         public SessionState State { get; protected set; }
 
-        public abstract Task<RpcResult> OnConnect(CancellationToken cToken);
-        //public abstract Task<RpcResult> OnDisconnect();public abstract Task<RpcResult> OnDisconnect();
+        public abstract Task<bool> OnConnect(CancellationToken cToken);
 
         protected abstract RpcResult OnLoginMessage(ILoginMessage loginMsg);
         protected virtual void OnInit() { }
@@ -114,22 +114,23 @@ namespace SharpRpc
                 }
                 else if (State != SessionState.LoggedIn)
                     return new RpcResult(RpcRetCode.UnexpectedMessage, $"Received an unexpected logout message! State='{State}'.");
-            }
 
-            // trigger logout (SessionState.LoggedIn)
-            Channel.TriggerDisconnect(new RpcResult(RpcRetCode.ChannelClosedByOtherSide, "Logout requested by other side."));
-            return RpcResult.Ok;
+                Channel.TriggerDisconnect(new RpcResult(RpcRetCode.ChannelClosedByOtherSide, "Logout requested by other side."));
+                return RpcResult.Ok;
+            }   
         }
     }
 
-    public enum SessionState
+    public enum SessionState : byte
     {
-        None, // new
-        PendingLogin, // wating for login message
+        None,
+        PendingLogin,
+        Authentication, //the authentication is beign called
+        LoginFailed,
         OpenEvent,
         LoggedIn,
         CloseEvent,
         PendingLogout,
-        LoggedOut
+        LoggedOut,
     }
 }

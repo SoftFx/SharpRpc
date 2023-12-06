@@ -48,7 +48,8 @@ namespace SharpRpc
         internal async override Task<ByteTransport> SecureTransport(SocketTransport unsecureTransport, Endpoint endpoint)
 #endif
         {
-            var sslStream = new SslStream(unsecureTransport.Stream, false);
+            var netStream = new NetworkStream(unsecureTransport.Socket, true);
+            var sslStream = new SslStream(netStream, false);
 
 #if NET5_0_OR_GREATER
             var sslOptions = new SslServerAuthenticationOptions();

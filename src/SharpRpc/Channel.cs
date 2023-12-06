@@ -9,6 +9,7 @@ using SharpRpc.Lib;
 using SharpRpc.Server;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -48,6 +49,7 @@ namespace SharpRpc
         internal TxPipeline Tx => _tx;
         internal ContractDescriptor Contract => _descriptor;
         internal IRpcLogger Logger { get; }
+        internal object StateLockObject => _stateSyncObj;
 
         internal event Action<Channel, RpcResult> InternalClosed;
 
@@ -222,7 +224,7 @@ namespace SharpRpc
             Abort(fault);
         }
 
-        private void UpdateFault(RpcResult fault)
+        internal void UpdateFault(RpcResult fault)
         {
             if (_channelFault.Code == RpcRetCode.Ok) // only first fault counts
                 _channelFault = fault;
@@ -271,10 +273,10 @@ namespace SharpRpc
             _abortLoginSrc.CancelAfter(_coordinator.LoginTimeout);
 
             // login handshake
-            var loginResult = await startCoordinatorTask;
+            await startCoordinatorTask;
 
-            if (loginResult.Code != RpcRetCode.Ok)
-                UpdateFault(loginResult);
+            //if (loginResult.Code != RpcRetCode.Ok)
+            //    UpdateFault(loginResult);
 
             bool abortConnect = false;
 
@@ -282,23 +284,30 @@ namespace SharpRpc
             {
                 // Note: a communication fault may be already occured at this time
                 if (_closeFlag || _channelFault.Code != RpcRetCode.Ok)
+                {
                     abortConnect = true;
+                    State = ChannelState.Disconnecting;
+                }
                 else
                     State = ChannelState.Online;
             }
 
             // exit transport thread
-            await Task.Yield();
+            await Task.Factory.Dive();
 
             if (abortConnect)
             {
                 Logger.Warn(Id, "Failed to open a session! Code: {0}", _channelFault.Code);
-                await DisconnectRoutine();
+                await DisconnectRoutine(true);
+                lock (StateLockObject)
+                    State = ChannelState.Faulted;
+                Logger.Info(Id, "Disconnected. Final state: " + State);
                 _connectEvent.SetResult(_channelFault);
                 RiseFailedToConnectEvent(_channelFault);
             }
             else
             {
+                // TO DO : disconnect event may come before connect event (can be fixed by introducing internal state)
                 Logger.Info(Id, "Connected.");
                 _connectEvent.SetResult(RpcResult.Ok);
             }
@@ -366,7 +375,7 @@ namespace SharpRpc
         {
             Logger.Info(Id, $"{_channelFault.FaultMessage} [{_channelFault.Code}] Disconnecting...");
 
-            await DisconnectRoutine();
+            await DisconnectRoutine(false);
 
             var faultToRise = RpcResult.Ok;
 
@@ -391,13 +400,14 @@ namespace SharpRpc
             RiseClosedEvent(_channelFault, State == ChannelState.Faulted);
         }
 
-        private async Task DisconnectRoutine()
+        private async Task DisconnectRoutine(bool skipLogoutSequence)
         {
             _abortLogoutSrc.CancelAfter(TimeSpan.FromMinutes(2));
 
             //_tx.StopProcessingUserMessages(_channelFault);
 
-            await _coordinator.OnDisconnect(_abortLogoutSrc.Token);
+            if (!skipLogoutSequence)
+                await _coordinator.OnDisconnect(_abortLogoutSrc.Token);
             await CloseComponents();
         }
 

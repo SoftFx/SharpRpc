@@ -140,7 +140,7 @@ namespace SharpRpc
 
                 if (!CanProcessUserMessage)
                 {
-                    _asyncGate.Enqueue(message, onSendCompletedCallback);
+                    _asyncGate.Enqueue(message, false, onSendCompletedCallback);
                     return;
                 }
                 else
@@ -167,7 +167,7 @@ namespace SharpRpc
                 if (!CanProcessUserMessage)
                 {
                     var message = new BinaryStreamPage(callId, page);
-                    _asyncGate.Enqueue(message, onSendCompletedCallback);
+                    _asyncGate.Enqueue(message, false, onSendCompletedCallback);
                     return;
                 }
                 else
@@ -207,6 +207,34 @@ namespace SharpRpc
             }
 
             return FwAdapter.WrappResult(WriteMessageToBuffer(message));
+        }
+
+        public void TrySendSystemMessage(IMessage message, Action<RpcResult> onSendCompletedCallback)
+        {
+            //Debug.Assert(!Monitor.IsEntered(_lockObj));
+
+            lock (_lockObj)
+            {
+                if (_fault.Code != RpcRetCode.Ok)
+                    onSendCompletedCallback(_fault);
+
+                CheckConnectionFlags();
+
+                if (!CanProcessSystemMessage)
+                {
+                    _asyncGate.Enqueue(message, true, onSendCompletedCallback);
+                    return;
+                }
+                else
+                {
+                    _isProcessingItem = true;
+                    _buffer.Lock();
+                }
+            }
+
+            WriteMessageToBuffer(message);
+
+            onSendCompletedCallback(RpcResult.Ok);
         }
 
         private void SendOrForget(ISystemMessage message)
@@ -372,11 +400,6 @@ namespace SharpRpc
             return error;
         }
 
-        //protected override SlimAwaitable<ArraySegment<byte>> DequeueNextSegment()
-        //{
-        //    return _buffer.DequeueNext();
-        //}
-
         private void EnqueueNextItem()
         {
             var nextPending = _asyncGate.Dequeue(_isUserMessagesEnabled);
@@ -397,16 +420,6 @@ namespace SharpRpc
                 Monitor.PulseAll(_lockObj);
             }
         }
-
-        //private IPendingItem DequeuePending()
-        //{
-        //    if (_systemQueue.Count > 0)
-        //        return _systemQueue.Dequeue();
-        //    else if (_isUserMessagesEnabled && _asyncQueue.Count > 0)
-        //        return _asyncQueue.Dequeue();
-        //    else
-        //        return null;
-        //}
 
         public void Start(ByteTransport transport)
         {

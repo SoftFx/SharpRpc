@@ -19,50 +19,48 @@ namespace SharpRpc
     internal class SocketTransport : ByteTransport
     {
         private readonly Socket _socket;
-        private readonly NetworkStream _stream;
-        private readonly TaskFactory _taskQueue;
-        private string _channelId;
+        private readonly TaskFactory _taskFactory;
         
         public SocketTransport(Socket socket, TaskFactory taskQueue)
         {
             _socket = socket;
-            _taskQueue = taskQueue;
-            _stream = new NetworkStream(socket, true);
+            _taskFactory = taskQueue;
         }
 
-        internal NetworkStream Stream => _stream;
         internal Socket Socket => _socket;
 
 #if NET5_0_OR_GREATER
-        public override bool StopRxByShutdown => false;
+        public override bool StopRxByShutdown => true;
 #else
         public override bool StopRxByShutdown => true;
 #endif
 
         public override void Init(Channel channel)
         {
-            _channelId = channel.Id;
+            //_channelId = channel.Id;
         }
 
 #if NET5_0_OR_GREATER
         public override ValueTask<int> Receive(ArraySegment<byte> buffer, CancellationToken cToken)
         {
-            return _stream.ReadAsync(buffer, cToken);
+            return new ValueTask<int>(_socket.ReceiveAsync(buffer, SocketFlags.None));
         }
 
         public override ValueTask Send(ArraySegment<byte> data, CancellationToken cToken)
         {
-            return _stream.WriteAsync(data, cToken);
+            return new ValueTask(_socket.SendAsync(data, SocketFlags.None));
         }
 #else
         public override Task<int> Receive(ArraySegment<byte> buffer, CancellationToken cToken)
         {
-            return _stream.ReadAsync(buffer.Array, buffer.Offset, buffer.Count);
+            //return _stream.ReadAsync(buffer.Array, buffer.Offset, buffer.Count, cToken);
+            return _socket.ReceiveAsync(buffer, SocketFlags.None);
         }
 
         public override Task Send(ArraySegment<byte> data, CancellationToken cToken)
         {
-            return _stream.WriteAsync(data.Array, data.Offset, data.Count);
+            //return _stream.WriteAsync(data.Array, data.Offset, data.Count, cToken);
+            return _socket.SendAsync(data, SocketFlags.None);
         }
 #endif
 
@@ -81,8 +79,8 @@ namespace SharpRpc
                 {
                     case SocketError.TimedOut: return new RpcResult(RpcRetCode.ConnectionTimeout, socketEx.Message);
                     case SocketError.Shutdown: return new RpcResult(RpcRetCode.ConnectionShutdown, socketEx.Message);
-                    case SocketError.OperationAborted: return new RpcResult(RpcRetCode.ConnectionShutdown, socketEx.Message);
-                    case SocketError.ConnectionAborted: return new RpcResult(RpcRetCode.ConnectionShutdown, ex.Message);
+                    case SocketError.OperationAborted: return new RpcResult(RpcRetCode.OperationCanceled, socketEx.Message);
+                    case SocketError.ConnectionAborted: return new RpcResult(RpcRetCode.OperationCanceled, ex.Message);
                     case SocketError.ConnectionReset: return new RpcResult(RpcRetCode.ConnectionAbortedByPeer, ex.Message);
                     case SocketError.HostNotFound: return new RpcResult(RpcRetCode.HostNotFound, ex.Message);
                     case SocketError.HostUnreachable: return new RpcResult(RpcRetCode.HostUnreachable, ex.Message);
@@ -94,6 +92,10 @@ namespace SharpRpc
             {
                 return new RpcResult(RpcRetCode.SecurityError, ex.Message);
             }
+            else if (ex is ObjectDisposedException || ex.InnerException is ObjectDisposedException)
+            {
+                return new RpcResult(RpcRetCode.OperationCanceled, ex.Message);
+            }
 
             return new RpcResult(RpcRetCode.OtherConnectionError, "An unexpected exception is occurred in TcpTransport: " + ex.Message);
         }
@@ -102,7 +104,7 @@ namespace SharpRpc
         {
             try
             {
-                _socket.Shutdown(SocketShutdown.Both);
+                _socket.Shutdown(SocketShutdown.Both);                
             }
             catch (Exception)
             {
@@ -111,7 +113,7 @@ namespace SharpRpc
 
             try
             {
-                await _socket.DisconnectAsync(_taskQueue);
+                await _socket.DisconnectAsync(_taskFactory);
             }
             catch (Exception)
             {
@@ -123,7 +125,7 @@ namespace SharpRpc
 
         public override void Dispose()
         {
-            _stream.Dispose();
+            //_stream.Dispose();
             _socket.Dispose();
         }
 

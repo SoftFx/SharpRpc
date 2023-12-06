@@ -14,30 +14,30 @@ using System.Threading.Tasks;
 
 namespace SharpRpc.Lib
 {
-    internal class SlimArrayPool<T>
-    {
-        private readonly int _arraySize;
-        private readonly int _maxCacheSize;
-        private ConcurrentQueue<T[]> _cache = new ConcurrentQueue<T[]>();
+//    internal class SlimArrayPool<T>
+//    {
+//        private readonly int _arraySize;
+//        private readonly int _maxCacheSize;
+//        private ConcurrentQueue<T[]> _cache = new ConcurrentQueue<T[]>();
 
-        public SlimArrayPool(int arraySize, int maxCachedArrays)
-        {
-            _arraySize = arraySize;
-            _maxCacheSize = maxCachedArrays;
-        }
+//        public SlimArrayPool(int arraySize, int maxCachedArrays)
+//        {
+//            _arraySize = arraySize;
+//            _maxCacheSize = maxCachedArrays;
+//        }
 
-        public T[] Rent()
-        {
-            if (!_cache.TryDequeue(out var array))
-                array = new T[_arraySize];
+//        public T[] Rent()
+//        {
+//            if (!_cache.TryDequeue(out var array))
+//                array = new T[_arraySize];
 
-            return array;
-        }
+//            return array;
+//        }
 
-        public void Return(T[] array)
-        {
-            if (_cache.Count < _maxCacheSize)
-                _cache.Enqueue(array);
-        }
-}
+//        public void Return(T[] array)
+//        {
+//            if (_cache.Count < _maxCacheSize)
+//                _cache.Enqueue(array);
+//        }
+//}
 }

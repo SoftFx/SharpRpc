@@ -46,7 +46,7 @@ namespace TestCommon
         public BenchmarkContract_Gen.Client Stub { get; }
         public Channel Channel => Stub.Channel;
 
-        private class CallbackService : BenchmarkContract_Gen.CallbackServiceBase
+        public class CallbackService : BenchmarkContract_Gen.CallbackServiceBase
         {
             private int _msgCounter;
 

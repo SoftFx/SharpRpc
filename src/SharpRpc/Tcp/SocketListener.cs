@@ -14,6 +14,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Threading.Tasks.Dataflow;
 
 namespace SharpRpc.Tcp
 {
@@ -26,6 +27,7 @@ namespace SharpRpc.Tcp
         private Task _listenerTask;
         private readonly ISocketListenerContext _context;
         private readonly ServiceRegistry _services;
+        private ActionBlock<Socket> _sessionInitBlock;
 
         public SocketListener(Socket socket, ServerEndpoint endpoint, ISocketListenerContext conext, ServiceRegistry services)
         {
@@ -41,6 +43,8 @@ namespace SharpRpc.Tcp
 
         public void Start(EndPoint socketEndpoint)
         {
+            _sessionInitBlock = new ActionBlock<Socket>(InitSession, new ExecutionDataflowBlockOptions() { MaxDegreeOfParallelism = 10, BoundedCapacity = 10 });
+
             _socket.Bind(socketEndpoint);
             _socket.Listen(100);
 
@@ -51,13 +55,14 @@ namespace SharpRpc.Tcp
         {
             _stopFlag = true;
             _socket.Close();
-            await _listenerTask;
+            await _listenerTask.ConfigureAwait(false);
+
+            _sessionInitBlock.Complete();
+            await _sessionInitBlock.Completion.ConfigureAwait(false);
         }
 
         private async Task AcceptLoop()
         {
-            var handshaker = new HandshakeCoordinator(1024 * 10, TimeSpan.FromSeconds(10));
-
             while (!_stopFlag)
             {
                 Socket socket = null;
@@ -66,8 +71,13 @@ namespace SharpRpc.Tcp
                 try
                 {
                     socket = await _socket.AcceptAsync().ConfigureAwait(false);
-
                     _context.OnAccept(socket);
+
+                    if (Logger.VerboseEnabled)
+                        Logger.Verbose(_logId, "Accepted new connection.");
+
+                    if (!await _sessionInitBlock.SendAsync(socket).ConfigureAwait(false))
+                        throw new Exception("Assertion failed! AcceptLoop() must be stopped before stopping the block!");
                 }
                 catch (Exception ex)
                 {
@@ -81,45 +91,46 @@ namespace SharpRpc.Tcp
 
                     continue;
                 }
+            }
+        }
+
+        private async Task InitSession(Socket socket)
+        {
+            var handshaker = new HandshakeCoordinator(1024 * 10, TimeSpan.FromSeconds(10));
+
+            SocketTransport unsecuredTransport = null;
+
+            try
+            {
+                // do handshake
+                unsecuredTransport = new SocketTransport(socket, _endpoint.TaskQueue);
+                var handshakeResult = await handshaker.DoServerSideHandshake(unsecuredTransport, _services, new Log(_logId, Logger));
+
+                if (!handshakeResult.WasAccepted)
+                {
+                    await CloseTransport(unsecuredTransport);
+                    return;
+                }
+
+                var serviceConfig = (TcpServiceBinding)handshakeResult.Service;
 
                 if (Logger.VerboseEnabled)
-                    Logger.Verbose(_logId, "Accepted new connection.");
+                    Logger.Verbose(_logId, "Handshake completed.");
 
-                SocketTransport unsecuredTransport = null;
+                // secure
+                var transport = await serviceConfig.Security.SecureTransport(unsecuredTransport, _endpoint);
 
-                try
-                {
+                // open new session
+                _context.OnNewConnection(serviceConfig, transport);
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(_logId, ex.Message);
 
-                    // do handshake
-                    unsecuredTransport = new SocketTransport(socket, _endpoint.TaskQueue);
-                    var handshakeResult = await handshaker.DoServerSideHandshake(unsecuredTransport, _services, new Log(_logId, Logger));
-
-                    if (!handshakeResult.WasAccepted)
-                    {
-                        await CloseTransport(unsecuredTransport);
-                        continue;
-                    }
-
-                    var serviceConfig = (TcpServiceBinding)handshakeResult.Service;
-
-                    if (Logger.VerboseEnabled)
-                        Logger.Verbose(_logId, "Handshake completed.");
-
-                    // secure
-                    var transport = await serviceConfig.Security.SecureTransport(unsecuredTransport, _endpoint);
-
-                    // open new session
-                    _context.OnNewConnection(serviceConfig, transport);
-                }
-                catch (Exception ex)
-                {
-                    Logger.Error(_logId, ex.Message);
-
-                    if (unsecuredTransport != null)
-                        await CloseTransport(unsecuredTransport);
-                    else
-                        CloseSocket(socket);
-                }
+                if (unsecuredTransport != null)
+                    await CloseTransport(unsecuredTransport);
+                else
+                    CloseSocket(socket);
             }
         }
 

@@ -32,9 +32,12 @@ namespace SharpRpc
             return waitItem.Task;
         }
 
-        public void Enqueue(IMessage message, Action<RpcResult> onSendCompletedCallback)
+        public void Enqueue(IMessage message, bool system, Action<RpcResult> onSendCompletedCallback)
         {
-            _userQueue.Enqueue(new CallbackItem(message, onSendCompletedCallback));
+            if (system)
+                _systemQueue.Enqueue(new CallbackItem(message, onSendCompletedCallback));
+            else
+                _userQueue.Enqueue(new CallbackItem(message, onSendCompletedCallback));
         }
 
         public bool TryCancelUserMessage(IMessage message)

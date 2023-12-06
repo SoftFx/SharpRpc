@@ -64,7 +64,8 @@ namespace SharpRpc
                     if (data.Array == null)
                         return;
 
-                    await Task.Yield();
+                    // ????
+                    //await Task.Factory.Dive();
 
                     try
                     {
