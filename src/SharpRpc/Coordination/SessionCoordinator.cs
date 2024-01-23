@@ -94,9 +94,6 @@ namespace SharpRpc
 
         private Task<RpcResult> SendLogout()
         {
-            if (Channel.Logger.VerboseEnabled)
-                Channel.Logger.Verbose(Channel.Id, "Sending logout message...");
-
             var logoutMsg = Channel.Contract.SystemMessages.CreateLogoutMessage();
             return Channel.Tx.SendSystemMessage(logoutMsg).ToTask();
         }
@@ -107,8 +104,6 @@ namespace SharpRpc
             {
                 if (State == SessionState.CloseEvent || State == SessionState.PendingLogout)
                 {
-                    if (Channel.Logger.VerboseEnabled)
-                        Channel.Logger.Verbose(Channel.Id, "The logout message has been received.");
                     _logoutWaitHandle.SetResult(logoutMsg);
                     return RpcResult.Ok;
                 }

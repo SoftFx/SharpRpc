@@ -24,8 +24,8 @@ namespace SharpRpc
         public string LogId { get; }
         public IRpcLogger Logger { get; }
 
-        public bool VerboseEnabled => Logger.VerboseEnabled;
-        public bool InfoEnabled => Logger.InfoEnabled;
+        public bool VerboseEnabled => Logger.IsVerboseEnabled;
+        public bool InfoEnabled => Logger.IsInfoEnabled;
 
         public void Verbose(string msg) => Logger.Verbose(LogId, msg);
         public void Info(string msg) => Logger.Verbose(LogId, msg);

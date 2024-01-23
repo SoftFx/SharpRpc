@@ -52,8 +52,8 @@ namespace SharpRpc
             _logger = logger;
             _coordinator = new StreamReadCoordinator(LockObj, callId, factory);
 
-            if (_logger.VerboseEnabled)
-                _logger.Verbose(GetName(), "[Opened]");
+            if (_logger.IsVerboseEnabled)
+                _logger.Verbose(GetName(), "Opened");
         }
 
         private bool HasData => !IsNull(_currentPage);
@@ -125,8 +125,8 @@ namespace SharpRpc
                 State = States.Completed;
                 //_isCloseAckRequested = (msg.Options & StreamCloseOptions.SendAcknowledgment) != 0;
 
-                if (_logger.VerboseEnabled)
-                    _logger.Verbose(GetName(), "Received a close message. [Completed]");
+                if (_logger.IsVerboseEnabled)
+                    _logger.Verbose(GetName(), "Completed (Received a close message)");
 
                 if (!HasData)
                 {
@@ -153,8 +153,8 @@ namespace SharpRpc
                 _fault = fault;
                 wakeupListener = OnDataArrived(out _);
 
-                if (_logger.VerboseEnabled)
-                    _logger.Verbose(GetName(), $"[Aborted]");
+                if (_logger.IsVerboseEnabled)
+                    _logger.Verbose(GetName(), $"Aborted (due to {_fault.Code})");
             }
 
             if (wakeupListener) _enumerator.WakeUpListener();
@@ -176,8 +176,8 @@ namespace SharpRpc
                     else
                         ChangeState(States.Cancellation);
 
-                    if (_logger.VerboseEnabled)
-                        _logger.Verbose(GetName(), $"Cancellation is requested.{(dropRemItems ? "[Drop] " : " ")} [Cancellation]");
+                    if (_logger.IsVerboseEnabled)
+                        _logger.Verbose(GetName(), $"Cancellation is requested.{(dropRemItems ? "[Drop] " : " ")}");
 
                     SendCancelMessage(dropRemItems);
                 }
@@ -192,7 +192,7 @@ namespace SharpRpc
         {
             lock (LockObj)
             {
-                if (_logger.VerboseEnabled)
+                if (_logger.IsVerboseEnabled)
                     _logger.Verbose(GetName(), $"Closing...");
 
                 if (State == States.Online)

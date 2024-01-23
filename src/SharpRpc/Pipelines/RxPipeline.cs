@@ -29,8 +29,10 @@ namespace SharpRpc
         private readonly CancellationTokenSource _rxCancelSrc = new CancellationTokenSource();
         private Task _rxLoop;
         //private readonly TaskFactory _taskQueue;
+        private readonly IRpcLogger _logger;
+        private readonly string _channelId;
 
-        public RxPipeline(ByteTransport transport, Endpoint config, IRpcSerializer serializer, MessageDispatcher messageConsumer, SessionCoordinator coordinator)
+        public RxPipeline(string channelId, ByteTransport transport, Endpoint config, IRpcSerializer serializer, MessageDispatcher messageConsumer, SessionCoordinator coordinator)
         {
             _transport = transport;
             _serializer = serializer;
@@ -38,6 +40,8 @@ namespace SharpRpc
             _coordinator = coordinator;
             //_taskQueue = config.TaskQueue;
             _parser.MaxMessageSize = config.MaxMessageSize;
+            _logger = config.GetLogger();
+            _channelId = channelId;
         }
 
         protected MessageDispatcher MessageConsumer => _msgDispatcher;
@@ -152,7 +156,18 @@ namespace SharpRpc
                             return sysMsgResult;
                     }
                     else
+                    {
+                        if (_logger.IsMessageLoggingEnabled)
+                        {
+                            if (result.Value is IInteropMessage iMsg)
+                            {
+                                if (!(iMsg is IStreamAuxMessage) || _logger.IsAuxMessageLoggingEnabled)
+                                    _logger.Verbose(_channelId, "Recieved " + iMsg.GetMessageName());
+                            }
+                        }
+
                         container.Add(result.Value);
+                    }
 
                     bytesConsumed += _parser.MessageBrutto;
 
@@ -220,7 +235,14 @@ namespace SharpRpc
         {
             // ignore the heartbeat message (it did its job by just arriving)
             if (msg is IHeartbeatMessage)
+            {
+                if (_logger.IsAuxMessageLoggingEnabled)
+                    _logger.Verbose(_channelId, "Recieved " + msg.GetMessageName());
                 return RpcResult.Ok;
+            }
+
+            if (_logger.IsMessageLoggingEnabled)
+                _logger.Verbose(_channelId, "Recieved " + msg.GetMessageName());
 
             var result = _coordinator.OnMessage(msg);
 

@@ -1,4 +1,5 @@
-﻿// Copyright © 2021 Soft-Fx. All rights reserved.
+﻿
+// Copyright © 2021 Soft-Fx. All rights reserved.
 // Author: Andrei Hilevich
 //
 // This Source Code Form is subject to the terms of the Mozilla
@@ -60,6 +61,26 @@ namespace SharpRpc
                 return binding.CreateException(text);
             else
                 return new RpcFaultException(faultMessage.Code.ToRetCode(), faultMessage.GetFaultTextOrDefault());
+        }
+
+        public static string GetMessageName(this ISystemMessage msg)
+        {
+            return msg.GetType().Name + "(sys)";
+        }
+
+        public static string GetMessageName(this IInteropMessage msg)
+        {
+            return msg.GetType().Name + "(" + msg.CallId + ")";
+        }
+
+        public static string GetMessageName(this IMessage msg)
+        {
+            if (msg is ISystemMessage sMsg)
+                return sMsg.GetMessageName();
+            else if (msg is IInteropMessage iMsg)
+                return iMsg.GetMessageName();
+            else
+                return msg.GetType().Name;
         }
     }
 }

@@ -43,8 +43,10 @@ namespace SharpRpc
     {
         public static NullLogger Instance { get; } =  new NullLogger();
 
-        public bool VerboseEnabled => false;
-        public bool InfoEnabled => false;
+        public bool IsVerboseEnabled => false;
+        public bool IsInfoEnabled => false;
+        public bool IsMessageLoggingEnabled => false;
+        public bool IsAuxMessageLoggingEnabled => false;
 
         public void Error(string component, string msg, Exception ex)
         {

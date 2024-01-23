@@ -17,12 +17,14 @@ namespace SharpRpc
 
         public ConsoleLogger(bool verbose, bool printStackTrace)
         {
-            VerboseEnabled = verbose;
+            IsVerboseEnabled = verbose;
             _printStack = printStackTrace;
         }
 
-        public bool VerboseEnabled { get; }
-        public bool InfoEnabled => true;
+        public bool IsVerboseEnabled { get; }
+        public bool IsInfoEnabled => true;
+        public bool IsMessageLoggingEnabled => true;
+        public bool IsAuxMessageLoggingEnabled => false;
 
         public void Info(string component, string msg)
         {

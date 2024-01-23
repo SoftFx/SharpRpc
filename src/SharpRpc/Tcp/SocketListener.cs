@@ -73,7 +73,7 @@ namespace SharpRpc.Tcp
                     socket = await _socket.AcceptAsync().ConfigureAwait(false);
                     _context.OnAccept(socket);
 
-                    if (Logger.VerboseEnabled)
+                    if (Logger.IsVerboseEnabled)
                         Logger.Verbose(_logId, "Accepted new connection.");
 
                     if (!await _sessionInitBlock.SendAsync(socket).ConfigureAwait(false))
@@ -114,7 +114,7 @@ namespace SharpRpc.Tcp
 
                 var serviceConfig = (TcpServiceBinding)handshakeResult.Service;
 
-                if (Logger.VerboseEnabled)
+                if (Logger.IsVerboseEnabled)
                     Logger.Verbose(_logId, "Handshake completed.");
 
                 // secure

@@ -37,6 +37,7 @@ namespace SharpRpc
         private readonly Action _connectionRequestHandler;
         private readonly TxTransportFeed _feed;
         private readonly IRpcSerializer _messageSerializer;
+        private readonly IRpcLogger _logger;
 
         public TxPipeline_NoQueue(string channeldId, ContractDescriptor descriptor, Endpoint config, Action<RpcResult> commErrorHandler, Action connectionRequestHandler)
         {
@@ -55,6 +56,8 @@ namespace SharpRpc
             _buffer.SpaceFreed += _buffer_SpaceFreed;
 
             _feed = new TxTransportFeed(_buffer, commErrorHandler);
+
+            _logger = config.GetLogger();
 
             if (config.IsKeepAliveEnabled)
             {
@@ -330,6 +333,9 @@ namespace SharpRpc
                 }
 
                 _buffer.EndMessageWrite();
+
+                LogMessageSent(msg);
+
                 return RpcResult.Ok;
             }
             catch (RpcException rex)
@@ -530,6 +536,15 @@ namespace SharpRpc
         {
             if (_isStarted && !_isProcessingItem && HasRoomForNextMessage)
                 EnqueueNextItem();
+        }
+
+        private void LogMessageSent(IMessage message)
+        {
+            if (_logger.IsMessageLoggingEnabled)
+            {
+                if (!(message is IStreamAuxMessage) || _logger.IsAuxMessageLoggingEnabled)
+                    _logger.Verbose(ChannelId, "Sent " + message.GetMessageName());
+            }
         }
     }
 }

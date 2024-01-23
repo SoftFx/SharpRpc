@@ -13,12 +13,14 @@ namespace SharpRpc
 {
     public interface IRpcLogger
     {
-        bool VerboseEnabled { get; }
-        bool InfoEnabled { get; }
+        bool IsMessageLoggingEnabled { get; }
+        bool IsAuxMessageLoggingEnabled { get; }
+        bool IsVerboseEnabled { get; }
+        bool IsInfoEnabled { get; }
 
-        void Verbose(string component, string msg);
-        void Info(string component, string msg);
-        void Warn(string component, string msg, Exception ex);
-        void Error(string component, string msg, Exception ex);
+        void Verbose(string component, string text);
+        void Info(string component, string text);
+        void Warn(string component, string text, Exception ex);
+        void Error(string component, string text, Exception ex);
     }
 }

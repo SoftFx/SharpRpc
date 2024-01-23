@@ -20,8 +20,8 @@ namespace SharpRpc
             private readonly RxBuffer _buffer;
             private volatile bool _isClosed;
 
-            public NoThreading(ByteTransport transport, Endpoint config, IRpcSerializer serializer, MessageDispatcher messageConsumer, SessionCoordinator coordinator)
-                : base(transport, config, serializer, messageConsumer, coordinator)
+            public NoThreading(string channelId, ByteTransport transport, Endpoint config, IRpcSerializer serializer, MessageDispatcher messageConsumer, SessionCoordinator coordinator)
+                : base(channelId, transport, config, serializer, messageConsumer, coordinator)
             {
                 _buffer = new RxBuffer(config.RxBufferSegmentSize);
             }

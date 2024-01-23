@@ -60,8 +60,8 @@ namespace SharpRpc
 
             _coordinator = new StreamWriteCoordinator.Realtime().Init(this);
 
-            if (_logger.VerboseEnabled)
-                _logger.Verbose(GetName(), $"[opened] {options}");
+            if (_logger.IsVerboseEnabled)
+                _logger.Verbose(GetName(), $"Opened {options}");
         }
 
         protected abstract bool DataIsAvailable { get; }
@@ -347,7 +347,7 @@ namespace SharpRpc
 
                 ChangeState(States.Closed);
 
-                if (_logger.VerboseEnabled)
+                if (_logger.IsVerboseEnabled)
                     _logger.Verbose(GetName(), "Received a close acknowledgment. [Closed]");
 
                 return RpcResult.Ok;
@@ -460,8 +460,8 @@ namespace SharpRpc
             {
                 OnClosed();
 
-                if (_logger.VerboseEnabled)
-                    _logger.Verbose(GetName(), $"Aborted. [Closed]");
+                if (_logger.IsVerboseEnabled)
+                    _logger.Verbose(GetName(), $"Aborted ({closeReason})");
             }
             else
             {
@@ -477,8 +477,8 @@ namespace SharpRpc
 
                 sendCompletionMessage = !_isSedning && !DataIsAvailable;
 
-                if (_logger.VerboseEnabled)
-                    _logger.Verbose(GetName(), $"{closeReason} [Completed]");
+                if (_logger.IsVerboseEnabled)
+                    _logger.Verbose(GetName(), $"Completed ({closeReason})");
             }
         }
 

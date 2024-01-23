@@ -37,7 +37,7 @@ namespace SharpRpc
             Channel = ch;
             Tx = ch.Tx;
             Logger = ch.Logger;
-            _opIdPrefix = serverSide ? "S" : "C";
+            _opIdPrefix = serverSide ? "S" : "T";
             //MessageHandler = handler;
             TaskQueue = Tx.TaskQueue;
             Core = new MessageDispatcherCore(Tx, handler, OnError);

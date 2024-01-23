@@ -93,7 +93,7 @@ namespace SharpRpc
             {
                 var tranportInfo = GetTransportInfo();
 
-                if (Logger.InfoEnabled)
+                if (Logger.IsInfoEnabled)
                     Logger.Info(Id, $"Init, endpoint={_endpoint.Name}, service={_binding.ServiceName}");
 
                 var sharedContex = new SessionContext(Id, tranportInfo);
@@ -121,7 +121,7 @@ namespace SharpRpc
             //if (_endpoint.AsyncMessageParsing)
             //    _rx = new RxPipeline.OneThread(transport, _endpoint, _descriptor.SerializationAdapter, _dispatcher, _coordinator);
             //else
-                _rx = new RxPipeline.NoThreading(transport, _endpoint, _descriptor.SerializationAdapter, _dispatcher, _coordinator);
+                _rx = new RxPipeline.NoThreading(Id, transport, _endpoint, _descriptor.SerializationAdapter, _dispatcher, _coordinator);
 
             _rx.CommunicationFaulted += OnCommunicationError;
             _rx.Start();
@@ -215,7 +215,7 @@ namespace SharpRpc
         {
             if (fault.Code == RpcRetCode.ConnectionAbortedByPeer)
             {
-                if (Logger.VerboseEnabled)
+                if (Logger.IsVerboseEnabled)
                     Logger.Verbose(Id, "The transport has been closed by the other side.");
             }
             else
