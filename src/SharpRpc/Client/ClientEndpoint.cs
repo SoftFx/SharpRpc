@@ -42,7 +42,7 @@ namespace SharpRpc
                 lock (LockObject)
                 {
                     ThrowIfImmutable();
-                    _logger = value ?? throw new ArgumentNullException(nameof(value));
+                    _logger = value ?? NullLogger.Instance;
                 }
             }
         }

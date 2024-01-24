@@ -31,6 +31,7 @@ namespace SharpRpc.MsTest.MockObjects
 
         public string CallId { get; set; }
         public StreamCloseOptions Options { get; set; }
+        public string ContractMessageName => "StreamClose";
     }
 
     internal class MockStreamCloseAckMessage : IStreamCloseAckMessage
@@ -41,6 +42,7 @@ namespace SharpRpc.MsTest.MockObjects
         }
 
         public string CallId { get; set; }
+        public string ContractMessageName => "CloseAck";
     }
 
     internal class MockStreamCancelMessage : IStreamCancelMessage
@@ -52,6 +54,7 @@ namespace SharpRpc.MsTest.MockObjects
 
         public string CallId { get; set; }
         public StreamCancelOptions Options { get; set; }
+        public string ContractMessageName => "StreamCancel";
     }
 
     internal class MockStreamPageMessage<T> : IStreamPage<T>, ICloneOnSendMessage
@@ -63,6 +66,7 @@ namespace SharpRpc.MsTest.MockObjects
 
         public string CallId { get; set; }
         public List<T> Items { get; set; }
+        public string ContractMessageName => "StreamPage";
 
         public IMessage Clone()
         {
@@ -79,8 +83,8 @@ namespace SharpRpc.MsTest.MockObjects
 
         public string CallId { get; set; }
         public ushort Consumed { get; set; }
+        public string ContractMessageName => "StreamPageAck";
     }
-
 
     interface ICloneOnSendMessage
     {

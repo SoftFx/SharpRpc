@@ -136,7 +136,7 @@ namespace SharpRpc.Builder
 
             if (hasPrebuilder)
             {
-                var prebuiltMessages = SerializerFixture.GeneratePrebuildMessages(contractInfo).ToArray();
+                var prebuiltMessages = MessageBuilder.GeneratePrebuildMessages(contractInfo).ToArray();
 
                 var prebuiltMessageBundleClass = SF.ClassDeclaration(contractInfo.PrebuiltBundleClassName.Short)
                     .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))

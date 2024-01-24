@@ -15,6 +15,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
+using SF = Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+using SH = SharpRpc.Builder.SyntaxHelper;
 
 namespace SharpRpc.Builder
 {
@@ -88,6 +90,40 @@ namespace SharpRpc.Builder
                 yield return message;
         }
 
+        public static IEnumerable<ClassDeclarationSyntax> GeneratePrebuildMessages(ContractDeclaration contract)
+        {
+            bool singleAdapter = contract.Serializers.Count == 1;
+
+            foreach (var callDef in contract.Operations)
+            {
+                if (callDef.IsOneWay && contract.EnablePrebuild)
+                {
+                    var msgName = contract.GetPrebuiltMessageClassName(callDef.MethodName);
+                    var baseType = singleAdapter ? Names.RpcPrebuiltMessage : Names.RpcMultiPrebuiltMessage;
+
+                    var constructorInitializer = SF.ConstructorInitializer(SyntaxKind.BaseConstructorInitializer)
+                        .AddArgumentListArguments(SH.IdentifierArgument("bytes"));
+
+                    var bytesParam = SH.Parameter("bytes", Names.RpcSegmentedByteArray.Full);
+
+                    var constructor = SF.ConstructorDeclaration(msgName.Short)
+                        .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
+                        .AddParameterListParameters(bytesParam)
+                        .WithInitializer(constructorInitializer)
+                        .WithBody(SF.Block());
+
+                    var nameProperty = CreateContractMessageNameProperty(callDef, "P")
+                        .AddModifiers(SH.OverrideToken());
+
+                    yield return SF.ClassDeclaration(msgName.Short)
+                        .AddBaseListTypes(SF.SimpleBaseType(SH.FullTypeName(baseType)))
+                        .AddModifiers(SH.PublicToken())
+                        .AddMembers(nameProperty)
+                        .AddMembers(constructor);
+                }
+            }
+        }
+
         private static IEnumerable<ClassBuildNode> GenerateStreamFactories(ContractDeclaration contract)
         {
             foreach (var opContract in contract.Operations)
@@ -131,13 +167,13 @@ namespace SharpRpc.Builder
                     if (opContract.HasInStream)
                     {
                         yield return GenerateStreamPageMessage(opContract.InStreamPageKey,
-                            contract.GetInputStreamMessageClassName(opContract), contract, opContract.InStreamItemType);
+                            contract.GetInputStreamMessageClassName(opContract), contract, opContract.InStreamItemType, opContract);
                     }
 
                     if (opContract.HasOutStream)
                     {
                         yield return GenerateStreamPageMessage(opContract.OutStreamPageKey,
-                             contract.GetOutputStreamMessageClassName(opContract), contract, opContract.OutStreamItemType);
+                             contract.GetOutputStreamMessageClassName(opContract), contract, opContract.OutStreamItemType, opContract);
                     }
                 }
                 else
@@ -217,6 +253,7 @@ namespace SharpRpc.Builder
                 .AddBaseListTypes(msgBase, iLoginBase);
 
             return new ClassBuildNode(LoginMessageKey, messageClassName, messageClassDeclaration)
+                .AddAuxProperties(CreateSystemMessageNameProperty(contractInfo.LoginMessageClassName.Short))
                 .AddProperties(userNameProperty, passwordProperty, resultProperty, errorMessageProperty);
         }
 
@@ -231,7 +268,8 @@ namespace SharpRpc.Builder
                 .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
                 .AddBaseListTypes(msgBase, iLogoutBase);
 
-            return new ClassBuildNode(LogoutMessageKey, messageClassName, messageClassDeclaration);
+            return new ClassBuildNode(LogoutMessageKey, messageClassName, messageClassDeclaration)
+                .AddAuxProperties(CreateSystemMessageNameProperty(contractInfo.LogoutMessageClassName.Short));
         }
 
         private static ClassBuildNode GenerateHeartbeatMessage(ContractDeclaration contractInfo)
@@ -245,7 +283,8 @@ namespace SharpRpc.Builder
                 .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
                 .AddBaseListTypes(msgBase, iHeartbeatBase);
 
-            return new ClassBuildNode(HeartbeatMessageKey, messageClassName, messageClassDeclaration);
+            return new ClassBuildNode(HeartbeatMessageKey, messageClassName, messageClassDeclaration)
+                .AddAuxProperties(CreateSystemMessageNameProperty(contractInfo.HeartbeatMessageClassName.Short));
         }
 
         private static ClassBuildNode GenerateCancelRequestMessage(ContractDeclaration contractInfo)
@@ -262,6 +301,7 @@ namespace SharpRpc.Builder
                 .AddBaseListTypes(msgBase, iCancelRequestBase);
 
             return new ClassBuildNode(CancelRequestMessageKey, messageClassName, messageClassDeclaration)
+                .AddAuxProperties(CreateSystemMessageNameProperty(contractInfo.CancelRequestMessageClassName.Short))
                 .AddProperties(callIdProperty);
         }
 
@@ -337,6 +377,7 @@ namespace SharpRpc.Builder
             }
 
             return new ClassBuildNode(messageKey, messageClassName, messageClassDeclaration)
+                .AddAuxProperties(CreateContractMessageNameProperty())
                 .AddProperties(properties)
                 .AddNestedClasses(nestedClasses);
         }
@@ -464,7 +505,7 @@ namespace SharpRpc.Builder
             }
         }
 
-        private static ClassBuildNode GenerateStreamPageMessage(int messageKey, TypeString messageClassName, ContractDeclaration contractInfo, string streamType)
+        private static ClassBuildNode GenerateStreamPageMessage(int messageKey, TypeString messageClassName, ContractDeclaration contractInfo, string streamType, OperationDeclaration opInfo)
         {
             //var messageClassName = contractInfo.GetStreamPageClassName(streamType);
             var genericListType = SyntaxHelper.GenericType("System.Collections.Generic.List", streamType);
@@ -497,6 +538,7 @@ namespace SharpRpc.Builder
                 .AddMembers(constructor);
 
             return new ClassBuildNode(messageKey, messageClassName, messageClassDeclaration)
+                .AddAuxProperties(CreateContractMessageNameProperty(opInfo, "DataPage"))
                 .AddProperties(streamIdProperty, itemsProperty);
         }
 
@@ -532,6 +574,7 @@ namespace SharpRpc.Builder
                 .AddMembers(constructor);
 
             return new ClassBuildNode(StreamAckMessageKey, messageClassName, messageClassDeclaration)
+                .AddAuxProperties(CreateSystemMessageNameProperty("PageAcknowledgement"))
                 .AddProperties(streamIdProperty, pagesConsumedProperty);
         }
 
@@ -567,6 +610,7 @@ namespace SharpRpc.Builder
                 .AddMembers(constructor);
 
             return new ClassBuildNode(StreamCancelMessageKey, messageClassName, messageClassDeclaration)
+                .AddAuxProperties(CreateContractMessageNameProperty("CancelStream"))
                 .AddProperties(streamIdProperty, optionsProperty);
         }
 
@@ -602,6 +646,7 @@ namespace SharpRpc.Builder
                 .AddMembers(constructor);
 
             return new ClassBuildNode(StreamCloseMessageKey, messageClassName, messageClassDeclaration)
+                .AddAuxProperties(CreateContractMessageNameProperty("CloseStream"))
                 .AddProperties(streamIdProperty, optionsProperty);
         }
 
@@ -631,6 +676,7 @@ namespace SharpRpc.Builder
                 .AddMembers(constructor);
 
             return new ClassBuildNode(StreamCloseAckMessageKey, messageClassName, messageClassDeclaration)
+                .AddAuxProperties(CreateContractMessageNameProperty("CloseStreamAck"))
                 .AddProperties(streamIdProperty);
         }
 
@@ -714,6 +760,27 @@ namespace SharpRpc.Builder
                 .AddMembers(createPageMethod, createCloseMsgMethod, createCloseAckMsgMethod, createCancelMsgMethod, createAckMethod);
 
             return new ClassBuildNode(0, factoryClassName, classDec);
+        }
+
+        private PropertyDeclarationSyntax CreateContractMessageNameProperty()
+        {
+            return CreateContractMessageNameProperty(RpcInfo, MessageType.ToString());
+        }
+
+        private static PropertyDeclarationSyntax CreateContractMessageNameProperty(OperationDeclaration opInfo, string msgSubType)
+        {
+            return CreateContractMessageNameProperty($"{opInfo.MethodName}#{msgSubType}");
+        }
+
+        private static PropertyDeclarationSyntax CreateSystemMessageNameProperty(string msgTypeName)
+        {
+            return CreateContractMessageNameProperty($"#{msgTypeName}");
+        }
+
+        private static PropertyDeclarationSyntax CreateContractMessageNameProperty(string name)
+        {
+            return SyntaxHelper.CreateLambdaGetOnlyProperty("string", "ContractMessageName", SyntaxHelper.LiteralExpression(name))
+                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword));
         }
     }
 }

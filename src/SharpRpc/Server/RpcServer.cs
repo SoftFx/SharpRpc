@@ -49,7 +49,7 @@ namespace SharpRpc
             lock (_stateLock)
             {
                 ThrowIfConfigProhibited();
-                Logger = logger ?? throw new ArgumentNullException(nameof(logger));
+                Logger = logger ?? NullLogger.Instance;
             }
 
             return this;

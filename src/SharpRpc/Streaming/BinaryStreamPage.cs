@@ -25,6 +25,7 @@ namespace SharpRpc.Streaming
 
         public string CallId { get; }
         public ArraySegment<byte> Data { get; }
+        public string ContractMessageName => "#BinaryPage";
 
         public void WriteTo(MessageWriter writer)
         {

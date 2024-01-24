@@ -70,36 +70,6 @@ namespace SharpRpc.Builder
             return method;
         }
 
-        public static IEnumerable<ClassDeclarationSyntax> GeneratePrebuildMessages(ContractDeclaration contract)
-        {
-            bool singleAdapter = contract.Serializers.Count == 1;
-
-            foreach (var callDef in contract.Operations)
-            {
-                if (callDef.IsOneWay && contract.EnablePrebuild)
-                {
-                    var msgName = contract.GetPrebuiltMessageClassName(callDef.MethodName);
-                    var baseType = singleAdapter ? Names.RpcPrebuiltMessage : Names.RpcMultiPrebuiltMessage;
-
-                    var constructorInitializer = SF.ConstructorInitializer(SyntaxKind.BaseConstructorInitializer)
-                        .AddArgumentListArguments(SH.IdentifierArgument("bytes"));
-
-                    var bytesParam = SH.Parameter("bytes", Names.RpcSegmentedByteArray.Full);
-
-                    var constructor = SF.ConstructorDeclaration(msgName.Short)
-                        .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
-                        .AddParameterListParameters(bytesParam)
-                        .WithInitializer(constructorInitializer)
-                        .WithBody(SF.Block());
-
-                    yield return SF.ClassDeclaration(msgName.Short)
-                        .AddBaseListTypes(SF.SimpleBaseType(SH.FullTypeName(baseType)))
-                        .AddModifiers(SH.PublicToken())
-                        .AddMembers(constructor);
-                }
-            }
-        }
-
         public static ClassDeclarationSyntax GeneratePrebuildTool(ContractDeclaration contract)
         {
             bool singleAdapter = contract.Serializers.Count == 1;

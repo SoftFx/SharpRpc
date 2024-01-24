@@ -13,7 +13,7 @@ using System.Threading.Tasks;
 
 namespace SharpRpc
 {
-    public class PrebuiltMessage : IPrebuiltMessage
+    public abstract class PrebuiltMessage : IPrebuiltMessage
     {
         private readonly SegmentedByteArray _msgBytes;
 
@@ -21,6 +21,8 @@ namespace SharpRpc
         {
             _msgBytes = bytes;
         }
+
+        public abstract string ContractMessageName { get; }
 
         public void WriteTo(ushort serializedId, MessageWriter writer)
         {
@@ -35,7 +37,7 @@ namespace SharpRpc
         }
     }
 
-    public class MultiPrebuiltMessage : IPrebuiltMessage
+    public abstract class MultiPrebuiltMessage : IPrebuiltMessage
     {
         private readonly List<SegmentedByteArray> _msgBytesPerSerializer;
 
@@ -43,6 +45,8 @@ namespace SharpRpc
         {
             _msgBytesPerSerializer = bytesToSerializerMap;
         }
+
+        public abstract string ContractMessageName { get; }
 
         public void WriteTo(ushort serializedId, MessageWriter writer)
         {

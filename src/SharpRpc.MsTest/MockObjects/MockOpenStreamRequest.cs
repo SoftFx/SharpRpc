@@ -24,5 +24,7 @@ namespace SharpRpc.MsTest.MockObjects
         public ushort? WindowSize { get; set; } = 10;
         public RequestOptions Options { get; set; }
         public string CallId { get; set; } = "C1";
+
+        public string ContractMessageName => "MockOpenStream";
     }
 }

@@ -14,6 +14,7 @@ namespace SharpRpc
 {
     public interface IMessage
     {
+        string ContractMessageName { get; }
     }
 
     public interface IPrebuiltMessage : IMessage

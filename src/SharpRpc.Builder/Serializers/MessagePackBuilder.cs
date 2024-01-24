@@ -21,6 +21,7 @@ namespace SharpRpc.Builder
     {
         public readonly string ContractAttributeClassName = "MessagePack.MessagePackObjectAttribute";
         public readonly string MemberAttributeClassName = "MessagePack.KeyAttribute";
+        public readonly string IgnoreMemberAttributeClassName = "MessagePack.IgnoreMemberAttribute";
         public readonly string UnionAttributeClassName = "MessagePack.UnionAttribute";
         public readonly string SerializerMethod = "MessagePack.MessagePackSerializer.Serialize";
         public readonly string DeserializerMethod = "MessagePack.MessagePackSerializer.Deserialize";
@@ -50,12 +51,19 @@ namespace SharpRpc.Builder
 
         private void AddMemberAttrubutes(ClassBuildNode node)
         {
-            for (int i = 0; i < node.PropertyDeclarations.Count; i++)
+            for (int i = 0; i < node.AuxProperties.Count; i++)
+            {
+                var ignoreAttr = SH.Attribute(IgnoreMemberAttributeClassName);
+
+                node.UpdateAuxPropertyDeclaration(i, p => p.AddAttributes(ignoreAttr));
+            }
+
+            for (int i = 0; i < node.DataProperties.Count; i++)
             {
                 var keyAttr = SH.Attribute(MemberAttributeClassName,
                     SF.AttributeArgument(SH.LiteralExpression(i)));
 
-                node.UpdatePropertyDeclaration(i, p => p.AddAttributes(keyAttr));
+                node.UpdateDataPropertyDeclaration(i, p => p.AddAttributes(keyAttr));
             }
         }
 

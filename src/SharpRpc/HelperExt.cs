@@ -65,12 +65,12 @@ namespace SharpRpc
 
         public static string GetMessageName(this ISystemMessage msg)
         {
-            return msg.GetType().Name + "(sys)";
+            return msg.ContractMessageName;
         }
 
         public static string GetMessageName(this IInteropMessage msg)
         {
-            return msg.GetType().Name + "(" + msg.CallId + ")";
+            return msg.ContractMessageName + "(" + msg.CallId + ")";
         }
 
         public static string GetMessageName(this IMessage msg)
@@ -80,7 +80,7 @@ namespace SharpRpc
             else if (msg is IInteropMessage iMsg)
                 return iMsg.GetMessageName();
             else
-                return msg.GetType().Name;
+                return msg.ContractMessageName;
         }
     }
 }

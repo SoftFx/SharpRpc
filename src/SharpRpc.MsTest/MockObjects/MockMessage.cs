@@ -20,6 +20,8 @@ namespace SharpRpc.MsTest
 
         public byte[] RawBytes { get; }
 
+        public string ContractMessageName => nameof(MockMessage);
+
         public static MockMessage Generate(int size)
         {
             var msg = new MockMessage(size);

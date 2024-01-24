@@ -16,7 +16,8 @@ namespace SharpRpc.Builder
 {
     public class ClassBuildNode
     {
-        private readonly List<PropertyDeclarationSyntax> _properties = new List<PropertyDeclarationSyntax>();
+        private readonly List<PropertyDeclarationSyntax> _dataProperties = new List<PropertyDeclarationSyntax>();
+        private readonly List<PropertyDeclarationSyntax> _auxProperties = new List<PropertyDeclarationSyntax>();
         private readonly List<MethodDeclarationSyntax> _methods = new List<MethodDeclarationSyntax>();
         private readonly List<ClassBuildNode> _nestedClasses = new List<ClassBuildNode>();
         private readonly List<ClassBuildNode> _successors = new List<ClassBuildNode>();
@@ -31,20 +32,33 @@ namespace SharpRpc.Builder
         public int Key { get; }
         public TypeString ClassName { get; }
         public TypeDeclarationSyntax TypeDeclaration { get; private set; }
-        public IReadOnlyList<PropertyDeclarationSyntax> PropertyDeclarations => _properties;
+        public IReadOnlyList<PropertyDeclarationSyntax> DataProperties => _dataProperties;
+        public IReadOnlyList<PropertyDeclarationSyntax> AuxProperties => _auxProperties;
         public IReadOnlyList<MethodDeclarationSyntax> Methods => _methods;
         public IReadOnlyList<ClassBuildNode> NestedClasses => _nestedClasses;
         public IReadOnlyList<ClassBuildNode> Successors => _successors;
 
         public ClassBuildNode AddProperties(params PropertyDeclarationSyntax[] properties)
         {
-            _properties.AddRange(properties);
+            _dataProperties.AddRange(properties);
             return this;
         }
 
         public ClassBuildNode AddProperties(IEnumerable<PropertyDeclarationSyntax> properties)
         {
-            _properties.AddRange(properties);
+            _dataProperties.AddRange(properties);
+            return this;
+        }
+
+        public ClassBuildNode AddAuxProperties(params PropertyDeclarationSyntax[] properties)
+        {
+            _auxProperties.AddRange(properties);
+            return this;
+        }
+
+        public ClassBuildNode AddAuxProperties(IEnumerable<PropertyDeclarationSyntax> properties)
+        {
+            _auxProperties.AddRange(properties);
             return this;
         }
 
@@ -86,7 +100,8 @@ namespace SharpRpc.Builder
                 .ToArray();
 
             return TypeDeclaration
-                .AddMembers(_properties.ToArray())
+                .AddMembers(_auxProperties.ToArray())
+                .AddMembers(_dataProperties.ToArray())
                 .AddMembers(_methods.ToArray())
                 .AddMembers(completedNestedClasses);
         }
@@ -96,9 +111,14 @@ namespace SharpRpc.Builder
             TypeDeclaration = updateFunc(TypeDeclaration);
         }
 
-        public void UpdatePropertyDeclaration(int index, Func<PropertyDeclarationSyntax, PropertyDeclarationSyntax> updateFunc)
+        public void UpdateDataPropertyDeclaration(int index, Func<PropertyDeclarationSyntax, PropertyDeclarationSyntax> updateFunc)
         {
-            _properties[index] = updateFunc(_properties[index]);
+            _dataProperties[index] = updateFunc(_dataProperties[index]);
+        }
+
+        public void UpdateAuxPropertyDeclaration(int index, Func<PropertyDeclarationSyntax, PropertyDeclarationSyntax> updateFunc)
+        {
+            _auxProperties[index] = updateFunc(_auxProperties[index]);
         }
     }
 }

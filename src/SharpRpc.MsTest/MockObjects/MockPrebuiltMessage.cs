@@ -22,6 +22,8 @@ namespace SharpRpc.MsTest.MockObjects
 
         public byte[] RawBytes { get; }
 
+        public string ContractMessageName => nameof(MockPrebuiltMessage);
+
         public static MockPrebuiltMessage Generate(int size)
         {
             var msg = new MockPrebuiltMessage(size);

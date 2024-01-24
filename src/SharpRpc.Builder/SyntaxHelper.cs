@@ -376,5 +376,16 @@ namespace SharpRpc.Builder
             return property.WithInitializer(SyntaxFactory.EqualsValueClause(value))
                 .WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken));
         }
+
+        public static PropertyDeclarationSyntax CreateLambdaGetOnlyProperty(string propertyType, string propertyName, ExpressionSyntax lambdaValue)
+        {
+            var expr = SyntaxFactory.ArrowExpressionClause(lambdaValue);
+            
+            return SyntaxFactory
+                .PropertyDeclaration(SyntaxFactory.ParseTypeName(propertyType), propertyName)
+                .WithExpressionBody(expr)
+                .WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken))
+                .NormalizeWhitespace();
+        }
     }
 }
