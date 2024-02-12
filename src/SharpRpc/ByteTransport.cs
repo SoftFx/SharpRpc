@@ -20,17 +20,72 @@ namespace SharpRpc
 #if NET5_0_OR_GREATER
         public abstract ValueTask Send(ArraySegment<byte> data, CancellationToken cToken);
         public abstract ValueTask<int> Receive(ArraySegment<byte> buffer, CancellationToken cToken);
+        public abstract Task Shutdown();
+        public abstract void Dispose();
 #else
-        public abstract Task Send(ArraySegment<byte> data, CancellationToken cToken);
-        public abstract Task<int> Receive(ArraySegment<byte> buffer, CancellationToken cToken);
+        private bool _disposed = false;
+        private readonly object _disposedSync = new object();
+
+        public Task Send(ArraySegment<byte> data, CancellationToken cToken)
+        {
+            Task result = null;
+            lock (_disposedSync)
+            {
+                if (_disposed || cToken.IsCancellationRequested)
+                {
+                    result = Task.CompletedTask;
+                }
+                else
+                {
+                    result = SendInternal(data, cToken);
+                }
+            }
+            return result;
+        }
+
+        public Task<int> Receive(ArraySegment<byte> buffer, CancellationToken cToken)
+        {
+            Task<int> result = null;
+            lock (_disposedSync)
+            {
+                if (_disposed || cToken.IsCancellationRequested)
+                {
+                    result = Task.FromResult(0);
+                }
+                else
+                {
+                    result = ReceiveInternal(buffer, cToken);
+                }
+            }
+            return result;
+        }
+
+        public Task Shutdown()
+        {
+            lock (_disposedSync)
+            {
+                _disposed = true;
+            }
+            return ShutdownInternal();
+        }
+
+        public void Dispose()
+        {
+            lock (_disposedSync)
+            {
+                _disposed = true;
+            }
+            DisposeInternal();
+        }
+
+        protected abstract Task SendInternal(ArraySegment<byte> data, CancellationToken cToken);
+        protected abstract Task<int> ReceiveInternal(ArraySegment<byte> buffer, CancellationToken cToken);
+        protected abstract Task ShutdownInternal();
+        protected abstract void DisposeInternal();
 #endif
         public abstract RpcResult TranslateException(Exception ex);
 
         public abstract void Init(Channel channel);
-
-        public abstract Task Shutdown();
-
-        public abstract void Dispose();
 
         public abstract TransportInfo GetInfo();
     }

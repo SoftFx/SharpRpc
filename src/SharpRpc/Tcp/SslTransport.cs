@@ -53,12 +53,12 @@ namespace SharpRpc
             return _stream.WriteAsync(data);
         }
 #else
-        public override Task<int> Receive(ArraySegment<byte> buffer, CancellationToken cToken)
+        protected override Task<int> ReceiveInternal(ArraySegment<byte> buffer, CancellationToken cToken)
         {
             return _stream.ReadAsync(buffer.Array, buffer.Offset, buffer.Count);
         }
 
-        public override Task Send(ArraySegment<byte> data, CancellationToken cToken)
+        protected override Task SendInternal(ArraySegment<byte> data, CancellationToken cToken)
         {
             return _stream.WriteAsync(data.Array, data.Offset, data.Count, cToken);
         }
@@ -69,7 +69,11 @@ namespace SharpRpc
             return SocketTransport.ToRpcResult(ex);
         }
 
+#if NET5_0_OR_GREATER
         public override async Task Shutdown()
+#else
+        protected override async Task ShutdownInternal()
+#endif
         {
             try
             {
@@ -84,7 +88,11 @@ namespace SharpRpc
             }
         }
 
+#if NET5_0_OR_GREATER
         public override void Dispose()
+#else
+        protected override void DisposeInternal()
+#endif
         {
             _stream.Dispose();
         }
