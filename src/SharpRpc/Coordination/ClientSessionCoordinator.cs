@@ -19,6 +19,8 @@ namespace SharpRpc
     internal class ClientSessionCoordinator : SessionCoordinator
     {
         private TaskCompletionSource<bool> _connectWaitHandle;
+        //private TaskCompletionSource<ILogoutMessage> _logoutWaitHandle;
+        private TaskCompletionSource<bool> _disconnectWaitHandle;
         private Credentials _creds;
 
 #if DEBUG
@@ -100,7 +102,7 @@ namespace SharpRpc
             {
                 if (openEventTask.Result)
                 {
-                    State = SessionState.OpenEvent;
+                    State = SessionState.LoggedIn;
                     loggedIn = true;
                 }
                 else
@@ -114,10 +116,6 @@ namespace SharpRpc
             _connectWaitHandle.SetResult(loggedIn);
         }
 
-        protected override Task RiseClosingEvent(bool isFaulted)
-        {
-            return Channel.RiseClosingEvent(isFaulted);
-        }
 
         private void OnLoginTimeout()
         {
@@ -131,6 +129,66 @@ namespace SharpRpc
             }
 
             _connectWaitHandle.TrySetResult(false);
+        }
+
+        public override Task OnDisconnect(CancellationToken abortToken)
+        {
+            lock (LockObj)
+            {
+                State = SessionState.CloseEvent;
+                _disconnectWaitHandle = new TaskCompletionSource<bool>();
+            }
+
+            Channel.RiseClosingEvent(abortToken.IsCancellationRequested)
+                .ContinueWith(OnCloseEventCompleted);
+
+            abortToken.Register(AbortLogoutWait);
+
+            return _disconnectWaitHandle.Task;
+        }
+
+        protected override RpcResult OnLogoutMessage(ILogoutMessage logoutMsg)
+        {
+            lock (LockObj)
+            {
+                if (State != SessionState.PendingLogout)
+                    return new RpcResult(RpcRetCode.UnexpectedMessage, $"Received an unexpected logout message! State='{State}'.");
+            }
+
+            _disconnectWaitHandle.SetResult(true);
+            return RpcResult.Ok;
+        }
+
+        protected override RpcResult OnLogoutRequestMessage(ILogoutRequestMessage logoutRequestMsg)
+        {
+            Channel.TriggerDisconnect(new RpcResult(RpcRetCode.ChannelClosedByOtherSide, "Logout requested by server side."));
+            return RpcResult.Ok;
+        }
+
+        private void OnCloseEventCompleted(Task closeEventTask)
+        {
+            //bool loggedIn;
+
+            lock (LockObj)
+            {
+                State = SessionState.PendingLogout;
+            }
+
+            SendLogout(OnLogoutSendCompleted);
+        }
+
+        private void OnLogoutSendCompleted(RpcResult result)
+        {
+            if (!result.IsOk)
+            {
+                // TO DO
+                Channel.Logger.Warn(Channel.Id, "Failed to send a logout message! " + result.FaultMessage);
+            }   
+        }
+
+        private void AbortLogoutWait()
+        {
+            _disconnectWaitHandle?.TrySetResult(false);
         }
     }
 }

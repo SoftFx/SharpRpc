@@ -350,5 +350,15 @@ namespace TestCommon
             Session.Properties.TryGetValue(name, out var propValue);
             return FwAdapter.WrappResult(propValue?.ToString());
         }
+
+#if NET5_0_OR_GREATER
+        public override ValueTask DropSession(CallContext context)
+#else
+        public override Task DropSession(CallContext context)
+#endif
+        {
+            Session.BeginClose();
+            return FwAdapter.AsyncVoid;
+        }
     }
 }

@@ -17,6 +17,7 @@ namespace SharpRpc
     {
         ILoginMessage CreateLoginMessage();
         ILogoutMessage CreateLogoutMessage();
+        ILogoutRequestMessage CreateLogoutRequestMessage();
         IHeartbeatMessage CreateHeartBeatMessage();
         ICancelRequestMessage CreateCancelRequestMessage();
     }
@@ -30,6 +31,10 @@ namespace SharpRpc
     }
 
     public interface ILogoutMessage : ISystemMessage
+    {
+    }
+
+    public interface ILogoutRequestMessage : ISystemMessage
     {
     }
 

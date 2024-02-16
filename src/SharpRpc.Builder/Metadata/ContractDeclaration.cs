@@ -29,6 +29,7 @@ namespace SharpRpc.Builder
             BaseMessageClassName = new TypeString(MessageBundleClassName.Full, "MessageBase");
             LoginMessageClassName = new TypeString(MessageBundleClassName.Short, "Login");
             LogoutMessageClassName = new TypeString(MessageBundleClassName.Short, "Logout");
+            LogoutRequestMessageClassName = new TypeString(MessageBundleClassName.Short, "LogoutRequest");
             FaultMessageClassName = new TypeString(MessageBundleClassName.Short, "RequestFault");
             StreamPageAckMessageClassName = new TypeString(MessageBundleClassName.Short, "PageAcknowledgement");
             StreamCloseMessageClassName = new TypeString(MessageBundleClassName.Short, "CloseStream");
@@ -61,6 +62,7 @@ namespace SharpRpc.Builder
         public TypeString BaseMessageClassName { get; }
         public TypeString LoginMessageClassName { get; }
         public TypeString LogoutMessageClassName { get; }
+        public TypeString LogoutRequestMessageClassName { get; }
         public TypeString FaultMessageClassName { get; }
         public TypeString StreamPageAckMessageClassName { get; }
         public TypeString StreamCloseMessageClassName { get; }

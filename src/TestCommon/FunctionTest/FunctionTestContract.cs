@@ -82,6 +82,9 @@ namespace TestCommon
         [RpcContract(18, RpcType.Call)]
         [RpcStreamOutput(typeof(byte))]
         StreamCallResult TestOutBinStream(string fileName, StreamTestOptions options, StreamWriteOptions writeMode);
+
+        [RpcContract(19, RpcType.Call)]
+        void DropSession();
     }
 
     public enum StreamTestOptions

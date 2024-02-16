@@ -89,6 +89,13 @@ namespace TestClient.TestLib
             return (T)_params[paramName].Value;
         }
 
+        public T GetParamOrDefault<T>(string paramName)
+        {
+            if (_params.TryGetValue(paramName, out var val))
+                return (T)val.Value;
+            return default(T);
+        }
+
         public TestCase SetHiddenParam(string name, object value)
         {
             _params[name] = new ParamValue(value, null);

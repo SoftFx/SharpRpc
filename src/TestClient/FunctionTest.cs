@@ -15,6 +15,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Security;
 using System.Reflection;
+using System.Security.AccessControl;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
@@ -31,30 +32,22 @@ namespace TestClient
         public static void Run(string address)
         {
             var runner = new TestRunner();
-            AddCases(runner, address, false, out var client);
-            AddCases(runner, address, true, out var sslClient);
+            //AddCallCases(runner, address, false, out var client);
+            //AddCallCases(runner, address, true, out var sslClient);
+            AddConnectionCases(runner, address, false);
+            AddConnectionCases(runner, address, true);
             runner.RunAll();
 
-            client.Channel.CloseAsync().Wait();
-            sslClient.Channel.CloseAsync().Wait();
+            //client.Channel.CloseAsync().Wait();
+            //sslClient.Channel.CloseAsync().Wait();
         }
 
-        private static void AddCases(TestRunner runner, string address, bool ssl, out FunctionTestContract_Gen.Client client)
+        private static void AddCallCases(TestRunner runner, string address, bool ssl, out FunctionTestContract_Gen.Client client)
         {
-            var security = ssl ? new SslSecurity(NullCertValidator) : TcpSecurity.None;
-            var port = 812;
-            var serviceName = ssl ? "func/ssl" : "func";
-            var endpoint = new TcpClientEndpoint(new DnsEndPoint(address, port), serviceName, security);
-
-            if (ssl)
-                endpoint.Credentials = new BasicCredentials("Admin", "zzzz");
-
-            var callback = new CallbackHandler();
-            client = FunctionTestContract_Gen.CreateClient(endpoint, callback);
+            client = CreateClient(address, ssl);
+            var clientName = ssl ? "SSL" : "Unsecured";
 
             var rConnect = client.Channel.TryConnectAsync().Result;
-
-            var clientName = ssl ? "SSL" : "Unsecured";
 
             runner.AddCases(new Call1Test().GetCases(clientName, client));
             runner.AddCases(new Call2Test().GetCases(clientName, client));
@@ -72,6 +65,25 @@ namespace TestClient
             runner.AddCases(new InputStreamCancellationTest().GetCases(clientName, client));
             runner.AddCases(new OutputStreamCancellationTest().GetCases(clientName, client));
             //runner.AddCases(new DuplexStreamCancellationTest().GetCases(clientName, client));
+        }
+
+        private static void AddConnectionCases(TestRunner runner, string address, bool ssl)
+        {
+            runner.AddCases(new SessionDropByServerTest(address, ssl).GetCases());
+        }
+
+        private static FunctionTestContract_Gen.Client CreateClient(string address, bool ssl)
+        {
+            var security = ssl ? new SslSecurity(NullCertValidator) : TcpSecurity.None;
+            var port = 812;
+            var serviceName = ssl ? "func/ssl" : "func";
+            var endpoint = new TcpClientEndpoint(new DnsEndPoint(address, port), serviceName, security);
+
+            if (ssl)
+                endpoint.Credentials = new BasicCredentials("Admin", "zzzz");
+
+            var callback = new CallbackHandler();
+            return FunctionTestContract_Gen.CreateClient(endpoint, callback);
         }
 
         private static bool NullCertValidator(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
@@ -988,6 +1000,58 @@ namespace TestClient
 
                 if (tokenProp != "15")
                     throw new Exception("AuthToken property does not match!");
+            }
+        }
+
+        private abstract class ConnectionTest : TestBase
+        {
+            public ConnectionTest(string address, bool ssl)
+            {
+                Address = address;
+                Ssl = ssl;
+            }
+
+            public string Address { get; }
+            public bool Ssl { get; }
+
+            protected FunctionTestContract_Gen.Client CreateClient()
+            {
+                return FunctionTest.CreateClient(Address, Ssl);
+            }
+        }
+
+        private class SessionDropByServerTest : ConnectionTest
+        {
+            public SessionDropByServerTest(string address, bool ssl) : base(address, ssl) { }
+
+            public IEnumerable<TestCase> GetCases()
+            {
+                yield return new TestCase(this)
+                    .SetParam("OnCloseDeleay", TimeSpan.FromSeconds(0));
+
+                yield return new TestCase(this)
+                    .SetParam("OnCloseDeleay", TimeSpan.FromSeconds(60));
+            }
+
+            public override void RunTest(TestCase tCase)
+            {
+                var delay = tCase.GetParam<TimeSpan>("OnCloseDeleay");
+
+                var client = CreateClient();
+                client.Channel.Closing += (s, a) => Task.Delay(delay);
+                client.Try.DropSession();
+                client.Channel.CloseAsync().Wait();
+
+                if (delay.TotalMilliseconds == 0)
+                {
+                    if (client.Channel.Fault.Code != RpcRetCode.ChannelClosedByOtherSide)
+                        throw new Exception("Unexpected channel fault: " + client.Channel.Fault.Code);
+                }
+                else
+                {
+                    if (client.Channel.Fault.Code != RpcRetCode.ChannelClosedByOtherSide)
+                        throw new Exception("Disconnect timeout is not working!");
+                }
             }
         }
 

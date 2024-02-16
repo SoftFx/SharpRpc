@@ -55,6 +55,7 @@ namespace SharpRpc.Builder
         public static readonly TypeString LoginMessageInterface = new TypeString("SharpRpc.ILoginMessage");
         public static readonly TypeString LoginResultEnum = new TypeString("SharpRpc.LoginResult");
         public static readonly TypeString LogoutMessageInterface = new TypeString("SharpRpc.ILogoutMessage");
+        public static readonly TypeString LogoutRequestMessageInterface = new TypeString("SharpRpc.ILogoutRequestMessage");
         public static readonly TypeString HeartbeatMessageInterface = new TypeString("SharpRpc.IHeartbeatMessage");
         public static readonly TypeString CancelRequestMessageInterface = new TypeString("SharpRpc.ICancelRequestMessage");
        

@@ -7,6 +7,8 @@
 
 using SharpRpc.Server;
 using System;
+using System.Diagnostics;
+using System.Security.AccessControl;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -17,6 +19,8 @@ namespace SharpRpc
         private Authenticator _authPlugin;
         private readonly SessionContext _sharedContextObj;
         private TaskCompletionSource<bool> _connectWaitHandler;
+        private TaskCompletionSource<bool> _disconnectWaitHandle;
+        private bool _isLogoutReceived;
 
         public ServerSessionCoordinator(SessionContext sharedContext)
         {
@@ -141,10 +145,123 @@ namespace SharpRpc
             }
         }
 
-        protected override Task RiseClosingEvent(bool isFaulted)
+        protected override RpcResult OnLogoutMessage(ILogoutMessage logoutMsg)
         {
-            // TO DO
-            return Task.FromResult(true);
+            bool isDisconnecting = false;
+
+            lock (LockObj)
+            {
+                _isLogoutReceived = true;
+
+                if (State == SessionState.PendingLogout)
+                {
+                    isDisconnecting = true;
+                    State = SessionState.CloseEvent;
+                }
+            }
+
+            if (isDisconnecting)
+                RiseClosingEvent(false);
+            else
+                Channel.TriggerDisconnect(new RpcResult(RpcRetCode.ChannelClosedByOtherSide, "Logout requested by other side."));
+
+            return RpcResult.Ok;
         }
+
+        protected override RpcResult OnLogoutRequestMessage(ILogoutRequestMessage logoutRequestMsg)
+        {
+            return new RpcResult(RpcRetCode.UnexpectedMessage, $"Received an unexpected logout request message! Logout requests are not supported by the server side!'.");
+        }
+
+        public override Task OnDisconnect(CancellationToken abortToken)
+        {
+            abortToken.Register(ForceLogout);
+
+            bool isLogoutRequestRequired;
+
+            lock (LockObj)
+            {
+                if (_isLogoutReceived)
+                {
+                    State = SessionState.CloseEvent;
+                    isLogoutRequestRequired = false;
+                }
+                else
+                {
+                    State = SessionState.PendingLogout;
+                    isLogoutRequestRequired = true;
+                }
+
+                _disconnectWaitHandle = new TaskCompletionSource<bool>();
+            }
+
+            if (isLogoutRequestRequired)
+                SendLogoutRequest(OnLogoutRequestSent);
+            else
+                RiseClosingEvent(abortToken.IsCancellationRequested);
+
+            //if (sendLogoutRequest)
+            //{
+            //    await SendLogoutRequest();
+            //    lock (LockObj) State = SessionState.CloseEvent;
+            //}
+
+            //await Channel.RiseClosingEvent(abortToken.IsCancellationRequested);
+
+            //lock (LockObj)
+            //    State = SessionState.PendingLogout;
+
+            //await SendLogout();
+
+            //lock (LockObj)
+            //    State = SessionState.LoggedOut;
+
+            return _disconnectWaitHandle.Task;
+        }
+
+        private void RiseClosingEvent(bool isLostConnection)
+        {
+            Channel.RiseClosingEvent(isLostConnection)
+                .ContinueWith(OnClosingEventCompleted);
+        }
+
+        private void OnClosingEventCompleted(Task eventTask)
+        {
+            SendLogout(OnLogoutSent);
+        }
+
+        private void OnLogoutRequestSent(RpcResult result)
+        {
+            if (!result.IsOk)
+            {
+            }
+        }
+
+        private void OnLogoutSent(RpcResult result)
+        {
+            lock (LockObj)
+                State = SessionState.LoggedOut;
+
+            _disconnectWaitHandle.TrySetResult(result.IsOk);
+        }
+
+        private void ForceLogout()
+        {
+            lock (LockObj)
+            {
+                if (State != SessionState.PendingLogout)
+                    return;
+
+                State = SessionState.LoggedOut;
+            }
+
+            _disconnectWaitHandle.TrySetResult(false);
+        }
+
+        //protected override Task RiseClosingEvent(bool isFaulted)
+        //{
+        //    // TO DO
+        //    return Task.FromResult(true);
+        //}
     }
 }

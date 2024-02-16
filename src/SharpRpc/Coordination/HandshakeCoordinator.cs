@@ -5,6 +5,7 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+using SharpRpc.Coordination;
 using SharpRpc.Server;
 using System;
 using System.Collections.Generic;
@@ -52,12 +53,20 @@ namespace SharpRpc
 
                 var request = rxResult.Value;
                 var clientVersion = request.RpcVersion;
-                
+
                 if (parentLog.InfoEnabled)
                     parentLog.Info($"Incoming handshake, client v{clientVersion.Minor}.{clientVersion.Major}," +
                         $" target={request.HostName}/{request.ServiceName}");
 
                 var retCode = HandshakeResultCode.Accepted;
+
+                var versionSpec = RpcVersionSpec.TryResolveVersion(clientVersion, out var resolveError);
+
+                if (resolveError != null)
+                {
+                    retCode = HandshakeResultCode.VersionIncompatibility;
+                    parentLog.Info(resolveError);
+                }
 
                 var resolveRetCode = services.TryResolve(request.HostName, request.ServiceName, out var service);
                 if (resolveRetCode != ServiceRegistry.ResolveRetCode.Ok)
@@ -68,10 +77,10 @@ namespace SharpRpc
                         retCode = HandshakeResultCode.UnknownHostName;
                 }
 
-                var actualVersion = clientVersion;
+                //var actualVersion = clientVersion;
 
                 var response = new HandshakeResponse();
-                response.RpcVersion = new ShortVersion(0, 0);
+                response.RpcVersion = versionSpec?.ActualVersion ?? RpcVersionSpec.LatestVersion;
                 response.RetCode = retCode;
 
                 if (parentLog.InfoEnabled)
@@ -88,7 +97,7 @@ namespace SharpRpc
                 }
 
                 if (retCode == HandshakeResultCode.Accepted)
-                    return new HandshakeResult(service, actualVersion);
+                    return new HandshakeResult(service, versionSpec);
 
                 return default;
             }
@@ -243,19 +252,35 @@ namespace SharpRpc
 
         public byte Major { get; set; }
         public byte Minor { get; set; }
+
+        public static bool operator >=(ShortVersion a, ShortVersion b)
+        {
+            if (a.Major == b.Major)
+                return a.Minor >= b.Minor;
+            else
+                return a.Major > b.Major;
+        }
+
+        public static bool operator <=(ShortVersion a, ShortVersion b)
+        {
+            if (a.Major == b.Major)
+                return a.Minor <= b.Minor;
+            else
+                return a.Major < b.Major;
+        }
     }
 
-    public struct HandshakeResult
+    internal struct HandshakeResult
     {
-        public HandshakeResult(ServiceBinding sConfig, ShortVersion rpcVersion)
+        public HandshakeResult(ServiceBinding sConfig, RpcVersionSpec rpcVersion)
         {
             Service = sConfig;
-            RpcVersion = rpcVersion;
+            VersionSpec = rpcVersion;
             WasAccepted = true;
         }
 
         public ServiceBinding Service { get; }
-        public ShortVersion RpcVersion { get; }
+        public RpcVersionSpec VersionSpec { get; }
         public bool WasAccepted { get; }
     }
 }

@@ -20,6 +20,8 @@ namespace SharpRpc
         private int _rxSegmentSize = ushort.MaxValue * 1;
         private int _txSegmentSize = ushort.MaxValue * 1;
         private TimeSpan _rxTimeout = TimeSpan.FromMinutes(1);
+        private TimeSpan _loginTimeout = TimeSpan.FromMinutes(1);
+        private TimeSpan _logoutTimeout = TimeSpan.FromMinutes(1);
         private long _maxMessageSize = long.MaxValue;
         //private bool _asyncMessageParse = false;
         private TaskScheduler _scheduler = null;
@@ -98,7 +100,7 @@ namespace SharpRpc
             }
         }
 
-        public TimeSpan RxTimeout
+        public TimeSpan TransportTimeout
         {
             get => _rxTimeout;
             set
@@ -107,6 +109,32 @@ namespace SharpRpc
                 {
                     ThrowIfImmutable();
                     _rxTimeout = value;
+                }
+            }
+        }
+
+        public TimeSpan LoginTimeout
+        {
+            get => _loginTimeout;
+            set
+            {
+                lock (LockObject)
+                {
+                    ThrowIfImmutable();
+                    _loginTimeout = value;
+                }
+            }
+        }
+
+        public TimeSpan LogoutTimeout
+        {
+            get => _rxTimeout;
+            set
+            {
+                lock (LockObject)
+                {
+                    ThrowIfImmutable();
+                    _logoutTimeout = value;
                 }
             }
         }
