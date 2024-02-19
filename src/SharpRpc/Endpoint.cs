@@ -128,7 +128,7 @@ namespace SharpRpc
 
         public TimeSpan LogoutTimeout
         {
-            get => _rxTimeout;
+            get => _logoutTimeout;
             set
             {
                 lock (LockObject)

@@ -27,15 +27,9 @@ namespace SharpRpc
             _sharedContextObj = sharedContext;
         }
 
-#if DEBUG
-        public override TimeSpan LoginTimeout => TimeSpan.FromMinutes(2);
-#else
-        public override TimeSpan LoginTimeout => TimeSpan.FromSeconds(20);
-#endif
-
         protected override void OnInit()
         {
-            var serverEndpoint = (ServerEndpoint)Channel.Endpoint;
+            //var serverEndpoint = (ServerEndpoint)Channel.Endpoint;
             _authPlugin = Channel.Binding.Authenticator;
             //_taskQueue = serverEndpoint.TaskQueue;
         }

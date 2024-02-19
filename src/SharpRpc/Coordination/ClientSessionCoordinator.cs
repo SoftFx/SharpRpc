@@ -19,15 +19,14 @@ namespace SharpRpc
     internal class ClientSessionCoordinator : SessionCoordinator
     {
         private TaskCompletionSource<bool> _connectWaitHandle;
-        //private TaskCompletionSource<ILogoutMessage> _logoutWaitHandle;
         private TaskCompletionSource<bool> _disconnectWaitHandle;
         private Credentials _creds;
 
-#if DEBUG
-        public override TimeSpan LoginTimeout => TimeSpan.FromMinutes(2);
-#else
-        public override TimeSpan LoginTimeout => TimeSpan.FromSeconds(5);
-#endif
+//#if DEBUG
+//        public override TimeSpan LoginTimeout => TimeSpan.FromMinutes(2);
+//#else
+//        public override TimeSpan LoginTimeout => TimeSpan.FromSeconds(5);
+//#endif
 
         protected override void OnInit()
         {

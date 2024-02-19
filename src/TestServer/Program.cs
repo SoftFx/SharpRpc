@@ -89,6 +89,7 @@ namespace TestServer
 
             var tcpEndpoint = new TcpServerEndpoint(IPAddress.IPv6Any, 812);
             tcpEndpoint.IPv6Only = false;
+            tcpEndpoint.LogoutTimeout = TimeSpan.FromSeconds(10);
 
             tcpEndpoint.BindService("func", descriptor);
             tcpEndpoint.BindService("func/ssl", descriptor)

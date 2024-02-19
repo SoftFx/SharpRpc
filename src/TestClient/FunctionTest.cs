@@ -32,8 +32,8 @@ namespace TestClient
         public static void Run(string address)
         {
             var runner = new TestRunner();
-            //AddCallCases(runner, address, false, out var client);
-            //AddCallCases(runner, address, true, out var sslClient);
+            AddCallCases(runner, address, false, out var client);
+            AddCallCases(runner, address, true, out var sslClient);
             AddConnectionCases(runner, address, false);
             AddConnectionCases(runner, address, true);
             runner.RunAll();
@@ -1030,7 +1030,7 @@ namespace TestClient
                     .SetParam("OnCloseDeleay", TimeSpan.FromSeconds(0));
 
                 yield return new TestCase(this)
-                    .SetParam("OnCloseDeleay", TimeSpan.FromSeconds(60));
+                    .SetParam("OnCloseDeleay", TimeSpan.FromSeconds(13));
             }
 
             public override void RunTest(TestCase tCase)

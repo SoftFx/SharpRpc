@@ -30,7 +30,6 @@ namespace SharpRpc
             OnInit();
         }
 
-        public abstract TimeSpan LoginTimeout { get; }
         public SessionState State { get; protected set; }
 
         public abstract Task<bool> OnConnect(CancellationToken cToken);

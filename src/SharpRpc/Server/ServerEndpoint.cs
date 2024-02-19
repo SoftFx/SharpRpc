@@ -18,24 +18,10 @@ namespace SharpRpc
     public abstract class ServerEndpoint : Endpoint
     {
         private RpcServer _serverObj;
-        private TimeSpan _sessionDropTimeout = TimeSpan.FromMinutes(2);
 
         public ServerEndpoint()
         {
             ServiceRegistry = new ServiceRegistry(this);
-        }
-
-        public TimeSpan SessionDropTimeout
-        {
-            get => _sessionDropTimeout;
-            set
-            {
-                lock (LockObject)
-                {
-                    ThrowIfImmutable();
-                    _sessionDropTimeout = value;
-                }
-            }
         }
 
         internal override IRpcLogger GetLogger() => _serverObj.Logger;

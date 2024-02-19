@@ -72,6 +72,8 @@ namespace SharpRpc
 
         private async Task RxLoop()
         {
+            await Task.Yield(); // exit lock
+
             while (true)
             {
                 int byteCount;

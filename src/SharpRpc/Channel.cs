@@ -265,12 +265,15 @@ namespace SharpRpc
             _coordinator.Init(this);
 
             // start the coordinator before the pipelines
-            var startCoordinatorTask = _coordinator.OnConnect(_abortLoginSrc.Token);
-
-            StartPipelines(_transport);
+            Task startCoordinatorTask;
+            lock (StateLockObject)
+            {
+                startCoordinatorTask = _coordinator.OnConnect(_abortLoginSrc.Token);
+                StartPipelines(_transport);
+            }
 
             // setup login timeout
-            _abortLoginSrc.CancelAfter(_coordinator.LoginTimeout);
+            _abortLoginSrc.CancelAfter(_endpoint.LoginTimeout);
 
             // login handshake
             await startCoordinatorTask;
@@ -402,12 +405,13 @@ namespace SharpRpc
 
         private async Task DisconnectRoutine(bool skipLogoutSequence)
         {
-            _abortLogoutSrc.CancelAfter(TimeSpan.FromMinutes(2));
+            _abortLogoutSrc.CancelAfter(Endpoint.LogoutTimeout);
 
             //_tx.StopProcessingUserMessages(_channelFault);
 
             if (!skipLogoutSequence)
                 await _coordinator.OnDisconnect(_abortLogoutSrc.Token);
+
             await CloseComponents();
         }
 
