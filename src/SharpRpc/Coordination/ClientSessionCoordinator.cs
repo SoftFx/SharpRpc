@@ -70,6 +70,7 @@ namespace SharpRpc
                 {
                     State = SessionState.LoginFailed;
                     Channel.UpdateFault(new RpcResult(RpcRetCode.InvalidCredentials, "Login failed: " + loginMsg.ErrorMessage));
+                    return RpcResult.Ok;
                 }
             }
 
@@ -134,6 +135,9 @@ namespace SharpRpc
         {
             lock (LockObj)
             {
+                if (State != SessionState.LoggedIn)
+                    return Task.CompletedTask;
+
                 State = SessionState.CloseEvent;
                 _disconnectWaitHandle = new TaskCompletionSource<bool>();
             }

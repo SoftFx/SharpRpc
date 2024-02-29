@@ -175,6 +175,9 @@ namespace SharpRpc
 
             lock (LockObj)
             {
+                if (State != SessionState.LoggedIn)
+                    return Task.CompletedTask;
+
                 if (_isLogoutReceived)
                 {
                     State = SessionState.CloseEvent;
@@ -193,22 +196,6 @@ namespace SharpRpc
                 SendLogoutRequest(OnLogoutRequestSent);
             else
                 RiseClosingEvent(abortToken.IsCancellationRequested);
-
-            //if (sendLogoutRequest)
-            //{
-            //    await SendLogoutRequest();
-            //    lock (LockObj) State = SessionState.CloseEvent;
-            //}
-
-            //await Channel.RiseClosingEvent(abortToken.IsCancellationRequested);
-
-            //lock (LockObj)
-            //    State = SessionState.PendingLogout;
-
-            //await SendLogout();
-
-            //lock (LockObj)
-            //    State = SessionState.LoggedOut;
 
             return _disconnectWaitHandle.Task;
         }

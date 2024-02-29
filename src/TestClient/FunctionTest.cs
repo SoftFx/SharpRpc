@@ -34,12 +34,10 @@ namespace TestClient
             var runner = new TestRunner();
             AddCallCases(runner, address, false, out var client);
             AddCallCases(runner, address, true, out var sslClient);
-            AddConnectionCases(runner, address, false);
-            AddConnectionCases(runner, address, true);
             runner.RunAll();
 
-            //client.Channel.CloseAsync().Wait();
-            //sslClient.Channel.CloseAsync().Wait();
+            client.Channel.CloseAsync().Wait();
+            sslClient.Channel.CloseAsync().Wait();
         }
 
         private static void AddCallCases(TestRunner runner, string address, bool ssl, out FunctionTestContract_Gen.Client client)
@@ -65,11 +63,9 @@ namespace TestClient
             runner.AddCases(new InputStreamCancellationTest().GetCases(clientName, client));
             runner.AddCases(new OutputStreamCancellationTest().GetCases(clientName, client));
             //runner.AddCases(new DuplexStreamCancellationTest().GetCases(clientName, client));
-        }
 
-        private static void AddConnectionCases(TestRunner runner, string address, bool ssl)
-        {
-            runner.AddCases(new SessionDropByServerTest(address, ssl).GetCases());
+            runner.AddCases(new SessionDropByServerTest(address, ssl).GetCases(clientName));
+            runner.AddCases(new ConnectActionAbortTest(address, ssl).GetCases(clientName));
         }
 
         private static FunctionTestContract_Gen.Client CreateClient(string address, bool ssl)
@@ -1024,13 +1020,15 @@ namespace TestClient
         {
             public SessionDropByServerTest(string address, bool ssl) : base(address, ssl) { }
 
-            public IEnumerable<TestCase> GetCases()
+            public IEnumerable<TestCase> GetCases(string clientName)
             {
                 yield return new TestCase(this)
-                    .SetParam("OnCloseDeleay", TimeSpan.FromSeconds(0));
+                    .SetParam("OnCloseDeleay", TimeSpan.FromSeconds(0))
+                    .SetParam("client", clientName);
 
                 yield return new TestCase(this)
-                    .SetParam("OnCloseDeleay", TimeSpan.FromSeconds(13));
+                    .SetParam("OnCloseDeleay", TimeSpan.FromSeconds(13))
+                    .SetParam("client", clientName);
             }
 
             public override void RunTest(TestCase tCase)
@@ -1054,6 +1052,70 @@ namespace TestClient
                 }
             }
         }
+
+        private class ConnectActionAbortTest : ConnectionTest
+        {
+            public ConnectActionAbortTest(string address, bool ssl) : base(address, ssl) { }
+
+            public IEnumerable<TestCase> GetCases(string clientName)
+            {
+                yield return new TestCase(this)
+                    .SetParam("client", clientName);
+            }
+
+            public override void RunTest(TestCase tCase)
+            {
+                var client = CreateClient();
+
+                var startTask = client.Channel.TryConnectAsync();
+                var stopTask = client.Channel.CloseAsync();
+
+                startTask.ToTask().Wait();
+                stopTask.Wait();
+
+                if (client.Channel.Fault.Code != RpcRetCode.ChannelClosed)
+                    throw new Exception("Unexpected channel fault: " + client.Channel.Fault.Code);
+            }
+        }
+
+        //private class InputStreamConnectTest : ConnectionTest
+        //{
+        //    public InputStreamConnectTest(string address, bool ssl) : base(address, ssl) { }
+
+        //    public IEnumerable<TestCase> GetCases(string caseName, bool preconnect, bool existingAddress,
+        //        Func<FunctionTestContract_Gen.Client> clientFactory)
+        //    {
+        //        yield return new TestCase(this)
+        //            .SetHiddenParam("clientFactory", clientFactory)
+        //            .SetHiddenParam("preconnect", preconnect)
+        //            .SetHiddenParam("existingAddress", existingAddress)
+        //            .SetParam("Name", caseName);
+        //    }
+
+        //    public override void RunTest(TestCase tCase)
+        //    {
+        //        try
+        //        {
+        //            var callObj = client.TestOutStream(new SharpRpc.StreamOptions(), TimeSpan.Zero, 1600, StreamTestOptions.None);
+
+        //            var e = callObj.OutputStream.GetEnumerator();
+        //            var count = 0;
+
+        //            while (e.MoveNextAsync().Result)
+        //                count++;
+
+        //            if (count != 1600)
+        //                throw new Exception();
+        //        }
+        //        catch (RpcException ex)
+        //        {
+        //            if (ex.ErrorCode == RpcRetCode.HostNotFound && !existingAddress)
+        //                return;
+
+        //            throw;
+        //        }
+        //    }
+        //}
 
         public class CallbackHandler : FunctionTestContract_Gen.CallbackServiceBase
         {

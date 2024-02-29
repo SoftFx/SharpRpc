@@ -20,6 +20,7 @@ namespace SharpRpc
     {
         private readonly Socket _socket;
         private readonly TaskFactory _taskFactory;
+        //private readonly bool _isServer;
         
         public SocketTransport(Socket socket, TaskFactory taskQueue)
         {
@@ -108,7 +109,7 @@ namespace SharpRpc
         {
             try
             {
-                _socket.Shutdown(SocketShutdown.Both);
+                _socket.Shutdown(SocketShutdown.Send);
             }
             catch (Exception)
             {

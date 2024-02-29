@@ -183,8 +183,10 @@ namespace SharpRpc
                 }
                 else if (State == ChannelState.Connecting)
                 {
-                    closeCompletion = _disconnectEvent.Task;
+                    State = ChannelState.Disconnecting;
+                    _abortLoginSrc.Cancel();
                     UpdateFault(reason);
+                    closeCompletion = _connectEvent.Task;
                     return;
                 }
                 else if (State == ChannelState.Disconnecting)
@@ -303,14 +305,13 @@ namespace SharpRpc
                 Logger.Warn(Id, "Failed to open a session! Code: {0}", _channelFault.Code);
                 await DisconnectRoutine(true);
                 lock (StateLockObject)
-                    State = ChannelState.Faulted;
+                    SetClosedState();
                 Logger.Info(Id, "Disconnected. Final state: " + State);
                 _connectEvent.SetResult(_channelFault);
                 RiseFailedToConnectEvent(_channelFault);
             }
             else
             {
-                // TO DO : disconnect event may come before connect event (can be fixed by introducing internal state)
                 Logger.Info(Id, "Connected.");
                 _connectEvent.SetResult(RpcResult.Ok);
             }
@@ -376,23 +377,14 @@ namespace SharpRpc
 
         private async void DoDisconnect()
         {
+            await _connectEvent.Task.ConfigureAwait(false);
+
             Logger.Info(Id, $"{_channelFault.FaultMessage} [{_channelFault.Code}] Disconnecting...");
 
             await DisconnectRoutine(false);
 
-            var faultToRise = RpcResult.Ok;
-
             lock (_stateSyncObj)
-            {
-                if (_channelFault.Code != RpcRetCode.ChannelClosedByOtherSide
-                    && _channelFault.Code != RpcRetCode.ChannelClosed)
-                {
-                    State = ChannelState.Faulted;
-                    faultToRise = _channelFault;
-                }
-                else
-                    State = ChannelState.Closed;
-            }
+                SetClosedState();
 
             Logger.Info(Id, "Disconnected. Final state: " + State);
 
@@ -401,6 +393,15 @@ namespace SharpRpc
             _disconnectEvent.SetResult(RpcResult.Ok);
 
             RiseClosedEvent(_channelFault, State == ChannelState.Faulted);
+        }
+
+        private void SetClosedState()
+        {
+            if (_channelFault.Code != RpcRetCode.ChannelClosedByOtherSide
+                    && _channelFault.Code != RpcRetCode.ChannelClosed)
+                State = ChannelState.Faulted;
+            else
+                State = ChannelState.Closed;
         }
 
         private async Task DisconnectRoutine(bool skipLogoutSequence)

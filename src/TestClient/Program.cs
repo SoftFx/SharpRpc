@@ -31,9 +31,8 @@ namespace TestClient
             Console.WriteLine("2. Function tests");
             Console.WriteLine("3. Keep connected");
             Console.WriteLine("4. Stress test");
-            Console.WriteLine("5. Connection tests");
-            Console.WriteLine("6. Load test");
-            Console.WriteLine("7. Auth load test");
+            Console.WriteLine("5. Load test");
+            Console.WriteLine("6. Auth load test");
             Console.Write(">");
 
             var choice = Console.ReadLine();
@@ -135,11 +134,6 @@ namespace TestClient
             }
             else if (choice == "5")
             {
-                ConnectionTest.RunAll(address);
-                Console.Read();
-            }
-            else if (choice == "6")
-            {
                 var loadTest = new LoadTest(address, 12);
                 loadTest.Start();
                 Console.WriteLine("Test has been started. Press enter key to stop...");
@@ -147,9 +141,23 @@ namespace TestClient
                 loadTest.Stop();
                 Console.WriteLine("Done.");
             }
-            else if (choice == "7")
+            else if (choice == "6")
             {
-                AuthLoadTest(address);
+                //AuthLoadTest(address);
+                //Console.WriteLine("GC.Collect...");
+                //GC.Collect(2, GCCollectionMode.Forced, true);
+
+                var serviceName = "Bench/Ssl/Messagepack";
+                var endpoint = new TcpClientEndpoint(address, serviceName, BenchmarkContractCfg.Port, new SslSecurity(NullCertValidator));
+                endpoint.Credentials = new BasicCredentials("Admin", "zzzz11");
+                var client = BenchmarkContract_Gen.CreateClient(endpoint, new BenchmarkClient.CallbackService());
+
+                var startTask = client.Channel.TryConnectAsync();
+                var stopTask = client.Channel.CloseAsync();
+
+                startTask.ToTask().Wait();
+                stopTask.Wait();
+
                 Console.WriteLine("Done.");
                 Console.Read();
             }
@@ -191,12 +199,7 @@ namespace TestClient
                 var result = client.Channel.TryConnectAsync().Result;
 
                 if (result.Code != RpcRetCode.InvalidCredentials)
-                {
-                    //Debugger.Launch();
-                    //Debugger.Break();
-                    //throw new Exception("Assertion failed!");
                     Console.WriteLine($"assert code={result.Code} ");
-                }
             });
         }
 

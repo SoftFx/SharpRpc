@@ -32,13 +32,9 @@ namespace SharpRpc
             lock (_disposedSync)
             {
                 if (_disposed || cToken.IsCancellationRequested)
-                {
                     result = Task.CompletedTask;
-                }
                 else
-                {
                     result = SendInternal(data, cToken);
-                }
             }
             return result;
         }
@@ -49,13 +45,9 @@ namespace SharpRpc
             lock (_disposedSync)
             {
                 if (_disposed || cToken.IsCancellationRequested)
-                {
                     result = Task.FromResult(0);
-                }
                 else
-                {
                     result = ReceiveInternal(buffer, cToken);
-                }
             }
             return result;
         }
@@ -63,18 +55,16 @@ namespace SharpRpc
         public Task Shutdown()
         {
             lock (_disposedSync)
-            {
                 _disposed = true;
-            }
+
             return ShutdownInternal();
         }
 
         public void Dispose()
         {
             lock (_disposedSync)
-            {
                 _disposed = true;
-            }
+
             DisposeInternal();
         }
 
