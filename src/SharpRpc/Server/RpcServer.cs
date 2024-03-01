@@ -162,7 +162,7 @@ namespace SharpRpc
 
             if (abortConnection)
             {
-                transport.Shutdown();
+                transport.Dispose();
                 Logger.Info(Name, "Incoming connection was aborted!");
             }
         }

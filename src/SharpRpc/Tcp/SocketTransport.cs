@@ -30,12 +30,6 @@ namespace SharpRpc
 
         internal Socket Socket => _socket;
 
-#if NET5_0_OR_GREATER
-        public override bool StopRxByShutdown => true;
-#else
-        public override bool StopRxByShutdown => true;
-#endif
-
         public override void Init(Channel channel)
         {
             //_channelId = channel.Id;
@@ -79,7 +73,7 @@ namespace SharpRpc
                 switch (socketEx.SocketErrorCode)
                 {
                     case SocketError.TimedOut: return new RpcResult(RpcRetCode.ConnectionTimeout, socketEx.Message);
-                    case SocketError.Shutdown: return new RpcResult(RpcRetCode.ConnectionShutdown, socketEx.Message);
+                    case SocketError.Shutdown: return new RpcResult(RpcRetCode.ConnectionAbortedByPeer, socketEx.Message);
                     case SocketError.OperationAborted: return new RpcResult(RpcRetCode.OperationCanceled, socketEx.Message);
                     case SocketError.ConnectionAborted: return new RpcResult(RpcRetCode.OperationCanceled, ex.Message);
                     case SocketError.ConnectionReset: return new RpcResult(RpcRetCode.ConnectionAbortedByPeer, ex.Message);
@@ -109,15 +103,6 @@ namespace SharpRpc
         {
             try
             {
-                _socket.Shutdown(SocketShutdown.Send);
-            }
-            catch (Exception)
-            {
-                // TO DO : log
-            }
-
-            try
-            {
                 await _socket.DisconnectAsync(_taskFactory);
             }
             catch (Exception)
@@ -125,7 +110,14 @@ namespace SharpRpc
                 // TO DO : log
             }
 
-            _socket.Close();
+            //try
+            //{
+            //    await _socket.DisconnectAsync(_taskFactory);
+            //}
+            //catch (Exception)
+            //{
+            //    // TO DO : log
+            //}
         }
 
 #if NET5_0_OR_GREATER
@@ -134,7 +126,6 @@ namespace SharpRpc
         protected override void DisposeInternal()
 #endif
         {
-            //_stream.Dispose();
             _socket.Dispose();
         }
 

@@ -8,6 +8,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace SharpRpc
@@ -17,7 +18,7 @@ namespace SharpRpc
         private Credentials _creds = Credentials.None;
         private IRpcLogger _logger = NullLogger.Instance;
 
-        public abstract Task<RpcResult<ByteTransport>> ConnectAsync();
+        public abstract Task<RpcResult<ByteTransport>> ConnectAsync(CancellationToken cToken);
 
         public Credentials Credentials
         {

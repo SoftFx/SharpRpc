@@ -21,11 +21,10 @@ namespace SharpRpc
         InvalidChannelState = 11,
         InvalidCredentials = 12,
         ConfigurationError = 13,
-        ChannelClosed = 14,
-        ChannelClosedByOtherSide = 15,
-        ConnectionShutdown = 16,
-        ConnectionAbortedByPeer = 17,
-        ConnectionTimeout = 18,
+        ChannelClosed = 14, // channel was closed gracefully
+        ChannelClosedByOtherSide = 15, // channel was closed gracefully (close initiated by opposite side)
+        ConnectionAbortedByPeer = 17, // abnormal channel close (connection was aborted without proper logout sequence)
+        ConnectionTimeout = 18, // abnormal channel close (connection was aborted due to timeout)
         LoginTimeout = 19,
         SecurityError = 20,
         OtherConnectionError = 21,

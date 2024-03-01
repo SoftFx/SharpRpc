@@ -10,6 +10,7 @@ using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace SharpRpc
@@ -55,7 +56,7 @@ namespace SharpRpc
             _serviceName = serviceName;
         }
 
-        public override async Task<RpcResult<ByteTransport>> ConnectAsync()
+        public override async Task<RpcResult<ByteTransport>> ConnectAsync(CancellationToken cToken)
         {
             //IPHostEntry ipHostInfo = await Dns.GetHostEntryAsync(_endpoint.Host);
             //IPAddress ipAddress = ipHostInfo.AddressList[0];
@@ -67,7 +68,11 @@ namespace SharpRpc
                 var socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
 
                 // connect
+#if NET5_0_OR_GREATER
+                await socket.ConnectAsync(_endpoint, cToken);
+#else
                 await socket.ConnectAsync(_endpoint);
+#endif
 
                 // handshake
                 var handshaker = new HandshakeCoordinator(1024 * 10, TimeSpan.FromSeconds(10));

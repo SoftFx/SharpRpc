@@ -62,10 +62,10 @@ namespace SharpRpc
                     var data = await _queue.DequeueNext();
 
                     if (data.Array == null)
+                    {
+                        // normal exit
                         return;
-
-                    // ????
-                    //await Task.Factory.Dive();
+                    }
 
                     try
                     {
@@ -73,7 +73,7 @@ namespace SharpRpc
                     }
                     catch (OperationCanceledException)
                     {
-                        // normal exit
+                        // loop was canceled
                         return;
                     }
                     catch (Exception ex)

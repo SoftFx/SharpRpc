@@ -143,21 +143,10 @@ namespace TestClient
             }
             else if (choice == "6")
             {
-                //AuthLoadTest(address);
-                //Console.WriteLine("GC.Collect...");
-                //GC.Collect(2, GCCollectionMode.Forced, true);
-
-                var serviceName = "Bench/Ssl/Messagepack";
-                var endpoint = new TcpClientEndpoint(address, serviceName, BenchmarkContractCfg.Port, new SslSecurity(NullCertValidator));
-                endpoint.Credentials = new BasicCredentials("Admin", "zzzz11");
-                var client = BenchmarkContract_Gen.CreateClient(endpoint, new BenchmarkClient.CallbackService());
-
-                var startTask = client.Channel.TryConnectAsync();
-                var stopTask = client.Channel.CloseAsync();
-
-                startTask.ToTask().Wait();
-                stopTask.Wait();
-
+                AuthLoadTest(address);
+                Console.WriteLine("GC.Collect...");
+                GC.Collect(2, GCCollectionMode.Forced, true);
+               
                 Console.WriteLine("Done.");
                 Console.Read();
             }

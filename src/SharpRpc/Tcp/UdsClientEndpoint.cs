@@ -8,6 +8,7 @@
 #if NET5_0_OR_GREATER
 using System;
 using System.Net.Sockets;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace SharpRpc
@@ -25,14 +26,14 @@ namespace SharpRpc
             _security = security ?? throw new ArgumentNullException(nameof(security));
         }
 
-        public override async Task<RpcResult<ByteTransport>> ConnectAsync()
+        public override async Task<RpcResult<ByteTransport>> ConnectAsync(CancellationToken cToken)
         {
             try
             { 
                 var socket = new Socket(_endpoint.AddressFamily,
                     SocketType.Stream, ProtocolType.IP);
 
-                await socket.ConnectAsync(_endpoint);
+                await socket.ConnectAsync(_endpoint, cToken);
 
                 return new RpcResult<ByteTransport>(await _security.SecureTransport(socket, this, "localhost"));
             }

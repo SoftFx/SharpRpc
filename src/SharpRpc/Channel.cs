@@ -29,8 +29,9 @@ namespace SharpRpc
         private readonly ContractDescriptor _descriptor;
         private readonly TaskCompletionSource<RpcResult> _connectEvent = new TaskCompletionSource<RpcResult>();
         private readonly TaskCompletionSource<RpcResult> _disconnectEvent = new TaskCompletionSource<RpcResult>();
-        private readonly CancellationTokenSource _abortLoginSrc = new CancellationTokenSource();
-        private readonly CancellationTokenSource _abortLogoutSrc = new CancellationTokenSource();
+        private readonly CancellationTokenSource _loginCancelSrc = new CancellationTokenSource();
+        private readonly CancellationTokenSource _loginTimeoutSrc = new CancellationTokenSource();
+        private readonly CancellationTokenSource _logoutTimeoutSrc = new CancellationTokenSource();
         private RpcResult _channelFault;
         private ByteTransport _transport;
         private SessionCoordinator _coordinator;
@@ -184,7 +185,7 @@ namespace SharpRpc
                 else if (State == ChannelState.Connecting)
                 {
                     State = ChannelState.Disconnecting;
-                    _abortLoginSrc.Cancel();
+                    _loginCancelSrc.Cancel();
                     UpdateFault(reason);
                     closeCompletion = _connectEvent.Task;
                     return;
@@ -240,7 +241,7 @@ namespace SharpRpc
 
                 try
                 {
-                    var connectResult = await ((ClientEndpoint)_endpoint).ConnectAsync();
+                    var connectResult = await ((ClientEndpoint)_endpoint).ConnectAsync(_loginCancelSrc.Token);
                     if (connectResult.Code == RpcRetCode.Ok)
                         _transport = connectResult.Value;
                     else
@@ -270,12 +271,12 @@ namespace SharpRpc
             Task startCoordinatorTask;
             lock (StateLockObject)
             {
-                startCoordinatorTask = _coordinator.OnConnect(_abortLoginSrc.Token);
+                startCoordinatorTask = _coordinator.OnConnect(_loginTimeoutSrc.Token);
                 StartPipelines(_transport);
             }
 
             // setup login timeout
-            _abortLoginSrc.CancelAfter(_endpoint.LoginTimeout);
+            _loginTimeoutSrc.CancelAfter(_endpoint.LoginTimeout);
 
             // login handshake
             await startCoordinatorTask;
@@ -325,38 +326,20 @@ namespace SharpRpc
 
             try
             {
-                Logger.Verbose(Id, "Stopping pipelines...");
+                Logger.Verbose(Id, "Sopping Tx pipeline...");
 
-                var rxCloseTask = _rx?.Close();
-                var txCloseTask = _tx.Close(TimeSpan.FromSeconds(5));
+                await _tx.Close(TimeSpan.FromSeconds(5));
 
-                Logger.Verbose(Id, "Waiting stop of Tx pipeline...");
-
-                await txCloseTask;
-
-                if (_transport.StopRxByShutdown)
+                if (_transport != null)
                 {
-                    Logger.Verbose(Id, "Stopping transport...");
-
-                    if (_transport != null)
-                        await _transport.Shutdown();
-
-                    Logger.Verbose(Id, "Waiting stop of Rx pipeline ...");
-
-                    if (rxCloseTask != null)
-                        await rxCloseTask;
+                    Logger.Verbose(Id, "Disconnecting transport...");
+                    await _transport.Shutdown();
                 }
-                else
+
+                if (_rx != null)
                 {
-                    Logger.Verbose(Id, "Waiting stop of Rx pipeline ...");
-
-                    if (rxCloseTask != null)
-                        await rxCloseTask;
-
-                    Logger.Verbose(Id, "Stopping transport...");
-
-                    if (_transport != null)
-                        await _transport.Shutdown();
+                    Logger.Verbose(Id, "Sopping Rx pipeline ...");
+                    await _rx.Close();
                 }
             }
             catch (Exception ex)
@@ -371,8 +354,9 @@ namespace SharpRpc
         {
             _dispatcher.TriggerStop(fault);
             TriggerClose(fault, out _);
-            _abortLoginSrc.Cancel();
-            _abortLogoutSrc.Cancel();
+            _loginCancelSrc.Cancel();
+            _loginTimeoutSrc.Cancel();
+            _logoutTimeoutSrc.Cancel();
         }
 
         private async void DoDisconnect()
@@ -406,12 +390,12 @@ namespace SharpRpc
 
         private async Task DisconnectRoutine(bool skipLogoutSequence)
         {
-            _abortLogoutSrc.CancelAfter(Endpoint.LogoutTimeout);
+            _logoutTimeoutSrc.CancelAfter(Endpoint.LogoutTimeout);
 
             //_tx.StopProcessingUserMessages(_channelFault);
 
             if (!skipLogoutSequence)
-                await _coordinator.OnDisconnect(_abortLogoutSrc.Token);
+                await _coordinator.OnDisconnect(_logoutTimeoutSrc.Token);
 
             await CloseComponents();
         }

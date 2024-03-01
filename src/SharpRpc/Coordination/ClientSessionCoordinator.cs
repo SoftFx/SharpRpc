@@ -54,6 +54,8 @@ namespace SharpRpc
 
         protected override RpcResult OnLoginMessage(ILoginMessage loginMsg)
         {
+            bool hasFailed = false;
+
             lock (LockObj)
             {
                 if (State != SessionState.PendingLogin)
@@ -70,12 +72,14 @@ namespace SharpRpc
                 {
                     State = SessionState.LoginFailed;
                     Channel.UpdateFault(new RpcResult(RpcRetCode.InvalidCredentials, "Login failed: " + loginMsg.ErrorMessage));
-                    return RpcResult.Ok;
+                    hasFailed = true;
                 }
             }
 
-            Channel.RiseOpeningEvent()
-                .ContinueWith(OnOpenEventCompleted);
+            if (hasFailed)
+                _connectWaitHandle.SetResult(false);
+            else
+                Channel.RiseOpeningEvent().ContinueWith(OnOpenEventCompleted);
 
             return RpcResult.Ok;
         }

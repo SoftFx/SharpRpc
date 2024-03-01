@@ -30,12 +30,6 @@ namespace SharpRpc
             _socket = socket;
         }
 
-#if NET5_0_OR_GREATER
-        public override bool StopRxByShutdown => true;
-#else
-        public override bool StopRxByShutdown => true;
-#endif
-
         public override void Init(Channel channel)
         {
             _logger = channel.Logger;
@@ -77,10 +71,11 @@ namespace SharpRpc
         {
             try
             {
-#if !NETSTANDARD
+#if NETSTANDARD
+               _stream.Close();
+#else
                 await _stream.ShutdownAsync().ConfigureAwait(false);
 #endif
-                _stream.Close();
             }
             catch (Exception ex)
             {
