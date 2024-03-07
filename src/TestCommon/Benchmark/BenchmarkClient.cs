@@ -18,13 +18,15 @@ namespace TestCommon
     {
         private readonly CallbackService _callback = new CallbackService();
 
-        public BenchmarkClient(string address, TcpSecurity security)
+        public BenchmarkClient(string address, TcpSecurity security, bool enableLogger = false)
         {
             var serviceName = security is SslSecurity ? "Bench/Ssl/Messagepack" : "Bench/Messagepack";
 
             var endpoint = new TcpClientEndpoint(address, serviceName, BenchmarkContractCfg.Port, security);
             endpoint.Credentials = new BasicCredentials("Admin", "zzzz");
             BenchmarkContractCfg.ConfigureEndpoint(endpoint);
+            if (enableLogger)
+                endpoint.Logger = new ConsoleLogger(true, false);
             Stub = BenchmarkContract_Gen.CreateClient(endpoint, _callback);
         }
 

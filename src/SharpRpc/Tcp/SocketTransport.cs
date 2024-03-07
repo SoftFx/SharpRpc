@@ -109,15 +109,6 @@ namespace SharpRpc
             {
                 // TO DO : log
             }
-
-            //try
-            //{
-            //    await _socket.DisconnectAsync(_taskFactory);
-            //}
-            //catch (Exception)
-            //{
-            //    // TO DO : log
-            //}
         }
 
 #if NET5_0_OR_GREATER

@@ -16,13 +16,10 @@ namespace SharpRpc
 {
     internal abstract class SessionCoordinator
     {
-        //private TaskCompletionSource<ILogoutMessage> _logoutWaitHandle;
-
         protected object LockObj { get; private set; }
         protected Channel Channel { get; private set; }
-
         protected ILogoutMessage LogoutMessage { get; private set; }
-
+        
         public void Init(Channel ch)
         {
             Channel = ch;
@@ -31,16 +28,16 @@ namespace SharpRpc
         }
 
         public SessionState State { get; protected set; }
+        public bool IsCoordinationBroken { get; protected set; }
 
-        public abstract Task<bool> OnConnect(CancellationToken cToken);
-        public abstract Task OnDisconnect(CancellationToken abortToken);
+        public abstract Task<bool> OnConnect(CancellationToken timeoutToken);
+        public abstract Task OnDisconnect();
+        public abstract void AbortCoordination();
 
         protected abstract RpcResult OnLoginMessage(ILoginMessage loginMsg);
         protected abstract RpcResult OnLogoutMessage(ILogoutMessage logoutMsg);
         protected abstract RpcResult OnLogoutRequestMessage(ILogoutRequestMessage logoutRequestMsg);
         protected virtual void OnInit() { }
-
-        //protected abstract Task RiseClosingEvent(bool isFaulted);
 
         public RpcResult OnMessage(ISystemMessage message)
         {
@@ -53,50 +50,6 @@ namespace SharpRpc
 
             return RpcResult.Ok; // TO DO : report protocol violation
         }
-
-        //public async Task OnDisconnect(CancellationToken abortToken)
-        //{
-        //    lock (LockObj)
-        //    {
-        //        State = SessionState.CloseEvent;
-        //        _logoutWaitHandle = new TaskCompletionSource<ILogoutMessage>();
-        //    }
-
-        //    await RiseClosingEvent(abortToken.IsCancellationRequested);
-
-        //    if (!abortToken.IsCancellationRequested)
-        //    {
-        //        using (abortToken.Register(AbortLogoutWait))
-        //        {
-        //            lock (LockObj)
-        //                State = SessionState.PendingLogout;
-
-        //            Channel.Tx.StopProcessingUserMessages(Channel.Fault);
-
-        //            var sendResult = await SendLogout();
-
-        //            if (sendResult.IsOk)
-        //            {
-        //                await _logoutWaitHandle.Task;
-        //                await Task.Yield(); // exit the lock
-        //            }
-        //            else
-        //                Channel.Logger.Warn(Channel.Id, "Failed to send a logout message! " + sendResult.FaultMessage);
-        //        }
-        //    }
-
-        //    lock (LockObj)
-        //        State = SessionState.LoggedOut;
-        //}
-
-        //private void AbortLogoutWait()
-        //{
-        //    lock (LockObj)
-        //    {
-        //        if (!_logoutWaitHandle.Task.IsCompleted)
-        //            _logoutWaitHandle.SetResult(null);
-        //    }
-        //}
 
         protected Task<RpcResult> SendLogout()
         {
@@ -121,23 +74,6 @@ namespace SharpRpc
             var logoutRequetsMsg = Channel.Contract.SystemMessages.CreateLogoutRequestMessage();
             Channel.Tx.TrySendSystemMessage(logoutRequetsMsg, onSendCompleted);
         }
-
-        //private RpcResult OnLogoutMessage(ILogoutMessage logoutMsg)
-        //{
-        //    lock (LockObj)
-        //    {
-        //        if (State == SessionState.CloseEvent || State == SessionState.PendingLogout)
-        //        {
-        //            _logoutWaitHandle.SetResult(logoutMsg);
-        //            return RpcResult.Ok;
-        //        }
-        //        else if (State != SessionState.LoggedIn)
-        //            return new RpcResult(RpcRetCode.UnexpectedMessage, $"Received an unexpected logout message! State='{State}'.");
-
-        //        Channel.TriggerDisconnect(new RpcResult(RpcRetCode.ChannelClosedByOtherSide, "Logout requested by other side."));
-        //        return RpcResult.Ok;
-        //    }   
-        //}
     }
 
     public enum SessionState : byte

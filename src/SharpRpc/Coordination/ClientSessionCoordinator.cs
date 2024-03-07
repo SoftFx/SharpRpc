@@ -22,27 +22,17 @@ namespace SharpRpc
         private TaskCompletionSource<bool> _disconnectWaitHandle;
         private Credentials _creds;
 
-//#if DEBUG
-//        public override TimeSpan LoginTimeout => TimeSpan.FromMinutes(2);
-//#else
-//        public override TimeSpan LoginTimeout => TimeSpan.FromSeconds(5);
-//#endif
-
         protected override void OnInit()
         {
             var clientEndpoint = (ClientEndpoint)Channel.Endpoint;
             _creds = clientEndpoint.Credentials;
         }
 
-        public override Task<bool> OnConnect(CancellationToken cToken)
+        public override Task<bool> OnConnect(CancellationToken timeoutToken)
         {
-            lock (LockObj)
-            {
-                State = SessionState.PendingLogin;
-                _connectWaitHandle = new TaskCompletionSource<bool>();
-            }
-
-            cToken.Register(OnLoginTimeout);
+            State = SessionState.PendingLogin;
+            _connectWaitHandle = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            timeoutToken.Register(OnLoginTimeout);
 
             // send login
             var loginMsg = Channel.Contract.SystemMessages.CreateLoginMessage();
@@ -77,7 +67,7 @@ namespace SharpRpc
             }
 
             if (hasFailed)
-                _connectWaitHandle.SetResult(false);
+                _connectWaitHandle.TrySetResult(false);
             else
                 Channel.RiseOpeningEvent().ContinueWith(OnOpenEventCompleted);
 
@@ -92,9 +82,10 @@ namespace SharpRpc
                 {
                     State = SessionState.LoginFailed;
                     Channel.UpdateFault(result);
+                    IsCoordinationBroken = true;
                 }
 
-                _connectWaitHandle.SetResult(false);
+                _connectWaitHandle.TrySetResult(false);
             }
         }
 
@@ -120,7 +111,6 @@ namespace SharpRpc
             _connectWaitHandle.SetResult(loggedIn);
         }
 
-
         private void OnLoginTimeout()
         {
             lock (LockObj)
@@ -129,13 +119,15 @@ namespace SharpRpc
                     return;
 
                 State = SessionState.LoginFailed;
-                Channel.UpdateFault(new RpcResult(RpcRetCode.LoginTimeout, "Login oepration timed out!"));
+                IsCoordinationBroken = true;
+                Channel.UpdateFault(new RpcResult(RpcRetCode.LoginTimeout, "Login operation timed out!"));
             }
 
+            Channel.Logger.Warn(Channel.Id, "Login operation timed out!");
             _connectWaitHandle.TrySetResult(false);
         }
 
-        public override Task OnDisconnect(CancellationToken abortToken)
+        public override Task OnDisconnect()
         {
             lock (LockObj)
             {
@@ -146,12 +138,20 @@ namespace SharpRpc
                 _disconnectWaitHandle = new TaskCompletionSource<bool>();
             }
 
-            Channel.RiseClosingEvent(abortToken.IsCancellationRequested)
+            Channel.RiseClosingEvent(IsCoordinationBroken)
                 .ContinueWith(OnCloseEventCompleted);
 
-            abortToken.Register(AbortLogoutWait);
-
             return _disconnectWaitHandle.Task;
+        }
+
+        public override void AbortCoordination()
+        {
+            IsCoordinationBroken = true;
+
+            if (State == SessionState.PendingLogin)
+                _connectWaitHandle.TrySetResult(false);
+            else if (State == SessionState.PendingLogout)
+                _disconnectWaitHandle.TrySetResult(false);
         }
 
         protected override RpcResult OnLogoutMessage(ILogoutMessage logoutMsg)
@@ -162,7 +162,7 @@ namespace SharpRpc
                     return new RpcResult(RpcRetCode.UnexpectedMessage, $"Received an unexpected logout message! State='{State}'.");
             }
 
-            _disconnectWaitHandle.SetResult(true);
+            _disconnectWaitHandle.TrySetResult(true);
             return RpcResult.Ok;
         }
 
@@ -179,6 +179,11 @@ namespace SharpRpc
             lock (LockObj)
             {
                 State = SessionState.PendingLogout;
+                if (IsCoordinationBroken)
+                {
+                    _disconnectWaitHandle.TrySetResult(false);
+                    return;
+                }
             }
 
             SendLogout(OnLogoutSendCompleted);
@@ -191,11 +196,6 @@ namespace SharpRpc
                 // TO DO
                 Channel.Logger.Warn(Channel.Id, "Failed to send a logout message! " + result.FaultMessage);
             }   
-        }
-
-        private void AbortLogoutWait()
-        {
-            _disconnectWaitHandle?.TrySetResult(false);
         }
     }
 }

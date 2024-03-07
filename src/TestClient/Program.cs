@@ -77,7 +77,7 @@ namespace TestClient
             }
             else if (choice == "3")
             {
-                var client = new BenchmarkClient("localhost", TcpSecurity.None);
+                var client = new BenchmarkClient("localhost", TcpSecurity.None, true);
 
                 client.Channel.Opening += async (s, a) =>
                 {
@@ -104,6 +104,7 @@ namespace TestClient
                         Console.Read();
 
                         client.Stub.Channel.CloseAsync().Wait();
+                        Console.WriteLine("Disconnected. ExitCode=" + client.Stub.Channel.Fault.Code);
                     }
                 }
                 else
