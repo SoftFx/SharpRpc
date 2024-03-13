@@ -179,7 +179,7 @@ namespace SharpRpc
                 _closeFlag = true;
 
                 if (isConnectionLost)
-                    _coordinator.AbortCoordination();
+                    BeginCloseComponents(true);
 
                 if (State == ChannelState.Online)
                 {
@@ -336,7 +336,10 @@ namespace SharpRpc
             lock (StateLockObject)
             {
                 if (_closeComponentsTask == null)
+                {
+                    _coordinator.AbortCoordination();
                     _closeComponentsTask = CloseComponents(isAbortion);
+                }
 
                 return _closeComponentsTask;
             }
