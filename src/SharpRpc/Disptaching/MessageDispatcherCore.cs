@@ -82,7 +82,7 @@ namespace SharpRpc
         public void CompleteStop()
         {
             foreach (var task in _tasksToCancel)
-                task.Abort(_fault);
+                task.Terminate(_fault);
         }
 
         public bool TryInvokeInit(Channel ch, out RpcResult error)
@@ -234,7 +234,7 @@ namespace SharpRpc
                 OnFault(RpcResult.OperationCanceled);
             }
 
-            public void Abort(RpcResult fault)
+            public void Terminate(RpcResult fault)
             {
                 OnFault(fault);
             }
@@ -277,7 +277,7 @@ namespace SharpRpc
                 OnFault(RpcResult.OperationCanceled);
             }
 
-            public void Abort(RpcResult fault)
+            public void Terminate(RpcResult fault)
             {
                 OnFault(fault);
             }
@@ -326,7 +326,7 @@ namespace SharpRpc
                 OnFault(RpcResult.OperationCanceled);
             }
 
-            public void Abort(RpcResult fault)
+            public void Terminate(RpcResult fault)
             {
                 OnFault(fault);
             }
@@ -375,7 +375,7 @@ namespace SharpRpc
                 OnFault(RpcResult.OperationCanceled);
             }
 
-            public void Abort(RpcResult fault)
+            public void Terminate(RpcResult fault)
             {
                 OnFault(fault);
             }

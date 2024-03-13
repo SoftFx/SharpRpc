@@ -107,7 +107,7 @@ namespace SharpRpc
                 //_canelReg =  cToken.Register(dispatcher.CancelOperation, this);
             }
             else
-                Abort(regResult);
+                Terminate(regResult);
         }
 
         public string CallId { get; }
@@ -126,13 +126,13 @@ namespace SharpRpc
             if (result.IsOk)
                 _writer?.AllowSend();
             else
-                Abort(result);
+                Terminate(result);
         }
 
-        public void Abort(RpcResult fault)
+        public void Terminate(RpcResult fault)
         {
-            _writer?.Abort(fault);
-            _reader?.Abort(fault);
+            _writer?.Terminate(fault);
+            _reader?.Terminate(fault);
 
             EndCall(fault, default);
         }

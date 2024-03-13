@@ -15,7 +15,7 @@ using System.Threading.Tasks;
 
 namespace SharpRpc.Streaming
 {
-    internal class BinaryStreamWriter : StreamWriterBase2<byte>
+    internal class BinaryStreamWriter : StreamWriterBase<byte>
     {
         private ArraySegment<byte> _queue;
         private ArraySegment<byte> _bufferToSend;

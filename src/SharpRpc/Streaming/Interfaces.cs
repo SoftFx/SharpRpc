@@ -114,7 +114,7 @@ namespace SharpRpc
         Task Closed { get; }
 
         void AllowSend();
-        void Abort(RpcResult fault);
+        void Terminate(RpcResult fault);
         bool OnMessage(IInteropMessage auxMessage, out RpcResult result);
     }
 
@@ -122,7 +122,7 @@ namespace SharpRpc
     {
         Task Closed { get; }
 
-        void Abort(RpcResult fault);
+        void Terminate(RpcResult fault);
         void Cancel(bool dropRemItems);
         bool OnMessage(IInteropMessage auxMessage, out RpcResult result);
     }

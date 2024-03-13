@@ -73,10 +73,10 @@ namespace SharpRpc
             ch.Dispatcher.Unregister(this);
         }
 
-        public void Abort(RpcResult fault)
+        public void Terminate(RpcResult fault)
         {
-            _reader?.Abort(fault);
-            _writer?.Abort(fault);
+            _reader?.Terminate(fault);
+            _writer?.Terminate(fault);
         }
 
         RpcResult IDispatcherOperation.OnUpdate(IInteropMessage auxMessage)

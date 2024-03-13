@@ -19,7 +19,7 @@ using static System.Net.Mime.MediaTypeNames;
 
 namespace SharpRpc
 {
-    public abstract class StreamWriterBase2<T> : IStreamWriterFixture<T>, IStreamCoordinatorContext
+    public abstract class StreamWriterBase<T> : IStreamWriterFixture<T>, IStreamCoordinatorContext
     {
         public enum States { Online, Completed, Closed }
 
@@ -38,7 +38,7 @@ namespace SharpRpc
         private string _name;
         private bool _isBulkWrite;
 
-        internal StreamWriterBase2(string callId, TxPipeline msgTransmitter, IStreamMessageFactory factory,
+        internal StreamWriterBase(string callId, TxPipeline msgTransmitter, IStreamMessageFactory factory,
             bool allowSending, StreamOptions options, IRpcLogger logger)
         {
             CallId = callId;
@@ -278,7 +278,7 @@ namespace SharpRpc
         //}
 
         // Close the writer immediately without any further messaging.
-        void IStreamWriterFixture<T>.Abort(RpcResult fault)
+        void IStreamWriterFixture<T>.Terminate(RpcResult fault)
         {
             CloseStream(true, true, fault, "Aborted.");
         }
@@ -531,7 +531,7 @@ namespace SharpRpc
         private interface IAsyncAwaiter
         {
             bool WasCanceled { get; }
-            void Confirm(StreamWriterBase2<T> writer);
+            void Confirm(StreamWriterBase<T> writer);
             void Cancel(RpcResult retValue);
         }
 
@@ -540,7 +540,7 @@ namespace SharpRpc
             public RpcResult<ArraySegment<T>> Result { get; private set; } = RpcResult.Ok;
             public bool WasCanceled { get; private set; }
 
-            public void Confirm(StreamWriterBase2<T> writer)
+            public void Confirm(StreamWriterBase<T> writer)
             {
                 Result = RpcResult.Result(writer.ReserveBulkWriteBuffer());
                 System.Threading.Tasks.Task.Factory.StartNew(Signal);
@@ -570,7 +570,7 @@ namespace SharpRpc
             public RpcResult Result { get; private set; } = RpcResult.Ok;
             public bool WasCanceled { get; private set; }
 
-            public void Confirm(StreamWriterBase2<T> writer)
+            public void Confirm(StreamWriterBase<T> writer)
             {
                 writer.EnqueueItem(Item);
                 System.Threading.Tasks.Task.Factory.StartNew(Signal);

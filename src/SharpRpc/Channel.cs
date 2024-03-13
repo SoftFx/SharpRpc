@@ -35,7 +35,9 @@ namespace SharpRpc
         private SessionCoordinator _coordinator;
         private bool _closeFlag;
         private bool _isServerSide;
-        private bool _isTransportDisposed;
+        //private bool _isTransportDisposed;
+        private Task _closeComponentsTask;
+
         private static int idSeed;
 
         public ChannelState State { get; private set; }
@@ -325,12 +327,19 @@ namespace SharpRpc
             {
                 _coordinator.AbortCoordination();
                 Logger.Warn(Id, "Logout operation timed out!");
-                if (_isTransportDisposed)
-                    return;
-                _isTransportDisposed = true;
+                BeginCloseComponents(true);
             }
+        }
 
-            _transport.Dispose();
+        private Task BeginCloseComponents(bool isAbortion)
+        {
+            lock (StateLockObject)
+            {
+                if (_closeComponentsTask == null)
+                    _closeComponentsTask = CloseComponents(isAbortion);
+
+                return _closeComponentsTask;
+            }
         }
 
         private async Task CloseComponents(bool isAbortion)
@@ -373,11 +382,6 @@ namespace SharpRpc
 
         private void DisposeTransport()
         {
-            lock (_stateSyncObj)
-            {
-                if (_isTransportDisposed) return;
-                _isTransportDisposed = true;
-            }
 
             Logger.Verbose(Id, "Disposing the transport...");
 
@@ -428,11 +432,11 @@ namespace SharpRpc
                 {
                     logoutTimeoutSrc.Token.Register(OnLogoutTimeout);
                     await _coordinator.OnDisconnect();
-                    await CloseComponents(false);
+                    await BeginCloseComponents(false);
                 }
             }
             else
-                await CloseComponents(true);
+                await BeginCloseComponents(true);
         }
 
         private void OnConnectionRequested()

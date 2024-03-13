@@ -24,8 +24,8 @@ namespace SharpRpc
         public enum States
         {
             Online,
-            Cancellation, // Notify the writer about cancellation while keeping already submitted items.
-            Abortion, // Notify the writer about cancellation and drop already submitted items.
+            Cancelled,
+            Terminated,
             Completed
         }
 
@@ -85,12 +85,10 @@ namespace SharpRpc
 
             if (GetItemsCount(page) == 0)
                 return; // TO DO : signal protocol violation
-            else if (State == States.Abortion)
-                return; // no more data is accepted
 
             lock (LockObj)
             {
-                if (State == States.Completed)
+                if (State == States.Completed || State == States.Terminated)
                     return; // TO DO : signal protocol violation
 
                 if (IsNull(_currentPage))
@@ -122,8 +120,10 @@ namespace SharpRpc
                 if (State == States.Completed) 
                     return; // TO DO : signal protocol violation
 
+                if (State == States.Terminated)
+                    return;
+
                 State = States.Completed;
-                //_isCloseAckRequested = (msg.Options & StreamCloseOptions.SendAcknowledgment) != 0;
 
                 if (_logger.IsVerboseEnabled)
                     _logger.Verbose(GetName(), "Completed (Received a close message)");
@@ -142,20 +142,22 @@ namespace SharpRpc
         }
 
         // The call ended (may happen before the stream is gracefully closed).
-        void IStreamReaderFixture<T>.Abort(SharpRpc.RpcResult fault)
+        void IStreamReaderFixture<T>.Terminate(RpcResult fault)
         {
             var wakeupListener = false;
 
             lock (LockObj)
             {
-                DropAllItems();
-                ChangeState(States.Completed);
+                //DropAllItems();
+                ChangeState(States.Terminated);
                 _fault = fault;
-                wakeupListener = OnDataArrived(out _);
 
-                if (_logger.IsVerboseEnabled)
-                    _logger.Verbose(GetName(), $"Aborted (due to {_fault.Code})");
+                if (!HasData)
+                    wakeupListener = OnDataArrived(out _);
             }
+
+            if (_logger.IsVerboseEnabled)
+                _logger.Verbose(GetName(), $"Terminated (due to {_fault.Code})");
 
             if (wakeupListener) _enumerator.WakeUpListener();
 
@@ -170,11 +172,11 @@ namespace SharpRpc
                 {
                     if (dropRemItems)
                     {
-                        ChangeState(States.Abortion);
+                        ChangeState(States.Cancelled);
                         DropAllItems();
                     }
                     else
-                        ChangeState(States.Cancellation);
+                        ChangeState(States.Cancelled);
 
                     if (_logger.IsVerboseEnabled)
                         _logger.Verbose(GetName(), $"Cancellation is requested.{(dropRemItems ? "[Drop] " : " ")}");
@@ -197,7 +199,7 @@ namespace SharpRpc
 
                 if (State == States.Online)
                 {
-                    ChangeState(States.Abortion);
+                    ChangeState(States.Cancelled);
                     SendCancelMessage(true);
                 }
 
@@ -259,14 +261,13 @@ namespace SharpRpc
             {
                 item = GetItem(_currentPage, _currentPageIndex);
                 IncreasePageIndexBy(1, false, out pageAck);
-                //item = GetNextItem(out pageAck);
                 return NextItemCode.Ok;
             }
 
             item = default(T);
             pageAck = null;
 
-            if (State == States.Completed)
+            if (State == States.Completed || State == States.Terminated)
                 return NextItemCode.Completed;
 
             return NextItemCode.NoItems;
@@ -284,7 +285,7 @@ namespace SharpRpc
             page = default;
             pageAck = null;
 
-            if (State == States.Completed)
+            if (State == States.Completed || State == States.Terminated)
                 return NextItemCode.Completed;
 
             return NextItemCode.NoItems;
@@ -304,7 +305,7 @@ namespace SharpRpc
             count = 0;
             pageAck = null;
 
-            if (State == States.Completed)
+            if (State == States.Completed || State == States.Terminated)
                 return NextItemCode.Completed;
 
             return NextItemCode.NoItems;

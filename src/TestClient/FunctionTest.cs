@@ -62,7 +62,6 @@ namespace TestClient
             runner.AddCases(new OutputBinStreamTest().GetCases(clientName, client));
             runner.AddCases(new InputStreamCancellationTest().GetCases(clientName, client));
             runner.AddCases(new OutputStreamCancellationTest().GetCases(clientName, client));
-            //runner.AddCases(new DuplexStreamCancellationTest().GetCases(clientName, client));
 
             runner.AddCases(new SessionDropByServerTest(address, ssl).GetCases(clientName));
             runner.AddCases(new ConnectActionAbortTest(address, ssl).GetCases(clientName));

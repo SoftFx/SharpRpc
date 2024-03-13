@@ -74,6 +74,6 @@ namespace SharpRpc
         void IDispatcherOperation.OnFault(RpcResult result) { }
         void IDispatcherOperation.OnFaultResponse(IRequestFaultMessage faultMessage) { }
 
-        void IDispatcherOperation.Abort(RpcResult fault) { }
+        void IDispatcherOperation.Terminate(RpcResult fault) { }
     }
 }

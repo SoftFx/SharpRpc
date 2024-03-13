@@ -14,7 +14,7 @@ using static System.Net.Mime.MediaTypeNames;
 
 namespace SharpRpc
 {
-    public sealed class ObjectStreamWriter<T> : StreamWriterBase2<T>
+    public sealed class ObjectStreamWriter<T> : StreamWriterBase<T>
     {
         private readonly IStreamMessageFactory<T> _factory;
         private IStreamPage<T> _queue;

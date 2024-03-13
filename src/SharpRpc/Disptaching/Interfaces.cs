@@ -25,7 +25,7 @@ namespace SharpRpc.Disptaching
 
         // Closes the communication object instantly without any further messaging.
         // This method is typically called in case of connection loss.
-        void Abort(RpcResult fault);
+        void Terminate(RpcResult fault);
 
         // *** initiator-side methods ***
 
