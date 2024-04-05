@@ -1035,7 +1035,7 @@ namespace TestClient
                 var delay = tCase.GetParam<TimeSpan>("OnCloseDeleay");
 
                 var client = CreateClient();
-                client.Channel.Closing += (s, a) => Task.Delay(delay);
+                client.Channel.DeinitializingSession += (s, a) => Task.Delay(delay);
                 client.Try.DropSession();
                 client.Channel.CloseAsync().Wait();
 

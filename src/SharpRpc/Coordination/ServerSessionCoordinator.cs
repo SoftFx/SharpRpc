@@ -212,7 +212,7 @@ namespace SharpRpc
 
         private void RiseClosingEvent(bool isLostConnection)
         {
-            Channel.RiseClosingEvent(isLostConnection)
+            Channel.RiseSessionDeinitEvent(isLostConnection)
                 .ContinueWith(OnClosingEventCompleted);
         }
 

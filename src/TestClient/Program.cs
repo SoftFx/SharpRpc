@@ -79,12 +79,12 @@ namespace TestClient
             {
                 var client = new BenchmarkClient("localhost", TcpSecurity.None, true);
 
-                client.Channel.Opening += async (s, a) =>
+                client.Channel.InitializingSession += async (s, a) =>
                 {
                     await client.Stub.Async.ApplyUpdate(new FooEntity());
                 };
 
-                client.Channel.Closing += async (s, a) =>
+                client.Channel.DeinitializingSession += async (s, a) =>
                 {
                     await client.Stub.Async.ApplyUpdate(new FooEntity());
                 };

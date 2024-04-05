@@ -69,7 +69,7 @@ namespace SharpRpc
             if (hasFailed)
                 _connectWaitHandle.TrySetResult(false);
             else
-                Channel.RiseOpeningEvent().ContinueWith(OnOpenEventCompleted);
+                Channel.RiseSessionInitEvent().ContinueWith(OnOpenEventCompleted);
 
             return RpcResult.Ok;
         }
@@ -138,7 +138,7 @@ namespace SharpRpc
                 _disconnectWaitHandle = new TaskCompletionSource<bool>();
             }
 
-            Channel.RiseClosingEvent(IsCoordinationBroken)
+            Channel.RiseSessionDeinitEvent(IsCoordinationBroken)
                 .ContinueWith(OnCloseEventCompleted);
 
             return _disconnectWaitHandle.Task;

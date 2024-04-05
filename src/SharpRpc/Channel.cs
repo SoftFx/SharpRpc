@@ -55,11 +55,13 @@ namespace SharpRpc
 
         internal event Action<Channel, RpcResult> InternalClosed;
 
-        public event AsyncEventHandler<ChannelOpeningArgs> Opening;
-        //public event EventHandler<ChannelOpenedArgs> Opened;
-        public event AsyncEventHandler<ChannelClosingArgs> Closing;
+        public event EventHandler<ChannelOpeningArgs> Opening;
+        public event AsyncEventHandler<SessionInitArgs> InitializingSession;
+        public event EventHandler<ChannelOpenedArgs> Opened;
+        public event EventHandler<ChannelClosingArgs> Closing;
+        public event AsyncEventHandler<SessionDeinitArgs> DeinitializingSession;
         public event EventHandler<ChannelClosedArgs> Closed;
-        public event EventHandler<ChannelFailedToConnectArgs> FailedToConnect;
+        public event EventHandler<ChannelFailedToOpenArgs> FailedToOpen;
 
         internal Channel(ServiceBinding binding, Endpoint endpoint, ContractDescriptor descriptor, RpcCallHandler msgHandler)
         {
@@ -243,6 +245,8 @@ namespace SharpRpc
             {
                 Logger.Info(Id, "Connecting...");
 
+                RiseOpeningEvent();
+
                 try
                 {
                     var connectResult = await ((ClientEndpoint)_endpoint).ConnectAsync(_connectCancellationSrc.Token);
@@ -264,7 +268,7 @@ namespace SharpRpc
                 Logger.Warn(Id, "Failed to establish transport connection! Code: {0}", _channelFault.Code);
                 _connectEvent.SetResult(_channelFault);
                 await _dispatcher.Stop(_channelFault);
-                RiseFailedToConnectEvent(_channelFault);
+                RiseFailedToOpenEvent(_channelFault);
                 return;
             }
 
@@ -312,11 +316,12 @@ namespace SharpRpc
                     SetClosedState();
                 Logger.Info(Id, "Disconnected. Final state: " + State);
                 _connectEvent.SetResult(_channelFault);
-                RiseFailedToConnectEvent(_channelFault);
+                RiseFailedToOpenEvent(_channelFault);
             }
             else
             {
                 Logger.Info(Id, "Connected.");
+                RiseOpenedEvent();
                 _connectEvent.SetResult(RpcResult.Ok);
             }
         }
@@ -404,6 +409,8 @@ namespace SharpRpc
 
             Logger.Info(Id, $"{_channelFault.FaultMessage} [{_channelFault.Code}] Disconnecting...");
 
+            RiseClosingEvent();
+
             await DisconnectRoutine(false);
 
             lock (_stateSyncObj)
@@ -413,9 +420,9 @@ namespace SharpRpc
 
             InternalClosed?.Invoke(this, _channelFault);
 
-            _disconnectEvent.SetResult(RpcResult.Ok);
-
             RiseClosedEvent(_channelFault, State == ChannelState.Faulted);
+
+            _disconnectEvent.SetResult(RpcResult.Ok);
         }
 
         private void SetClosedState()
@@ -464,27 +471,63 @@ namespace SharpRpc
             return _transport.GetInfo();
         }
 
-        internal async Task<bool> RiseOpeningEvent()
+        internal async Task<bool> RiseSessionInitEvent()
         {
             try
             {
-                var args = new ChannelOpeningArgs();
-                await Opening.InvokeAsync(this, args);
+                var args = new SessionInitArgs();
+                await InitializingSession.InvokeAsync(this, args);
                 return !args.HasErrorOccurred;
             }
             catch (Exception ex)
             {
-                Logger.Error(Id, ex, "An opening event handler threw an exception!");
+                Logger.Error(Id, ex, "An InitializingSession event handler threw an exception!");
                 return false;
             }
         }
 
-        internal async Task RiseClosingEvent(bool isFaulted)
+        internal async Task RiseSessionDeinitEvent(bool isFaulted)
         {
             try
             {
-                var args = new ChannelClosingArgs(isFaulted);
-                await Closing.InvokeAsync(this, args);
+                var args = new SessionDeinitArgs(isFaulted);
+                await DeinitializingSession.InvokeAsync(this, args);
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(Id, ex, "An DeinitializingSession event handler threw an exception!");
+            }
+        }
+
+        internal void RiseOpeningEvent()
+        {
+            try
+            {
+                Opening?.Invoke(this, new ChannelOpeningArgs());
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(Id, ex, "An Opening event handler threw an exception!");
+            }
+        }
+
+        internal void RiseOpenedEvent()
+        {
+            try
+            {
+                Opened?.Invoke(this, new ChannelOpenedArgs());
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(Id, ex, "An Opened event handler threw an exception!");
+            }
+        }
+
+        internal void RiseClosingEvent()
+        {
+            try
+            {
+                Closing?.Invoke(this, new ChannelClosingArgs());
             }
             catch (Exception ex)
             {
@@ -504,15 +547,15 @@ namespace SharpRpc
             }
         }
 
-        internal void RiseFailedToConnectEvent(RpcResult fault)
+        internal void RiseFailedToOpenEvent(RpcResult fault)
         {
             try
             {
-                FailedToConnect?.Invoke(this, new ChannelFailedToConnectArgs(fault));
+                FailedToOpen?.Invoke(this, new ChannelFailedToOpenArgs(fault));
             }
             catch (Exception ex)
             {
-                Logger.Error(Id, ex, "An FailedToConnect event handler threw an exception!");
+                Logger.Error(Id, ex, "An FailedToOpen event handler threw an exception!");
             }
         }
 
@@ -534,23 +577,44 @@ namespace SharpRpc
         Faulted
     }
 
-    public class ChannelOpeningArgs : EventArgs
+    public class SessionInitArgs : EventArgs
     {
-        public ChannelOpeningArgs()
+        public SessionInitArgs()
         {
         }
 
         public bool HasErrorOccurred { get; set; }
     }
 
-    public class ChannelClosingArgs : EventArgs
+    public class SessionDeinitArgs : EventArgs
     {
-        public ChannelClosingArgs(bool isFaulted)
+        public SessionDeinitArgs(bool isFaulted)
         {
             IsFaulted = isFaulted;
         }
 
         public bool IsFaulted { get; }
+    }
+
+    public class ChannelOpeningArgs : EventArgs
+    {
+        internal ChannelOpeningArgs()
+        {
+        }
+    }
+
+    public class ChannelOpenedArgs : EventArgs
+    {
+        internal ChannelOpenedArgs()
+        {
+        }
+    }
+
+    public class ChannelClosingArgs : EventArgs
+    {
+        internal ChannelClosingArgs()
+        {
+        }
     }
 
     public class ChannelClosedArgs : EventArgs
@@ -565,9 +629,9 @@ namespace SharpRpc
         public bool IsFaulted { get; }
     }
 
-    public class ChannelFailedToConnectArgs : EventArgs
+    public class ChannelFailedToOpenArgs : EventArgs
     {
-        public ChannelFailedToConnectArgs(RpcResult reason)
+        public ChannelFailedToOpenArgs(RpcResult reason)
         {
             Reason = reason;
         }
