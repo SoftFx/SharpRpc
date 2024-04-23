@@ -42,6 +42,8 @@ namespace SharpRpc
                 //IsWritingMessage = false;
             }
 
+            public bool IsHeaderWritePending => !_isChunkOpened;
+
             public void OnAlloc()
             {
                 if (!_isChunkOpened)

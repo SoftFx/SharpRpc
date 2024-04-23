@@ -33,10 +33,16 @@ namespace SharpRpc
         //private readonly Action _dataArrivedEvent;
         private ArraySegment<byte> _dequeuedSegment;
         private bool _isClosed;
+        private byte[] _xlBuffer;
+        private readonly int _segmentSize;
+        private readonly int _maxAllocSize;
 
         public TxBuffer(object lockObj, int segmentSize)
         {
             _lockObj = lockObj;
+
+            _segmentSize = segmentSize;
+            _maxAllocSize = segmentSize - MessageHeader.HeaderSize;
 
             _dequeueWaitHandle = new SlimAwaitable<ArraySegment<byte>>(lockObj);
 
@@ -67,7 +73,7 @@ namespace SharpRpc
 
         private bool IsCurrentDataAvailable => !IsCurrentSegmentLocked && CurrentOffset > 0;
         private bool HasCompletedSegments => _completeSegments.Count > 0;
-        private int SegmentSize => _memManager.SegmentSize;
+        private int RemainingSegmentSpace => _segmentSize - CurrentOffset;
 
         public event Action OnDequeue;
 
@@ -178,20 +184,42 @@ namespace SharpRpc
 
         public void Advance(int count)
         {
-            MoveOffset(count);
+            if (_xlBuffer != null)
+                ConsumeXlBuffer(count);
+            else
+                MoveOffset(count);
         }
 
 #if NET5_0_OR_GREATER
         public Memory<byte> GetMemory(int sizeHint = 0)
         {
-            EnsureSpace(sizeHint);
-            return new Memory<byte>(CurrentSegment, CurrentOffset, SegmentSize - CurrentOffset);
+            //if (_xlBuffer != null)
+            //    throw new Exception("Advance() must be called before another memory request!");
+
+            if (IsXlSize(sizeHint))
+            {
+                AllocateXlBuffer(sizeHint);
+                return new Memory<byte>(_xlBuffer);
+            }
+            else
+            {
+                EnsureSpace(sizeHint);
+                return new Memory<byte>(CurrentSegment, CurrentOffset, RemainingSegmentSpace);
+            }
         }
 
         public Span<byte> GetSpan(int sizeHint = 0)
         {
-            EnsureSpace(sizeHint);
-            return new Span<byte>(CurrentSegment, CurrentOffset, SegmentSize - CurrentOffset);
+            if (IsXlSize(sizeHint))
+            {
+                AllocateXlBuffer(sizeHint);
+                return new Span<byte>(_xlBuffer);
+            }
+            else
+            {
+                EnsureSpace(sizeHint);
+                return new Span<byte>(CurrentSegment, CurrentOffset, RemainingSegmentSpace);
+            }
         }
 #endif
         #endregion
@@ -204,17 +232,30 @@ namespace SharpRpc
         public ArraySegment<byte> AllocateWriteBuffer(int sizeHint = 0)
         {
             EnsureSpace(sizeHint);
-            return new ArraySegment<byte>(CurrentSegment, CurrentOffset, SegmentSize - CurrentOffset);
+            return new ArraySegment<byte>(CurrentSegment, CurrentOffset, RemainingSegmentSpace);
         }
 
-        private void EnsureSpace(int sizeHint)
+        private bool IsXlSize(int sizeHint)
         {
-            if (sizeHint <= _minAllocSize)
-                sizeHint = _minAllocSize;
+            return sizeHint > _maxAllocSize;
+        }
 
-            var spaceInCurrentSegment = SegmentSize - CurrentOffset;
+        private void AllocateXlBuffer(int size)
+        {
+            _xlBuffer = new byte[size];
+        }
 
-            if (spaceInCurrentSegment < sizeHint)
+        private void EnsureSpace(int size)
+        {
+            if (size <= _minAllocSize)
+                size = _minAllocSize;
+
+            var remSpace = RemainingSegmentSpace;
+
+            if (_marker.IsHeaderWritePending)
+                remSpace -= MessageHeader.HeaderSize;
+
+            if (remSpace < size)
             {
                 lock (_lockObj)
                 {
@@ -246,7 +287,7 @@ namespace SharpRpc
             {
                 EnsureSpace(_minAllocSize);
 
-                var spaceLeft = SegmentSize - CurrentOffset;
+                var spaceLeft = RemainingSegmentSpace;
                 var copySize = Math.Min(spaceLeft, count);
                 Buffer.BlockCopy(buffer, offset, CurrentSegment, CurrentOffset, copySize);
 
@@ -269,6 +310,12 @@ namespace SharpRpc
 
             DataSize += CurrentWriteSize;
             CurrentWriteSize = 0;
+        }
+
+        private void ConsumeXlBuffer(int count)
+        {
+            Write(_xlBuffer, 0, count);
+            _xlBuffer = null;
         }
 
         #region MessageWriter implementation

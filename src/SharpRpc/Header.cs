@@ -54,6 +54,8 @@ namespace SharpRpc
         //    return MessageHeader.HeaderSize;
         //}
 
+        public const int ChunkHeaderSize = 3;
+
         public void WriteChunkHeader(byte[] buffer, int offset, ushort chunkSize, MessageFlags flags)
         {
             // write flags

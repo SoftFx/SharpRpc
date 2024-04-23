@@ -50,6 +50,7 @@ namespace TestClient
             runner.AddCases(new Call1Test().GetCases(clientName, client));
             runner.AddCases(new Call2Test().GetCases(clientName, client));
             runner.AddCases(new BigObjectTest().GetCases(clientName, client));
+            runner.AddCases(new BigStringTest().GetCases(clientName, client));
             runner.AddCases(new ComplexDataTest().GetCases(clientName, client));
             runner.AddCases(new RegularFaultTest().GetCases(clientName, client));
             runner.AddCases(new CrashFaultTest().GetCases(clientName, client));
@@ -437,6 +438,38 @@ namespace TestClient
 
                 var client = tCase.GetParam<FunctionTestContract_Gen.Client>("client");
                 client.TestCall3(data);
+            }
+        }
+
+        private class BigStringTest : TestBase
+        {
+            public IEnumerable<TestCase> GetCases(string clientDescription, FunctionTestContract_Gen.Client client)
+            {
+                yield return CreateCase(clientDescription, client);
+            }
+
+            private TestCase CreateCase(string clientDescription, FunctionTestContract_Gen.Client client)
+            {
+                return new TestCase(this)
+                    .SetParam("client", clientDescription, client);
+            }
+
+            public override void RunTest(TestCase tCase)
+            {
+                var builder = new StringBuilder();
+
+                for (int i = 0; i < 10000; i++)
+                    builder.Append("1234567890_");
+
+                var data = new FooData();
+                data.Name = builder.ToString();
+                data.Relatives = new List<FooData>();
+
+                var client = tCase.GetParam<FunctionTestContract_Gen.Client>("client");
+                var resp = client.TestCall3(data);
+
+                if (resp != data.Name)
+                    throw new Exception("The result string does not match the input string!");
             }
         }
 

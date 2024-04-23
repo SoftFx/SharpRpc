@@ -3,7 +3,7 @@
   <PropertyGroup>
     <TargetFrameworks>net6.0;net472;netstandard2.0</TargetFrameworks>
     <Configurations>Debug;Release;ReleasePfCounters;ReleaseIde</Configurations>
-    <Version>1.9.0</Version>
+    <Version>1.9.1</Version>
     <Company>Soft-Fx</Company>
     <Authors>Andrei Hilevich</Authors>
     <PackageId>SharpRpc.Core</PackageId>
