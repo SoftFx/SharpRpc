@@ -227,7 +227,7 @@ namespace SharpRpc
 
             while (leftToCopy > 0)
             {
-                var bulk = await StartBulkWrite();
+                var bulk = await StartBulkWrite().ConfigureAwait(false);
 
                 if (!bulk.IsOk)
                     return bulk;

@@ -17,7 +17,7 @@ namespace SharpRpc
 {
     internal interface TxPipeline
     {
-        TaskFactory TaskQueue { get; }
+        TaskFactory TaskFactory { get; }
         IMessageFactory MessageFactory { get; }
         bool ImmediateSerialization { get; }
         string ChannelId { get; }

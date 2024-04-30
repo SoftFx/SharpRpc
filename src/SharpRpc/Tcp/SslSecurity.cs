@@ -40,7 +40,7 @@ namespace SharpRpc
 
             try
             {
-                await sslStream.AuthenticateAsClientAsync(targetHost, null, Protocols, EnableRevocationCheck);
+                await sslStream.AuthenticateAsClientAsync(targetHost, null, Protocols, EnableRevocationCheck).ConfigureAwait(false);
             }
             catch (AuthenticationException aex)
             {

@@ -141,9 +141,9 @@ namespace SharpRpc
         private async void ProcessRequest(IRequestMessage request)
         {
             //var context = new ServiceCallContext(request, Dispatcher);
-            var respToSend = await MessageHandler.ProcessRequest(request);
+            var respToSend = await MessageHandler.ProcessRequest(request).ConfigureAwait(false);
             respToSend.CallId = request.CallId;
-            await Tx.TrySendAsync(respToSend);
+            await Tx.TrySendAsync(respToSend).ConfigureAwait(false);
 
             MessageHandler.SignalResponseSent(respToSend);
         }

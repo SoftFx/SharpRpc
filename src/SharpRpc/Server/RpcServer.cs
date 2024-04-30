@@ -105,8 +105,8 @@ namespace SharpRpc
 
             Logger.Info(Name, "Stopping...");
 
-            await StopEndpoints();
-            await CloseAllSessions();
+            await StopEndpoints().ConfigureAwait(false);
+            await CloseAllSessions().ConfigureAwait(false);
 
             Logger.Info(Name, "Stopped.");
 
@@ -117,7 +117,7 @@ namespace SharpRpc
         private async Task StopEndpoints()
         {
             var stopTasks = _endpoints.Select(e => e.InvokeStop());
-            await Task.WhenAll(stopTasks.ToList());
+            await Task.WhenAll(stopTasks.ToList()).ConfigureAwait(false);
         }
 
         private async Task CloseAllSessions()
@@ -139,7 +139,7 @@ namespace SharpRpc
                     })
                 .ToList();
 
-            await Task.WhenAll(closeTasks);
+            await Task.WhenAll(closeTasks).ConfigureAwait(false);
         }
 
         private void Endpoint_ClientConnected(ServerEndpoint sender, ServiceBinding binding, ByteTransport transport)

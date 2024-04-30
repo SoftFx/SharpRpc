@@ -600,7 +600,7 @@ namespace SharpRpc
 
                 while (leftToFill > 0)
                 {
-                    var readResult = await Read(new ArraySegment<T>(array, offset, leftToFill));
+                    var readResult = await Read(new ArraySegment<T>(array, offset, leftToFill)).ConfigureAwait(false);
 
                     if (!readResult.IsOk)
                         return readResult;

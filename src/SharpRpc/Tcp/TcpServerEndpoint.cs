@@ -124,12 +124,12 @@ namespace SharpRpc
 #if NET5_0_OR_GREATER
         protected virtual ValueTask<ByteTransport> GetTransport(Socket socket)
         {
-            return new ValueTask<ByteTransport>(new SocketTransport(socket, TaskQueue));
+            return new ValueTask<ByteTransport>(new SocketTransport(socket, TaskFactory));
         }
 #else
         protected virtual Task<ByteTransport> GetTransport(Socket socket)
         {
-            return Task.FromResult<ByteTransport>(new SocketTransport(socket, TaskQueue));
+            return Task.FromResult<ByteTransport>(new SocketTransport(socket, TaskFactory));
         }
 #endif
     }

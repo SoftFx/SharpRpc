@@ -28,7 +28,7 @@ namespace SharpRpc
         private readonly SessionCoordinator _coordinator;
         private readonly CancellationTokenSource _rxCancelSrc = new CancellationTokenSource();
         private Task _rxLoop;
-        //private readonly TaskFactory _taskQueue;
+        private readonly TaskFactory _taskFactory;
         private readonly IRpcLogger _logger;
         private readonly string _channelId;
 
@@ -38,7 +38,7 @@ namespace SharpRpc
             _serializer = serializer;
             _msgDispatcher = messageConsumer;
             _coordinator = coordinator;
-            //_taskQueue = config.TaskQueue;
+            _taskFactory = config.TaskFactory;
             _parser.MaxMessageSize = config.MaxMessageSize;
             _logger = config.GetLogger();
             _channelId = channelId;
@@ -72,7 +72,7 @@ namespace SharpRpc
 
         private async Task RxLoop()
         {
-            await Task.Yield(); // exit lock
+            await _taskFactory.Dive(); // exit lock
 
             while (true)
             {
@@ -82,7 +82,7 @@ namespace SharpRpc
                 {
                     var buffer = AllocateRxBuffer();
 
-                    byteCount = await _transport.Receive(buffer, _rxCancelSrc.Token);
+                    byteCount = await _transport.Receive(buffer, _rxCancelSrc.Token).ConfigureAwait(false);
 
                     if (byteCount == 0)
                     {
@@ -111,7 +111,7 @@ namespace SharpRpc
 
                 try
                 {
-                    await OnBytesArrived(byteCount);
+                    await OnBytesArrived(byteCount).ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {

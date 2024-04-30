@@ -147,10 +147,10 @@ namespace SharpRpc
                     _voidCompletion.TrySetResult(result);
 
                 if (_reader != null)
-                    await _reader.Closed;
+                    await _reader.Closed.ConfigureAwait(false);
 
                 if (_writer != null)
-                    await _writer.Closed;
+                    await _writer.Closed.ConfigureAwait(false);
 
                 _dispatcher.Unregister(this);
             }

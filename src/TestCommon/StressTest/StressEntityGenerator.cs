@@ -18,7 +18,7 @@ namespace TestCommon.StressTest
         private readonly Random _rnd = new Random();
         private int _idSeed;
 
-        public int MaxArraySize { get; set; } = 100;
+        public int MaxArraySize { get; set; } = 1000000;
 
         public StressEntity Next()
         {
@@ -35,8 +35,10 @@ namespace TestCommon.StressTest
         {
             var list = new List<string>();
 
-            for (int i = 0; i < _rnd.Next(0, MaxArraySize); i++)
-                list.Add(i.ToString());
+            var size = _rnd.Next(0, MaxArraySize);
+
+            for (int i = 0; i < size; i++)
+                list.Add(_rnd.Next().ToString());
 
             return list;
         }

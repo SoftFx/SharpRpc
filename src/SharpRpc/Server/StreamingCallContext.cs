@@ -68,7 +68,7 @@ namespace SharpRpc
             _reader?.Cancel(true);
 
             if (OutputStream != null)
-                await OutputStream.CompleteAsync();
+                await OutputStream.CompleteAsync().ConfigureAwait(false);
 
             ch.Dispatcher.Unregister(this);
         }

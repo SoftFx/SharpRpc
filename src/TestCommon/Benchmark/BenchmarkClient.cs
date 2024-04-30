@@ -26,7 +26,7 @@ namespace TestCommon
             endpoint.Credentials = new BasicCredentials("Admin", "zzzz");
             BenchmarkContractCfg.ConfigureEndpoint(endpoint);
             if (enableLogger)
-                endpoint.Logger = new ConsoleLogger(true, false);
+                endpoint.Logger = new ConsoleLogger();
             Stub = BenchmarkContract_Gen.CreateClient(endpoint, _callback);
         }
 

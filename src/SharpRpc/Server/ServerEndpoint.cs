@@ -64,7 +64,7 @@ namespace SharpRpc
 
             try
             {
-                await StopAsync();
+                await StopAsync().ConfigureAwait(false);
             }
             catch (Exception ex)
             {

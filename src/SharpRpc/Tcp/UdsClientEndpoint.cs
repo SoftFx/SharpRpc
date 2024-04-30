@@ -33,9 +33,9 @@ namespace SharpRpc
                 var socket = new Socket(_endpoint.AddressFamily,
                     SocketType.Stream, ProtocolType.IP);
 
-                await socket.ConnectAsync(_endpoint, cToken);
+                await socket.ConnectAsync(_endpoint, cToken).ConfigureAwait(false);
 
-                return new RpcResult<ByteTransport>(await _security.SecureTransport(socket, this, "localhost"));
+                return new RpcResult<ByteTransport>(await _security.SecureTransport(socket, this, "localhost").ConfigureAwait(false));
             }
             catch (Exception ex)
             {

@@ -39,7 +39,7 @@ namespace SharpRpc
             Logger = ch.Logger;
             _opIdPrefix = serverSide ? "S" : "T";
             //MessageHandler = handler;
-            TaskQueue = Tx.TaskQueue;
+            TaskFactory = Tx.TaskFactory;
             Core = new MessageDispatcherCore(Tx, handler, OnError);
             return this;
         }
@@ -47,7 +47,7 @@ namespace SharpRpc
         //protected IUserMessageHandler MessageHandler { get; private set; }
         protected TxPipeline Tx { get; private set; }
         protected Channel Channel { get; private set; }
-        protected TaskFactory TaskQueue { get; private set; }
+        protected TaskFactory TaskFactory { get; private set; }
         protected MessageDispatcherCore Core { get; private set; }
 
         public IRpcLogger Logger { get; private set; }

@@ -55,13 +55,13 @@ namespace SharpRpc.Streaming
 
             while (true)
             {
-                var startResult = await binWriter.StartBulkWrite();
+                var startResult = await binWriter.StartBulkWrite().ConfigureAwait(false);
 
                 if (!startResult.IsOk)
                     return startResult;
 
                 var buffer = startResult.Value;
-                var bytesRead = await stream.ReadAsync(buffer.Array, buffer.Offset, buffer.Count);
+                var bytesRead = await stream.ReadAsync(buffer.Array, buffer.Offset, buffer.Count).ConfigureAwait(false);
 
                 if (bytesRead == 0)
                     return RpcResult.Ok;
@@ -81,15 +81,15 @@ namespace SharpRpc.Streaming
 
             try
             {
-                while (await e.MoveNextAsync())
+                while (await e.MoveNextAsync().ConfigureAwait(false))
                 {
                     var segment = e.Current;
-                    await targetStream.WriteAsync(segment.Array, segment.Offset, segment.Count);
+                    await targetStream.WriteAsync(segment.Array, segment.Offset, segment.Count).ConfigureAwait(false);
                 }
             }
             finally
             {
-                await e.DisposeAsync();
+                await e.DisposeAsync().ConfigureAwait(false);
             }
         }
     }

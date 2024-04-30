@@ -57,9 +57,9 @@ namespace SharpRpc
             sslOptions.ClientCertificateRequired = false;
             sslOptions.EnabledSslProtocols = Protocols;
 
-            await sslStream.AuthenticateAsServerAsync(sslOptions);
+            await sslStream.AuthenticateAsServerAsync(sslOptions).ConfigureAwait(false);
 #else
-            await sslStream.AuthenticateAsServerAsync(_cert, false, Protocols, false);
+            await sslStream.AuthenticateAsServerAsync(_cert, false, Protocols, false).ConfigureAwait(false);
 #endif
 
             return new SslTransport(sslStream, unsecureTransport.Socket);

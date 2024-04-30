@@ -29,12 +29,12 @@ namespace SharpRpc
 #if NET5_0_OR_GREATER
             internal override ValueTask<ByteTransport> SecureTransport(Socket socket, Endpoint endpoint, string targetHost)
             {
-                return new ValueTask<ByteTransport>(new SocketTransport(socket, endpoint.TaskQueue));
+                return new ValueTask<ByteTransport>(new SocketTransport(socket, endpoint.TaskFactory));
             }
 #else
             internal override Task<ByteTransport> SecureTransport(Socket socket, Endpoint endpoint, string targetHost)
             {
-                return Task.FromResult<ByteTransport>(new SocketTransport(socket, endpoint.TaskQueue));
+                return Task.FromResult<ByteTransport>(new SocketTransport(socket, endpoint.TaskFactory));
             }
 #endif
         }

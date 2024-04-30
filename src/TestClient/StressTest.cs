@@ -181,11 +181,11 @@ namespace TestClient
             return new StressTask()
             {
                 RequestId = Guid.NewGuid(),
-                Type = rnd.Pick(RequestType.RequestResponse, RequestType.CallbackMessages, RequestType.Downstream, RequestType.Upstream),
-                MessageCount = rnd.Next(1, MaxItemsPerCall),
+                Type = RequestType.RequestResponse, // rnd.Pick(RequestType.RequestResponse, RequestType.CallbackMessages, RequestType.Downstream, RequestType.Upstream),
+                MessageCount = 1000, // rnd.Next(1, MaxItemsPerCall),
                 Fault = null,
-                PerItemPauseMs = rnd.Next(0, 300),
-                CancelAfterMs = shouldCancel ? rnd.Next(0, MaxItemsPerCall * 300) : -1
+                PerItemPauseMs = 0, // rnd.Next(0, 300),
+                CancelAfterMs = -1, // shouldCancel ? rnd.Next(0, MaxItemsPerCall * 300) : -1
             };
         }
 

@@ -48,14 +48,14 @@ namespace SharpRpc
 
             _messageSerializer = descriptor.SerializationAdapter;
 
-            TaskQueue = config.TaskQueue;
+            TaskFactory = config.TaskFactory;
             MessageFactory = descriptor.SystemMessages;
 
             _buffer = new TxBuffer(_lockObj, config.TxBufferSegmentSize);
             _bufferSizeThreshold = config.TxBufferSegmentSize * 2;
             _buffer.SpaceFreed += _buffer_SpaceFreed;
 
-            _feed = new TxTransportFeed(_buffer, commErrorHandler);
+            _feed = new TxTransportFeed(_buffer, TaskFactory, commErrorHandler);
 
             _logger = config.GetLogger();
 
@@ -73,7 +73,7 @@ namespace SharpRpc
         private bool HasRoomForNextMessage => _buffer.DataSize < _bufferSizeThreshold;
 
         public string ChannelId { get; }
-        public TaskFactory TaskQueue { get; }
+        public TaskFactory TaskFactory { get; }
         public IMessageFactory MessageFactory { get; }
         public bool ImmediateSerialization => true;
 
@@ -308,7 +308,7 @@ namespace SharpRpc
         private async void RequestConnection()
         {
             // exit lock
-            await TaskQueue.Dive();
+            await TaskFactory.Dive();
 
             _connectionRequestHandler();
         }
@@ -415,7 +415,7 @@ namespace SharpRpc
                 _isProcessingItem = true;
                 _buffer.Lock();
 
-                TaskQueue.StartNew(p =>
+                TaskFactory.StartNew(p =>
                 {
                     var task = (TxAsyncGate.Item)p;
                     task.OnResult(WriteMessageToBuffer(task.Message));
@@ -474,8 +474,8 @@ namespace SharpRpc
 
         public async Task Close(TimeSpan gracefulCloseTimeout)
         {
-            await ClosePipeline(gracefulCloseTimeout);
-            await _feed.WaitTransportWaitToEnd();
+            await ClosePipeline(gracefulCloseTimeout).ConfigureAwait(false);
+            await _feed.WaitTransportWaitToEnd().ConfigureAwait(false);
         }
 
         private Task ClosePipeline(TimeSpan gracefulCloseTimeout)

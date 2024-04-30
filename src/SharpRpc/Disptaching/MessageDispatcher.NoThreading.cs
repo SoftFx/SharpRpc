@@ -6,6 +6,7 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 using SharpRpc.Disptaching;
+using SharpRpc.Lib;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -95,7 +96,7 @@ namespace SharpRpc
                 if (toWait != null)
                 {
                     await toWait.Task.ConfigureAwait(false);
-                    await Task.Yield();
+                    await TaskFactory.Dive();
 
                     lock (_lockObj)
                     {
@@ -137,7 +138,7 @@ namespace SharpRpc
 
                     cToken.Register(CancelOutgoingCall, callTask);
 
-                    result = await sendTask;
+                    result = await sendTask.ConfigureAwait(false);
 
                     if (result.Code != RpcRetCode.Ok)
                     {
@@ -192,7 +193,7 @@ namespace SharpRpc
 
             private void CompleteClose()
             {
-                TaskQueue.StartNew(InvokeOnStop);
+                TaskFactory.StartNew(InvokeOnStop);
             }
         }
     }

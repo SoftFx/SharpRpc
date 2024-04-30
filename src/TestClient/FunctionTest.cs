@@ -78,6 +78,8 @@ namespace TestClient
             if (ssl)
                 endpoint.Credentials = new BasicCredentials("Admin", "zzzz");
 
+            //endpoint.Logger = new ConsoleLogger() { IsVerboseEnabled = true, IsMessageLoggingEnabled = true, IsAuxMessageLoggingEnabled = true };
+
             var callback = new CallbackHandler();
             return FunctionTestContract_Gen.CreateClient(endpoint, callback);
         }
@@ -433,7 +435,7 @@ namespace TestClient
                 data.Name = "1231239432943214812[812[3812[38912-3[12391283-01823-128423-1411-20481-238012-3812-381230812";
                 data.Relatives = new List<FooData>();
 
-                for (int i = 0; i < 100000; i++)
+                for (int i = 0; i < 1000000; i++)
                     data.Relatives.Add(new FooData() { Name = data.Name });
 
                 var client = tCase.GetParam<FunctionTestContract_Gen.Client>("client");
@@ -587,11 +589,11 @@ namespace TestClient
         {
             public IEnumerable<TestCase> GetCases(string clientDescription, FunctionTestContract_Gen.Client client)
             {
-                //yield return CreateCase(8, StreamTestOptions.JustExit);
-                //yield return CreateCase(8, StreamTestOptions.ImmediateFault);
+                yield return CreateCase(8, StreamTestOptions.JustExit, clientDescription, client);
+                yield return CreateCase(8, StreamTestOptions.ImmediateFault, clientDescription, client);
                 yield return CreateCase(8, StreamTestOptions.ImmediateCustomFault, clientDescription, client);
-                //yield return CreateCase(8, StreamTestOptions.None);
-                //yield return CreateCase(32, StreamTestOptions.None);
+                yield return CreateCase(8, StreamTestOptions.None, clientDescription, client);
+                yield return CreateCase(32, StreamTestOptions.None, clientDescription, client);
             }
 
             private TestCase CreateCase(ushort windowSize, StreamTestOptions options,
@@ -749,7 +751,7 @@ namespace TestClient
                 var readMode = (StreamReadOptions)tCase["readMode"];
                 var client = tCase.GetParam<FunctionTestContract_Gen.Client>("client");
 
-                var fileToDownstream = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "TestClient.exe");
+                var fileToDownstream = "19084.jpg"; // Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "TestClient.exe");
                 var expectedCrc = CalcFileCrc(fileToDownstream);
                 var streamOptions = new StreamOptions() { WindowSize = windowSize };
                 var call = client.TestOutBinStream(streamOptions, fileToDownstream, StreamTestOptions.None, wirteMode);

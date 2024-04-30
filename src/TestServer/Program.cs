@@ -76,7 +76,7 @@ namespace TestServer
             server.AddEndpoint(udsEndpoint);
 #endif
 
-            server.SetLogger(new ConsoleLogger(true, true));
+            server.SetLogger(new ConsoleLogger());
             server.Start();
 
             return server;
@@ -98,7 +98,7 @@ namespace TestServer
 
             var server = new RpcServer();
             server.AddEndpoint(tcpEndpoint);
-            server.SetLogger(new ConsoleLogger(true, true));
+            server.SetLogger(new ConsoleLogger()); // { IsVerboseEnabled = true, IsMessageLoggingEnabled = true, IsAuxMessageLoggingEnabled = true });
             server.Start();
 
             return server;
@@ -114,7 +114,7 @@ namespace TestServer
 
             var server = new RpcServer();
             server.AddEndpoint(tcpEndpoint);
-            server.SetLogger(new ConsoleLogger(false, true));
+            server.SetLogger(new ConsoleLogger());
             server.Start();
 
             return server;

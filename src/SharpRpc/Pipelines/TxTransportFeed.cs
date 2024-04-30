@@ -22,10 +22,12 @@ namespace SharpRpc
         private readonly CancellationTokenSource _txCancelSrc = new CancellationTokenSource();
         private readonly TxBuffer _queue;
         private readonly Action<RpcResult> _comErrorHandler;
+        private readonly TaskFactory _taskFactory;
 
-        public TxTransportFeed(TxBuffer queue, Action<RpcResult> comErrorHandler)
+        public TxTransportFeed(TxBuffer queue, TaskFactory tFactory, Action<RpcResult> comErrorHandler)
         {
             _queue = queue;
+            _taskFactory = tFactory;
             _comErrorHandler = comErrorHandler;
         }
 
@@ -53,7 +55,7 @@ namespace SharpRpc
         private async Task TxBytesLoop()
         {
             // tak another thread (and exit lock)
-            await Task.Factory.Dive();
+            await _taskFactory.Dive();
 
             try
             {
@@ -69,7 +71,7 @@ namespace SharpRpc
 
                     try
                     {
-                        await _trasport.Send(data, _txCancelSrc.Token);
+                        await _trasport.Send(data, _txCancelSrc.Token).ConfigureAwait(false);
                     }
                     catch (OperationCanceledException)
                     {

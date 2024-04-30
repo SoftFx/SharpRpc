@@ -42,7 +42,7 @@ namespace SharpRpc
         {
             using (var timeoutSrc = new CancellationTokenSource(_timeout))
             {
-                var rxResult = await TryReceiveRequest(transport, timeoutSrc.Token);
+                var rxResult = await TryReceiveRequest(transport, timeoutSrc.Token).ConfigureAwait(false);
 
                 if (!rxResult.IsOk)
                 {
@@ -87,7 +87,7 @@ namespace SharpRpc
                     parentLog.Info($"Outgoing handshake, v{response.RpcVersion.Major}.{response.RpcVersion.Minor}," +
                         $" code={retCode}");
 
-                var sendResult = await TrySend(transport, response, timeoutSrc.Token);
+                var sendResult = await TrySend(transport, response, timeoutSrc.Token).ConfigureAwait(false);
 
                 if (!sendResult.IsOk)
                 {
@@ -115,12 +115,12 @@ namespace SharpRpc
                 request.ServiceName = serviceName;
                 request.HostName = hostName;
 
-                var txResult = await TrySend(transport, request, timeoutSrc.Token);
+                var txResult = await TrySend(transport, request, timeoutSrc.Token).ConfigureAwait(false);
 
                 if (!txResult.IsOk)
                     return txResult;
 
-                var rxResult = await TryReceiveResponse(transport, timeoutSrc.Token);
+                var rxResult = await TryReceiveResponse(transport, timeoutSrc.Token).ConfigureAwait(false);
 
                 if (!rxResult.IsOk)
                     return rxResult;
@@ -170,7 +170,7 @@ namespace SharpRpc
 
             // header 
 
-            var headerRxResult = await transport.TryReceiveExact(_msgEncoder.Buffer, HandshakeRequest.HeaderSize, timeoutToken);
+            var headerRxResult = await transport.TryReceiveExact(_msgEncoder.Buffer, HandshakeRequest.HeaderSize, timeoutToken).ConfigureAwait(false);
 
             if (!headerRxResult.IsOk)
                 return headerRxResult;
@@ -183,7 +183,7 @@ namespace SharpRpc
 
             // body
 
-            var bodyRxResult = await transport.TryReceiveExact(_msgEncoder.Buffer, size, timeoutToken);
+            var bodyRxResult = await transport.TryReceiveExact(_msgEncoder.Buffer, size, timeoutToken).ConfigureAwait(false);
 
             if (!bodyRxResult.IsOk)
                 return bodyRxResult;
@@ -201,7 +201,7 @@ namespace SharpRpc
 
             // header 
 
-            var headerRxResult = await transport.TryReceiveExact(_msgEncoder.Buffer, HandshakeRequest.HeaderSize, timeoutToken);
+            var headerRxResult = await transport.TryReceiveExact(_msgEncoder.Buffer, HandshakeRequest.HeaderSize, timeoutToken).ConfigureAwait(false);
 
             if (!headerRxResult.IsOk)
                 return headerRxResult;
@@ -214,7 +214,7 @@ namespace SharpRpc
 
             // body
 
-            var bodyRxResult = await transport.TryReceiveExact(_msgEncoder.Buffer, size, timeoutToken);
+            var bodyRxResult = await transport.TryReceiveExact(_msgEncoder.Buffer, size, timeoutToken).ConfigureAwait(false);
 
             if (!bodyRxResult.IsOk)
                 return bodyRxResult;

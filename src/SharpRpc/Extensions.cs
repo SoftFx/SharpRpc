@@ -24,7 +24,7 @@ namespace SharpRpc
             {
                 try
                 {
-                    var bytes = await transport.Receive(new ArraySegment<byte>(buffer, rxCount, count - rxCount), cToken);
+                    var bytes = await transport.Receive(new ArraySegment<byte>(buffer, rxCount, count - rxCount), cToken).ConfigureAwait(false);
 
                     if (bytes == 0)
                         return new RpcResult(RpcRetCode.ConnectionAbortedByPeer, "The connection was closed by oher side.");
@@ -48,7 +48,7 @@ namespace SharpRpc
         {
             try
             {
-                await transport.Send(data, cancelToken);
+                await transport.Send(data, cancelToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {

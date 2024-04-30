@@ -249,7 +249,7 @@ namespace SharpRpc
 
                 try
                 {
-                    var connectResult = await ((ClientEndpoint)_endpoint).ConnectAsync(_connectCancellationSrc.Token);
+                    var connectResult = await ((ClientEndpoint)_endpoint).ConnectAsync(_connectCancellationSrc.Token).ConfigureAwait(false);
                     if (connectResult.Code == RpcRetCode.Ok)
                         _transport = connectResult.Value;
                     else
@@ -267,7 +267,7 @@ namespace SharpRpc
                     State = ChannelState.Faulted;
                 Logger.Warn(Id, "Failed to establish transport connection! Code: {0}", _channelFault.Code);
                 _connectEvent.SetResult(_channelFault);
-                await _dispatcher.Stop(_channelFault);
+                await _dispatcher.Stop(_channelFault).ConfigureAwait(false);
                 RiseFailedToOpenEvent(_channelFault);
                 return;
             }
@@ -286,7 +286,7 @@ namespace SharpRpc
                 }
 
                 // login
-                await startCoordinatorTask;
+                await startCoordinatorTask.ConfigureAwait(false);
             }
 
             bool isLoggedIn = true;
@@ -306,12 +306,12 @@ namespace SharpRpc
             }
 
             // exit transport thread
-            await Task.Factory.Dive();
+            await _endpoint.TaskFactory.Dive();
 
             if (!isLoggedIn)
             {
                 Logger.Warn(Id, "Failed to open a session! Code: {0}", _channelFault.Code);
-                await DisconnectRoutine(isAbortion);
+                await DisconnectRoutine(isAbortion).ConfigureAwait(false);
                 lock (StateLockObject)
                     SetClosedState();
                 Logger.Info(Id, "Disconnected. Final state: " + State);
@@ -354,20 +354,20 @@ namespace SharpRpc
         {
             Logger.Verbose(Id, "Stopping the dispatcher...");
 
-            await _dispatcher.Stop(_channelFault);
+            await _dispatcher.Stop(_channelFault).ConfigureAwait(false);
 
             try
             {
                 Logger.Verbose(Id, "Sopping Tx pipeline...");
 
-                await _tx.Close(TimeSpan.FromSeconds(5));
+                await _tx.Close(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
 
                 if (_transport != null)
                 {
                     if (!isAbortion)
                     {
                         Logger.Verbose(Id, "Disconnecting the transport...");
-                        await _transport.Shutdown();
+                        await _transport.Shutdown().ConfigureAwait(false);
                     }
                     else
                         DisposeTransport();
@@ -376,7 +376,7 @@ namespace SharpRpc
                 if (_rx != null)
                 {
                     Logger.Verbose(Id, "Sopping Rx pipeline ...");
-                    await _rx.Close();
+                    await _rx.Close().ConfigureAwait(false);
                 }
             }
             catch (Exception ex)
@@ -411,7 +411,7 @@ namespace SharpRpc
 
             RiseClosingEvent();
 
-            await DisconnectRoutine(false);
+            await DisconnectRoutine(false).ConfigureAwait(false);
 
             lock (_stateSyncObj)
                 SetClosedState();
@@ -441,12 +441,12 @@ namespace SharpRpc
                 using (var logoutTimeoutSrc = new CancellationTokenSource(Endpoint.LogoutTimeout))
                 {
                     logoutTimeoutSrc.Token.Register(OnLogoutTimeout);
-                    await _coordinator.OnDisconnect();
-                    await BeginCloseComponents(false);
+                    await _coordinator.OnDisconnect().ConfigureAwait(false);
+                    await BeginCloseComponents(false).ConfigureAwait(false);
                 }
             }
             else
-                await BeginCloseComponents(true);
+                await BeginCloseComponents(true).ConfigureAwait(false);
         }
 
         private void OnConnectionRequested()
@@ -476,7 +476,7 @@ namespace SharpRpc
             try
             {
                 var args = new SessionInitArgs();
-                await InitializingSession.InvokeAsync(this, args);
+                await InitializingSession.InvokeAsync(this, args).ConfigureAwait(false);
                 return !args.HasErrorOccurred;
             }
             catch (Exception ex)
@@ -491,7 +491,7 @@ namespace SharpRpc
             try
             {
                 var args = new SessionDeinitArgs(isFaulted);
-                await DeinitializingSession.InvokeAsync(this, args);
+                await DeinitializingSession.InvokeAsync(this, args).ConfigureAwait(false);
             }
             catch (Exception ex)
             {

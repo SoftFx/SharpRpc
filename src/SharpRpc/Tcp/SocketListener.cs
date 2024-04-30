@@ -103,12 +103,12 @@ namespace SharpRpc.Tcp
             try
             {
                 // do handshake
-                unsecuredTransport = new SocketTransport(socket, _endpoint.TaskQueue);
-                var handshakeResult = await handshaker.DoServerSideHandshake(unsecuredTransport, _services, new Log(_logId, Logger));
+                unsecuredTransport = new SocketTransport(socket, _endpoint.TaskFactory);
+                var handshakeResult = await handshaker.DoServerSideHandshake(unsecuredTransport, _services, new Log(_logId, Logger)).ConfigureAwait(false);
 
                 if (!handshakeResult.WasAccepted)
                 {
-                    await CloseTransport(unsecuredTransport);
+                    await CloseTransport(unsecuredTransport).ConfigureAwait(false);
                     return;
                 }
 
@@ -118,7 +118,7 @@ namespace SharpRpc.Tcp
                     Logger.Verbose(_logId, "Handshake completed.");
 
                 // secure
-                var transport = await serviceConfig.Security.SecureTransport(unsecuredTransport, _endpoint);
+                var transport = await serviceConfig.Security.SecureTransport(unsecuredTransport, _endpoint).ConfigureAwait(false);
 
                 // open new session
                 _context.OnNewConnection(serviceConfig, transport);
@@ -128,7 +128,7 @@ namespace SharpRpc.Tcp
                 Logger.Error(_logId, ex.Message);
 
                 if (unsecuredTransport != null)
-                    await CloseTransport(unsecuredTransport);
+                    await CloseTransport(unsecuredTransport).ConfigureAwait(false);
                 else
                     CloseSocket(socket);
             }
@@ -153,7 +153,7 @@ namespace SharpRpc.Tcp
         {
             try
             {
-                //await socket.DisconnectAsync(_endpoint.TaskQueue);
+                //await socket.DisconnectAsync(_endpoint.TaskQueue).ConfigureAwait(false);
                 socket.Close();
             }
             catch { }

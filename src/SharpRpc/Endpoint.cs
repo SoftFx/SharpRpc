@@ -154,7 +154,7 @@ namespace SharpRpc
 
         internal bool IsKeepAliveEnabled => KeepAliveThreshold.Ticks > 0;
         internal TimeSpan KeepAliveThreshold { get; private set; }
-        internal TaskFactory TaskQueue { get; private set; }
+        internal TaskFactory TaskFactory { get; private set; }
 
         internal abstract IRpcLogger GetLogger();
 
@@ -176,11 +176,11 @@ namespace SharpRpc
         {
             if (_scheduler != null)
             {
-                TaskQueue = new TaskFactory(CancellationToken.None, TaskCreationOptions.HideScheduler,
+                TaskFactory = new TaskFactory(CancellationToken.None, TaskCreationOptions.HideScheduler,
                     TaskContinuationOptions.HideScheduler, _scheduler);
             }
             else
-                TaskQueue = Task.Factory;
+                TaskFactory = Task.Factory;
         }
 
         private void CheckGreaterZanZero(long value)

@@ -58,7 +58,7 @@ namespace SharpRpc
 
         public override async Task<RpcResult<ByteTransport>> ConnectAsync(CancellationToken cToken)
         {
-            //IPHostEntry ipHostInfo = await Dns.GetHostEntryAsync(_endpoint.Host);
+            //IPHostEntry ipHostInfo = await Dns.GetHostEntryAsync(_endpoint.Host).ConfigureAwait(false);
             //IPAddress ipAddress = ipHostInfo.AddressList[0];
             //var targetEndpoint = new IPEndPoint(ipAddress, _endpoint.Port);
 
@@ -69,21 +69,21 @@ namespace SharpRpc
 
                 // connect
 #if NET5_0_OR_GREATER
-                await socket.ConnectAsync(_endpoint, cToken);
+                await socket.ConnectAsync(_endpoint, cToken).ConfigureAwait(false);
 #else
-                await socket.ConnectAsync(_endpoint);
+                await socket.ConnectAsync(_endpoint).ConfigureAwait(false);
 #endif
 
                 // handshake
                 var handshaker = new HandshakeCoordinator(1024 * 10, TimeSpan.FromSeconds(10));
-                var unsecuredTransport = new SocketTransport(socket, TaskQueue);
-                var hsResult = await handshaker.DoClientSideHandshake(unsecuredTransport, _endpoint.Host, _serviceName);
+                var unsecuredTransport = new SocketTransport(socket, TaskFactory);
+                var hsResult = await handshaker.DoClientSideHandshake(unsecuredTransport, _endpoint.Host, _serviceName).ConfigureAwait(false);
 
                 if (!hsResult.IsOk)
                     return hsResult;
 
                 // secure
-                return new RpcResult<ByteTransport>(await _security.SecureTransport(socket, this, _endpoint.Host));
+                return new RpcResult<ByteTransport>(await _security.SecureTransport(socket, this, _endpoint.Host).ConfigureAwait(false));
             }
             catch (Exception ex)
             {

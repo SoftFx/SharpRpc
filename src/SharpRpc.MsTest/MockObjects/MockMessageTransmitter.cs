@@ -15,7 +15,7 @@ namespace SharpRpc.MsTest.MockObjects
 {
     public class MockMessageTransmitter : TxPipeline
     {
-        public TaskFactory TaskQueue => Task.Factory;
+        public TaskFactory TaskFactory => Task.Factory;
 
         public MockMessageTransmitter()
         {

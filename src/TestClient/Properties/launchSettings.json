@@ -1,0 +1,11 @@
+{
+  "profiles": {
+    "TestClient": {
+      "commandName": "Project"
+    },
+    "Remote (alpha)": {
+      "commandName": "Project",
+      "commandLineArgs": "alpha.tts.st.soft-fx.eu"
+    }
+  }
+}

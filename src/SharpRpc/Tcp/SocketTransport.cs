@@ -103,7 +103,7 @@ namespace SharpRpc
         {
             try
             {
-                await _socket.DisconnectAsync(_taskFactory);
+                await _socket.DisconnectAsync(_taskFactory).ConfigureAwait(false);
             }
             catch (Exception)
             {

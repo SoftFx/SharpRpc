@@ -77,7 +77,7 @@ namespace TestClient
             }
             else if (choice == "3")
             {
-                var client = new BenchmarkClient("localhost", TcpSecurity.None, true);
+                var client = new BenchmarkClient(address, TcpSecurity.None, true);
 
                 client.Channel.InitializingSession += async (s, a) =>
                 {
