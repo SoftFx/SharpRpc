@@ -63,6 +63,7 @@ namespace TestClient
             runner.AddCases(new OutputBinStreamTest().GetCases(clientName, client));
             runner.AddCases(new InputStreamCancellationTest().GetCases(clientName, client));
             runner.AddCases(new OutputStreamCancellationTest().GetCases(clientName, client));
+            runner.AddCases(new OutputStreamCancellationWithoutReadingTest().GetCases(clientName, client));
 
             runner.AddCases(new SessionDropByServerTest(address, ssl).GetCases(clientName));
             runner.AddCases(new ConnectActionAbortTest(address, ssl).GetCases(clientName));
@@ -997,6 +998,33 @@ namespace TestClient
 
                 if (result.ExitCode != StreamCallExitCode.StreamWriteCancelled)
                     throw new Exception("Stream call returned an unexpected exit code!");
+            }
+        }
+
+        private class OutputStreamCancellationWithoutReadingTest : TestBase
+        {
+            public IEnumerable<TestCase> GetCases(string clientDescription, FunctionTestContract_Gen.Client client)
+            {
+                yield return CreateCase(clientDescription, client);
+            }
+
+            private TestCase CreateCase(string clientDescription, FunctionTestContract_Gen.Client client)
+            {
+                return new TestCase(this)
+                    .SetParam("client", clientDescription, client);
+            }
+
+            public override void RunTest(TestCase tCase)
+            {
+                var cancelSrc = new CancellationTokenSource();
+                var options = new StreamOptions() { WindowSize = 10 };
+                var itemCount = 9;
+                var client = tCase.GetParam<FunctionTestContract_Gen.Client>("client");
+                var callObj = client.TestOutStream(options, TimeSpan.Zero, itemCount, StreamTestOptions.InvokeCompletion);
+
+                var e = callObj.OutputStream.GetEnumerator(cancelSrc.Token);
+                if (!e.DisposeAsync().Wait(1000))
+                    throw new Exception("Stream call disposing hangs!");
             }
         }
 
