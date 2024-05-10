@@ -51,7 +51,7 @@ namespace SharpRpc
             TaskFactory = config.TaskFactory;
             MessageFactory = descriptor.SystemMessages;
 
-            _buffer = new TxBuffer(_lockObj, config.TxBufferSegmentSize);
+            _buffer = new TxBuffer(_lockObj, config.TxBufferSegmentSize, config.TaskFactory);
             _bufferSizeThreshold = config.TxBufferSegmentSize * 2;
             _buffer.SpaceFreed += _buffer_SpaceFreed;
 

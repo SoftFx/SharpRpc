@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 16
-VisualStudioVersion = 16.0.31005.135
+# Visual Studio Version 17
+VisualStudioVersion = 17.6.33829.357
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SharpRpc", "SharpRpc\SharpRpc.csproj", "{CF00A0A6-2BF7-4DB4-B438-19D8FC48BAD7}"
 EndProject
@@ -21,6 +21,8 @@ EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TestServer", "TestServer\TestServer.csproj", "{426EE7DB-9B59-4F8B-9584-56B8FA455289}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TestCommon", "TestCommon\TestCommon.csproj", "{4E00FB18-333C-427F-811D-18EE4FE222AE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GuiClient", "GuiClient\GuiClient.csproj", "{BD77F2AB-2200-4416-B02F-17033B6FA9BD}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -91,6 +93,16 @@ Global
 		{4E00FB18-333C-427F-811D-18EE4FE222AE}.ReleaseIde|Any CPU.Build.0 = Release|Any CPU
 		{4E00FB18-333C-427F-811D-18EE4FE222AE}.ReleasePfCounters|Any CPU.ActiveCfg = ReleasePfCounters|Any CPU
 		{4E00FB18-333C-427F-811D-18EE4FE222AE}.ReleasePfCounters|Any CPU.Build.0 = ReleasePfCounters|Any CPU
+		{BD77F2AB-2200-4416-B02F-17033B6FA9BD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BD77F2AB-2200-4416-B02F-17033B6FA9BD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BD77F2AB-2200-4416-B02F-17033B6FA9BD}.DebugBuilder|Any CPU.ActiveCfg = Debug|Any CPU
+		{BD77F2AB-2200-4416-B02F-17033B6FA9BD}.DebugBuilder|Any CPU.Build.0 = Debug|Any CPU
+		{BD77F2AB-2200-4416-B02F-17033B6FA9BD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BD77F2AB-2200-4416-B02F-17033B6FA9BD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BD77F2AB-2200-4416-B02F-17033B6FA9BD}.ReleaseIde|Any CPU.ActiveCfg = Release|Any CPU
+		{BD77F2AB-2200-4416-B02F-17033B6FA9BD}.ReleaseIde|Any CPU.Build.0 = Release|Any CPU
+		{BD77F2AB-2200-4416-B02F-17033B6FA9BD}.ReleasePfCounters|Any CPU.ActiveCfg = Release|Any CPU
+		{BD77F2AB-2200-4416-B02F-17033B6FA9BD}.ReleasePfCounters|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -99,6 +111,7 @@ Global
 		{17E9C428-0375-4232-A410-8D43B03D5165} = {8422BC7D-557E-4FC8-94E7-BB408651F12A}
 		{426EE7DB-9B59-4F8B-9584-56B8FA455289} = {8422BC7D-557E-4FC8-94E7-BB408651F12A}
 		{4E00FB18-333C-427F-811D-18EE4FE222AE} = {8422BC7D-557E-4FC8-94E7-BB408651F12A}
+		{BD77F2AB-2200-4416-B02F-17033B6FA9BD} = {8422BC7D-557E-4FC8-94E7-BB408651F12A}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {36BA56FE-FC5C-40D2-89D2-0F8E78A60CCA}

@@ -8,6 +8,8 @@
 using SharpRpc.Lib;
 using System;
 using System.Collections.Generic;
+using System.Data;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -61,6 +63,8 @@ namespace SharpRpc
             {
                 while (true)
                 {
+                    UpdateState(LoopState.Dequeue);
+
                     var data = await _queue.DequeueNext();
 
                     if (data.Array == null)
@@ -71,10 +75,13 @@ namespace SharpRpc
 
                     try
                     {
+                        UpdateState(LoopState.Write);
+
                         await _trasport.Send(data, _txCancelSrc.Token).ConfigureAwait(false);
                     }
                     catch (OperationCanceledException)
                     {
+                        UpdateState(LoopState.Closed);
                         // loop was canceled
                         return;
                     }
@@ -82,6 +89,7 @@ namespace SharpRpc
                     {
                         var fault = _trasport.TranslateException(ex);
                         _comErrorHandler(fault);
+                        UpdateState(LoopState.Closed);
                         return;
                     }
                 }
@@ -89,12 +97,22 @@ namespace SharpRpc
             catch (Exception ex)
             {
                 _comErrorHandler(new RpcResult(RpcRetCode.OtherError, ex.Message));
+                UpdateState(LoopState.Closed);
             }
         }
 
-        //internal interface IByteQueue
-        //{
-        //    ArraySegment<byte> DequeueNextSegment();
-        //}
+#if DEBUG
+        private LoopState _state;
+#endif
+
+        private enum LoopState { None, Dequeue, Write, Closed }
+
+        [Conditional("DEBUG")]
+        private void UpdateState(LoopState state)
+        {
+#if DEBUG
+            _state = state;
+#endif
+        }
     }
 }

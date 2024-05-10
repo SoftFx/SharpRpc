@@ -174,13 +174,8 @@ namespace SharpRpc
 
         private void InitTaskScheduler()
         {
-            if (_scheduler != null)
-            {
-                TaskFactory = new TaskFactory(CancellationToken.None, TaskCreationOptions.HideScheduler,
-                    TaskContinuationOptions.HideScheduler, _scheduler);
-            }
-            else
-                TaskFactory = Task.Factory;
+            TaskFactory = new TaskFactory(CancellationToken.None, TaskCreationOptions.HideScheduler,
+                    TaskContinuationOptions.HideScheduler, _scheduler ?? TaskScheduler.Default);
         }
 
         private void CheckGreaterZanZero(long value)
