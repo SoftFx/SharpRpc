@@ -296,7 +296,8 @@ namespace SharpRpc
 
             lock (_lockObj)
             {
-                if (State == States.Online || abort) // allow abortion when normal completion is already being in the process
+                var dropCompletedQueue = State == States.Completed && dropQueue; // TRUE means reader won't read anymore, just want to close
+                if (State == States.Online || abort || dropCompletedQueue) // allow abortion when normal completion is already being in the process
                     CloseStreamInternal(abort, dropQueue, fault, closeReason, out sendNextPage, out sendCloseMessage);
             }
 

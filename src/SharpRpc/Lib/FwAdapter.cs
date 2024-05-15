@@ -58,6 +58,13 @@ namespace SharpRpc
                 vTask.AsTask().Wait();
         }
 
+        public static bool Wait(this ValueTask vTask, int millisecondsTimeout)
+        {
+            if (!vTask.IsCompleted)
+                return vTask.AsTask().Wait(millisecondsTimeout);
+            return true;
+        }
+
 #else
         public static Task AsyncVoid { get; } = Task.CompletedTask;
         public static Task<bool> AsyncTrue { get; } = Task.FromResult(true);
