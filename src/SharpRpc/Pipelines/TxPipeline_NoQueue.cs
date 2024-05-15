@@ -472,18 +472,14 @@ namespace SharpRpc
             }
         }
 
-        public async Task Close(TimeSpan gracefulCloseTimeout)
+        public async Task Close()
         {
-            await ClosePipeline(gracefulCloseTimeout).ConfigureAwait(false);
-            await _feed.WaitTransportWaitToEnd().ConfigureAwait(false);
+            await ClosePipeline().ConfigureAwait(false);
+            await _feed.WaitTransportFeedToStop().ConfigureAwait(false);
         }
 
-        private Task ClosePipeline(TimeSpan gracefulCloseTimeout)
+        private Task ClosePipeline()
         {
-            bool gracefulClose = gracefulCloseTimeout > TimeSpan.Zero;
-
-            //Debug.Assert(!Monitor.IsEntered(_lockObj));
-
             lock (_lockObj)
             {
                 if (!_isClosing)
@@ -494,16 +490,10 @@ namespace SharpRpc
 
                     Monitor.PulseAll(_lockObj);
 
-                    if (!gracefulClose)
-                        _asyncGate.CancelSysytemItems(_fault);
+                    _asyncGate.CancelSysytemItems(_fault);
 
                     if (!_isProcessingItem)
                         CompleteClose();
-
-                    if (gracefulClose)
-                        _feed.AbortTransportWriteAfter(gracefulCloseTimeout);
-                    else
-                        _feed.AbortTransportWrite();
                 }
             }
 

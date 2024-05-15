@@ -9,6 +9,7 @@ using SharpRpc.Server;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Authentication.ExtendedProtection;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -142,7 +143,7 @@ namespace SharpRpc
             await Task.WhenAll(closeTasks).ConfigureAwait(false);
         }
 
-        private void Endpoint_ClientConnected(ServerEndpoint sender, ServiceBinding binding, ByteTransport transport)
+        private void Endpoint_ClientConnected(string channelId, ServerEndpoint sender, ServiceBinding binding, ByteTransport transport)
         {
             bool abortConnection = false;
 
@@ -151,7 +152,7 @@ namespace SharpRpc
                 if (_state == ServerState.Online || _state == ServerState.Starting)
                 {
                     var serviceImpl = binding.CreateServiceImpl();
-                    var session = new Channel(binding, sender, binding.Descriptor, serviceImpl);
+                    var session = new Channel(channelId, binding, sender, binding.Descriptor, serviceImpl);
                     session.InternalClosed += Session_Closed;
                     session.Init(transport);
                     _sessions.Add(session.Id, session);

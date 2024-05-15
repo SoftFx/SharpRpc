@@ -18,7 +18,7 @@ namespace SharpRpc
         private Credentials _creds = Credentials.None;
         private IRpcLogger _logger = NullLogger.Instance;
 
-        public abstract Task<RpcResult<ByteTransport>> ConnectAsync(CancellationToken cToken);
+        public abstract Task<RpcResult<ByteTransport>> ConnectAsync(CancellationToken cToken, string channelId);
 
         public Credentials Credentials
         {

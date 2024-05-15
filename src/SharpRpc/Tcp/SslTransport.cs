@@ -24,7 +24,8 @@ namespace SharpRpc
         private IRpcLogger _logger;
         private string _channelId;
 
-        public SslTransport(SslStream stream, Socket socket)
+        public SslTransport(SslStream stream, Socket socket, string channelId, IRpcLogger logger)
+            : base(channelId, logger)
         {
             _stream = stream;
             _socket = socket;

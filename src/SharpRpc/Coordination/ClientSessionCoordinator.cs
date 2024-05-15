@@ -160,6 +160,8 @@ namespace SharpRpc
             {
                 if (State != SessionState.PendingLogout)
                     return new RpcResult(RpcRetCode.UnexpectedMessage, $"Received an unexpected logout message! State='{State}'.");
+
+                State = SessionState.LoggedOut;
             }
 
             _disconnectWaitHandle.TrySetResult(true);

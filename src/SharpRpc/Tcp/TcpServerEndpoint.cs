@@ -113,23 +113,22 @@ namespace SharpRpc
 
         void ISocketListenerContext.OnAccept(Socket socket)
         {
-            
         }
 
-        void ISocketListenerContext.OnNewConnection(ServiceBinding serviceCfg, ByteTransport transport)
+        void ISocketListenerContext.OnNewConnection(string channelId, ServiceBinding serviceCfg, ByteTransport transport)
         {
-            OnNewConnection(serviceCfg, transport);
+            OnNewConnection(channelId, serviceCfg, transport);
         }
 
 #if NET5_0_OR_GREATER
-        protected virtual ValueTask<ByteTransport> GetTransport(Socket socket)
+        protected virtual ValueTask<ByteTransport> GetTransport(Socket socket, string channelId)
         {
-            return new ValueTask<ByteTransport>(new SocketTransport(socket, TaskFactory));
+            return new ValueTask<ByteTransport>(new SocketTransport(socket, TaskFactory, channelId, GetLogger()));
         }
 #else
-        protected virtual Task<ByteTransport> GetTransport(Socket socket)
+        protected virtual Task<ByteTransport> GetTransport(Socket socket, string channelId, IRpcLogger logger)
         {
-            return Task.FromResult<ByteTransport>(new SocketTransport(socket, TaskFactory));
+            return Task.FromResult<ByteTransport>(new SocketTransport(socket, TaskFactory, channelId, logger));
         }
 #endif
     }

@@ -40,6 +40,6 @@ namespace SharpRpc
         void Start(ByteTransport transport);
         void StartProcessingUserMessages();
         void StopProcessingUserMessages(RpcResult fault);
-        Task Close(TimeSpan gracefulCloseTimeout);
+        Task Close();
     }
 }

@@ -726,7 +726,7 @@ namespace TestClient
 
             public IEnumerable<TestCase> GetCases(string clientDescription, FunctionTestContract_Gen.Client client)
             {
-                foreach (var testCase in GetCases(38, clientDescription, client))
+                foreach (var testCase in GetCases(3837, clientDescription, client))
                     yield return testCase;
 
                 foreach (var testCase in GetCases(54363, clientDescription, client))
@@ -1072,7 +1072,7 @@ namespace TestClient
                 var client = CreateClient();
                 client.Channel.DeinitializingSession += (s, a) => Task.Delay(delay);
                 client.Try.DropSession();
-                client.Channel.CloseAsync().Wait();
+                Task.Delay(TimeSpan.FromSeconds(2) + delay).Wait();
 
                 if (delay.TotalMilliseconds == 0)
                 {
@@ -1084,6 +1084,8 @@ namespace TestClient
                     if (client.Channel.Fault.Code != RpcRetCode.ChannelClosedByOtherSide)
                         throw new Exception("Disconnect timeout is not working!");
                 }
+
+                client.Channel.CloseAsync().Wait();
             }
         }
 

@@ -30,9 +30,9 @@ namespace SharpRpc
         public bool EnableRevocationCheck { get; set; } = true;
 
 #if NET5_0_OR_GREATER
-        internal async override ValueTask<ByteTransport> SecureTransport(Socket socket, Endpoint endpoint, string targetHost)
+        internal async override ValueTask<ByteTransport> SecureTransport(Socket socket, Endpoint endpoint, string targetHost, string channelId, IRpcLogger logger)
 #else
-        internal async override Task<ByteTransport> SecureTransport(Socket socket, Endpoint endpoint, string targetHost)
+        internal async override Task<ByteTransport> SecureTransport(Socket socket, Endpoint endpoint, string targetHost, string channelId, IRpcLogger logger)
 #endif
         {
             var netStream = new NetworkStream(socket, true);
@@ -47,7 +47,7 @@ namespace SharpRpc
                 throw new RpcException(aex.Message, RpcRetCode.InvalidCredentials);
             }
 
-            return new SslTransport(sslStream, socket);
+            return new SslTransport(sslStream, socket, channelId, logger);
         }
     }
 }

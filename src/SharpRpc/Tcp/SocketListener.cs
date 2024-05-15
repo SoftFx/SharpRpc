@@ -102,8 +102,10 @@ namespace SharpRpc.Tcp
 
             try
             {
+                var newChannelId = Channel.GenerateId();
+
                 // do handshake
-                unsecuredTransport = new SocketTransport(socket, _endpoint.TaskFactory);
+                unsecuredTransport = new SocketTransport(socket, _endpoint.TaskFactory, newChannelId, Logger);
                 var handshakeResult = await handshaker.DoServerSideHandshake(unsecuredTransport, _services, new Log(_logId, Logger)).ConfigureAwait(false);
 
                 if (!handshakeResult.WasAccepted)
@@ -118,10 +120,10 @@ namespace SharpRpc.Tcp
                     Logger.Verbose(_logId, "Handshake completed.");
 
                 // secure
-                var transport = await serviceConfig.Security.SecureTransport(unsecuredTransport, _endpoint).ConfigureAwait(false);
+                var transport = await serviceConfig.Security.SecureTransport(unsecuredTransport, _endpoint, newChannelId, Logger).ConfigureAwait(false);
 
                 // open new session
-                _context.OnNewConnection(serviceConfig, transport);
+                _context.OnNewConnection(newChannelId, serviceConfig, transport);
             }
             catch (Exception ex)
             {
@@ -171,6 +173,6 @@ namespace SharpRpc.Tcp
         bool IsHostNameResolveSupported { get; }
 
         void OnAccept(Socket socket);
-        void OnNewConnection(ServiceBinding serviceCfg, ByteTransport transport);
+        void OnNewConnection(string channelId, ServiceBinding serviceCfg, ByteTransport transport);
     }
 }

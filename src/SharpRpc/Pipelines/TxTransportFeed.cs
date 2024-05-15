@@ -49,7 +49,7 @@ namespace SharpRpc
             _txCancelSrc.Cancel();
         }
 
-        public Task WaitTransportWaitToEnd()
+        public Task WaitTransportFeedToStop()
         {
             return _txLoop ?? Task.CompletedTask;
         }

@@ -56,7 +56,7 @@ namespace SharpRpc
             _serviceName = serviceName;
         }
 
-        public override async Task<RpcResult<ByteTransport>> ConnectAsync(CancellationToken cToken)
+        public override async Task<RpcResult<ByteTransport>> ConnectAsync(CancellationToken cToken, string channelId)
         {
             //IPHostEntry ipHostInfo = await Dns.GetHostEntryAsync(_endpoint.Host).ConfigureAwait(false);
             //IPAddress ipAddress = ipHostInfo.AddressList[0];
@@ -76,14 +76,14 @@ namespace SharpRpc
 
                 // handshake
                 var handshaker = new HandshakeCoordinator(1024 * 10, TimeSpan.FromSeconds(10));
-                var unsecuredTransport = new SocketTransport(socket, TaskFactory);
+                var unsecuredTransport = new SocketTransport(socket, TaskFactory, channelId, Logger);
                 var hsResult = await handshaker.DoClientSideHandshake(unsecuredTransport, _endpoint.Host, _serviceName).ConfigureAwait(false);
 
                 if (!hsResult.IsOk)
                     return hsResult;
 
                 // secure
-                return new RpcResult<ByteTransport>(await _security.SecureTransport(socket, this, _endpoint.Host).ConfigureAwait(false));
+                return new RpcResult<ByteTransport>(await _security.SecureTransport(socket, this, _endpoint.Host, channelId, Logger).ConfigureAwait(false));
             }
             catch (Exception ex)
             {

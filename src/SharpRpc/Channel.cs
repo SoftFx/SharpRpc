@@ -35,8 +35,7 @@ namespace SharpRpc
         private SessionCoordinator _coordinator;
         private bool _closeFlag;
         private bool _isServerSide;
-        //private bool _isTransportDisposed;
-        private Task _closeComponentsTask;
+        private bool _isTransportDisposed;
 
         private static int idSeed;
 
@@ -63,7 +62,7 @@ namespace SharpRpc
         public event EventHandler<ChannelClosedArgs> Closed;
         public event EventHandler<ChannelFailedToOpenArgs> FailedToOpen;
 
-        internal Channel(ServiceBinding binding, Endpoint endpoint, ContractDescriptor descriptor, RpcCallHandler msgHandler)
+        internal Channel(string id, ServiceBinding binding, Endpoint endpoint, ContractDescriptor descriptor, RpcCallHandler msgHandler)
         {
             _isServerSide = binding != null;
             _binding = binding;
@@ -79,7 +78,7 @@ namespace SharpRpc
             }
 
             Logger = endpoint.GetLogger();
-            Id = nameof(Channel) + Interlocked.Increment(ref idSeed);
+            Id = id;
 
             _tx = new TxPipeline_NoQueue(Id, descriptor, endpoint, OnCommunicationError, OnConnectionRequested);
             //_tx = new TxPipeline_OneThread(descriptor, endpoint, OnCommunicationError, OnConnectionRequested);
@@ -87,6 +86,11 @@ namespace SharpRpc
 
             if (!_isServerSide)
                 Init();
+        }
+
+        internal static string GenerateId()
+        {
+            return nameof(Channel) + Interlocked.Increment(ref idSeed);
         }
 
         internal void Init(ByteTransport existingTransaport = null)
@@ -180,9 +184,6 @@ namespace SharpRpc
             {
                 _closeFlag = true;
 
-                if (isConnectionLost)
-                    BeginCloseComponents(true);
-
                 if (State == ChannelState.Online)
                 {
                     State = ChannelState.Disconnecting;
@@ -215,7 +216,7 @@ namespace SharpRpc
                 }
             }
 
-            DoDisconnect();
+            DoDisconnect(isConnectionLost);
 
             closeCompletion = _disconnectEvent.Task;
         }
@@ -249,7 +250,7 @@ namespace SharpRpc
 
                 try
                 {
-                    var connectResult = await ((ClientEndpoint)_endpoint).ConnectAsync(_connectCancellationSrc.Token).ConfigureAwait(false);
+                    var connectResult = await ((ClientEndpoint)_endpoint).ConnectAsync(_connectCancellationSrc.Token, Id).ConfigureAwait(false);
                     if (connectResult.Code == RpcRetCode.Ok)
                         _transport = connectResult.Value;
                     else
@@ -328,82 +329,92 @@ namespace SharpRpc
 
         private void OnLogoutTimeout()
         {
+            Logger.Warn(Id, "Logout operation timed out!");
+
             lock (StateLockObject)
             {
                 _coordinator.AbortCoordination();
-                Logger.Warn(Id, "Logout operation timed out!");
-                BeginCloseComponents(true);
             }
         }
 
-        private Task BeginCloseComponents(bool isAbortion)
-        {
-            lock (StateLockObject)
-            {
-                if (_closeComponentsTask == null)
-                {
-                    _coordinator.AbortCoordination();
-                    _closeComponentsTask = CloseComponents(isAbortion);
-                }
+        //private Task TriggerCloseComponents(bool isAbortion)
+        //{
+        //    lock (StateLockObject)
+        //    {
+        //        if (_closeComponentsTask == null)
+        //        {
+        //            _coordinator.AbortCoordination();
+        //            _closeComponentsTask = CloseComponents(isAbortion);
+        //        }
 
-                return _closeComponentsTask;
-            }
-        }
+        //        return _closeComponentsTask;
+        //    }
+        //}
 
         private async Task CloseComponents(bool isAbortion)
         {
             Logger.Verbose(Id, "Stopping the dispatcher...");
 
-            await _dispatcher.Stop(_channelFault).ConfigureAwait(false);
-
-            try
+            using (var closeTimeoutSrc = new CancellationTokenSource(Endpoint.TransportShutdownTimeout))
             {
-                Logger.Verbose(Id, "Sopping Tx pipeline...");
+                closeTimeoutSrc.Token.Register(OnCloseComponentsTimeout);
 
-                await _tx.Close(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+                await _dispatcher.Stop(_channelFault).ConfigureAwait(false);
 
-                if (_transport != null)
+                try
                 {
-                    if (!isAbortion)
+                    Logger.Verbose(Id, "Sopping Tx pipeline...");
+
+                    await _tx.Close().ConfigureAwait(false);
+
+                    if (_transport != null)
                     {
-                        Logger.Verbose(Id, "Disconnecting the transport...");
-                        await _transport.Shutdown().ConfigureAwait(false);
+                        if (!isAbortion)
+                        {
+                            Logger.Verbose(Id, "Disconnecting the transport...");
+                            await _transport.Shutdown().ConfigureAwait(false);
+                        }
+                        else
+                            DisposeTransport();
                     }
-                    else
-                        DisposeTransport();
-                }
 
-                if (_rx != null)
+                    if (_rx != null)
+                    {
+                        Logger.Verbose(Id, "Sopping Rx pipeline ...");
+                        await _rx.Close().ConfigureAwait(false);
+                    }
+                }
+                catch (Exception ex)
                 {
-                    Logger.Verbose(Id, "Sopping Rx pipeline ...");
-                    await _rx.Close().ConfigureAwait(false);
+                    Logger.Error(Id, "CloseComponents() failed!", ex);
                 }
-            }
-            catch (Exception ex)
-            {
-                Logger.Error(Id, "CloseComponents() failed!", ex);
-            }
 
-            if (!isAbortion)
                 DisposeTransport();
+            }
+        }
+
+        private void OnCloseComponentsTimeout()
+        {
+            Logger.Warn(Id, "Close operation timed out!");
+
+            DisposeTransport();
         }
 
         private void DisposeTransport()
         {
+            lock (StateLockObject)
+            {
+                if (_isTransportDisposed)
+                    return;
+
+                _isTransportDisposed = true;
+            }
 
             Logger.Verbose(Id, "Disposing the transport...");
-
-            try
-            {
-                _transport?.Dispose();
-            }
-            catch (Exception)
-            {
-                // TO DO
-            }
+            _transport?.Dispose();
         }
 
-        private async void DoDisconnect()
+        private async void DoDisconnect(bool isConnectionLost)
         {
             await _connectEvent.Task.ConfigureAwait(false);
 
@@ -411,7 +422,7 @@ namespace SharpRpc
 
             RiseClosingEvent();
 
-            await DisconnectRoutine(false).ConfigureAwait(false);
+            await DisconnectRoutine(isConnectionLost).ConfigureAwait(false);
 
             lock (_stateSyncObj)
                 SetClosedState();
@@ -442,11 +453,11 @@ namespace SharpRpc
                 {
                     logoutTimeoutSrc.Token.Register(OnLogoutTimeout);
                     await _coordinator.OnDisconnect().ConfigureAwait(false);
-                    await BeginCloseComponents(false).ConfigureAwait(false);
+                    await CloseComponents(false).ConfigureAwait(false);
                 }
             }
             else
-                await BeginCloseComponents(true).ConfigureAwait(false);
+                await CloseComponents(true).ConfigureAwait(false);
         }
 
         private void OnConnectionRequested()
