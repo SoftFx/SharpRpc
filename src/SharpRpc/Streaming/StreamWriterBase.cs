@@ -174,10 +174,10 @@ namespace SharpRpc
                         "Cannot perform any write actions while the stream is busy with a bulk operation!"));
                 }
 
-                _isBulkWrite = true;
-
                 if (HasSpaceInQueue)
                 {
+                    _isBulkWrite = true;
+
                     var buffer = ReserveBulkWriteBuffer();
                     return FwAdapter.WrappResult(RpcResult.Result(buffer));
                 }
@@ -259,7 +259,7 @@ namespace SharpRpc
             {
                 _isSendingEnabled = true;
 
-                if (!_isSedning && DataIsAvailable && _coordinator.CanSend())
+                if (!_isSedning && DataIsAvailable && _coordinator.CanSend() && !_isBulkWrite)
                 {
                     _isSedning = true;
                     FillSendBuffer();
@@ -321,7 +321,7 @@ namespace SharpRpc
             {
                 _coordinator.OnAcknowledgementRx(ack);
 
-                if (DataIsAvailable && !_isSedning && _coordinator.CanSend())
+                if (DataIsAvailable && !_isSedning && _coordinator.CanSend() && !_isBulkWrite)
                 {
                     _isSedning = true;
                     FillSendBuffer();
@@ -362,7 +362,7 @@ namespace SharpRpc
 
         private bool OnDataArrived()
         {
-            if (!_isSedning && _coordinator.CanSend() && _isSendingEnabled)
+            if (!_isSedning && _coordinator.CanSend() && _isSendingEnabled && !_isBulkWrite)
             {
                 _isSedning = true;
                 FillSendBuffer();
@@ -394,7 +394,7 @@ namespace SharpRpc
 
                     if (DataIsAvailable)
                     {
-                        if (_coordinator.CanSend())
+                        if (_coordinator.CanSend() && !_isBulkWrite)
                         {
                             FillSendBuffer();
                             sendNextPage = true;
@@ -450,6 +450,9 @@ namespace SharpRpc
             sendNextPage = false;
             sendCompletionMessage = false;
 
+            if (abort)
+                _isBulkWrite = false;
+
             _closeFault = fault;
             _cancelReg.Dispose();
             AbortAwaiters(_closeFault);
@@ -469,7 +472,7 @@ namespace SharpRpc
                 ChangeState(States.Completed);
 
                 // A greedy coordinator may allow to send data page on stream completion.
-                if (DataIsAvailable && !_isSedning && _coordinator.CanSend())
+                if (DataIsAvailable && !_isSedning && _coordinator.CanSend() && !_isBulkWrite)
                 {
                     _isSedning = true;
                     FillSendBuffer();
@@ -543,6 +546,7 @@ namespace SharpRpc
 
             public void Confirm(StreamWriterBase<T> writer)
             {
+                writer._isBulkWrite = true;
                 Result = RpcResult.Result(writer.ReserveBulkWriteBuffer());
                 System.Threading.Tasks.Task.Factory.StartNew(Signal);
             }

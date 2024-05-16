@@ -752,7 +752,7 @@ namespace TestClient
                 var readMode = (StreamReadOptions)tCase["readMode"];
                 var client = tCase.GetParam<FunctionTestContract_Gen.Client>("client");
 
-                var fileToDownstream = "19084.jpg"; // Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "TestClient.exe");
+                var fileToDownstream = "19084.jpg";
                 var expectedCrc = CalcFileCrc(fileToDownstream);
                 var streamOptions = new StreamOptions() { WindowSize = windowSize };
                 var call = client.TestOutBinStream(streamOptions, fileToDownstream, StreamTestOptions.None, wirteMode);

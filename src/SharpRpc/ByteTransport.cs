@@ -15,8 +15,10 @@ namespace SharpRpc
 {
     public abstract class ByteTransport
     {
+#if !NET5_0_OR_GREATER
         private bool _disposed = false;
         private readonly object _disposedSync = new object();
+#endif
         private readonly string _name;
         private readonly IRpcLogger _logger;
 
