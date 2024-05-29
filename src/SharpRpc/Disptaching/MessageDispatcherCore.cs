@@ -128,7 +128,7 @@ namespace SharpRpc
                     {
                         if (t.IsFaulted)
                             OnError(RpcRetCode.MessageHandlerCrash, "Message handler threw an exception: " + t.Exception.Message);
-                    });
+                    }, Tx.TaskFactory.Scheduler);
                 }
             }
             catch (Exception ex)

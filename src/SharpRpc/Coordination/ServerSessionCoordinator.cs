@@ -59,11 +59,11 @@ namespace SharpRpc
 
 #if NET5_0_OR_GREATER
             if (!authResult.IsCompleted)
-                authResult.AsTask().ContinueWith(OnAuthResult);
+                authResult.AsTask().ContinueWith(OnAuthResult, Channel.Endpoint.TaskFactory.Scheduler);
             else
                 OnAuthResult(authResult.Result);
 #else
-            authResult.ContinueWith(OnAuthResult);
+            authResult.ContinueWith(OnAuthResult, Channel.Endpoint.TaskFactory.Scheduler);
 #endif
 
             return RpcResult.Ok;
@@ -213,7 +213,7 @@ namespace SharpRpc
         private void RiseClosingEvent(bool isLostConnection)
         {
             Channel.RiseSessionDeinitEvent(isLostConnection)
-                .ContinueWith(OnClosingEventCompleted);
+                .ContinueWith(OnClosingEventCompleted, Channel.Endpoint.TaskFactory.Scheduler);
         }
 
         private void OnClosingEventCompleted(Task eventTask)
