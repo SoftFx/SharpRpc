@@ -120,7 +120,7 @@ namespace SharpRpc
                 lock (_stateSyncObj)
                     State = ChannelState.Connecting;
 
-                ConnectRoutine();
+                ConnectRoutine(CancellationToken.None);
             }
         }
 
@@ -138,26 +138,24 @@ namespace SharpRpc
         }
 
 #if NET5_0_OR_GREATER
-        public ValueTask<RpcResult> TryConnectAsync()
+        public ValueTask<RpcResult> TryConnectAsync() => TryConnectAsync(CancellationToken.None);
+
+        public ValueTask<RpcResult> TryConnectAsync(CancellationToken cancelToken)
 #else
-        public Task<RpcResult> TryConnectAsync()
+        public Task<RpcResult> TryConnectAsync() => TryConnectAsync(CancellationToken.None);
+
+        public Task<RpcResult> TryConnectAsync(CancellationToken cancelToken)
 #endif
         {
-            bool invokeConnect = false;
-
             lock (_stateSyncObj)
             {
                 if (State == ChannelState.New)
-                {
                     State = ChannelState.Connecting;
-                    invokeConnect = true;
-                }
                 else
                     return FwAdapter.WrappResult(new RpcResult(RpcRetCode.InvalidChannelState, "TryConnectAsync() cannot be called while channel in state: " + State));
             }
 
-            if (invokeConnect)
-                ConnectRoutine();
+            ConnectRoutine(cancelToken);
 
             return FwAdapter.WrappResult(_connectEvent.Task);
         }
@@ -240,7 +238,7 @@ namespace SharpRpc
                 _channelFault = fault;
         }
 
-        private async void ConnectRoutine()
+        private async void ConnectRoutine(CancellationToken cancelToken)
         {
             if (!_isServerSide)
             {
@@ -248,17 +246,27 @@ namespace SharpRpc
 
                 RiseOpeningEvent();
 
-                try
+                Action userCancelAction = () =>
                 {
-                    var connectResult = await ((ClientEndpoint)_endpoint).ConnectAsync(_connectCancellationSrc.Token, Id).ConfigureAwait(false);
-                    if (connectResult.Code == RpcRetCode.Ok)
-                        _transport = connectResult.Value;
-                    else
-                        UpdateFault(connectResult.GetResultInfo());
-                }
-                catch (Exception ex)
+                    lock (_stateSyncObj)
+                        UpdateFault(new RpcResult(RpcRetCode.OperationCanceled, "The connect operation was canceled."));
+                    _connectCancellationSrc.Cancel();
+                };
+
+                using (cancelToken.Register(userCancelAction))
                 {
-                    UpdateFault(new RpcResult(RpcRetCode.UnknownError, "An unexpected error has been occured on transport level: " + ex.Message));
+                    try
+                    {
+                        var connectResult = await ((ClientEndpoint)_endpoint).ConnectAsync(_connectCancellationSrc.Token, Id).ConfigureAwait(false);
+                        if (connectResult.Code == RpcRetCode.Ok)
+                            _transport = connectResult.Value;
+                        else
+                            UpdateFault(connectResult.GetResultInfo());
+                    }
+                    catch (Exception ex)
+                    {
+                        UpdateFault(new RpcResult(RpcRetCode.UnknownError, "An unexpected error has been occured on transport level: " + ex.Message));
+                    }
                 }
             }
 
@@ -278,16 +286,19 @@ namespace SharpRpc
 
             using (var loginTimeoutSrc = new CancellationTokenSource(_endpoint.LoginTimeout))
             {
-                // start the coordinator before the pipelines
-                Task startCoordinatorTask;
-                lock (StateLockObject)
+                using (cancelToken.Register(loginTimeoutSrc.Cancel))
                 {
-                    startCoordinatorTask = _coordinator.OnConnect(loginTimeoutSrc.Token);
-                    StartPipelines(_transport);
-                }
+                    // start the coordinator before the pipelines
+                    Task startCoordinatorTask;
+                    lock (StateLockObject)
+                    {
+                        startCoordinatorTask = _coordinator.OnConnect(loginTimeoutSrc.Token);
+                        StartPipelines(_transport);
+                    }
 
-                // login
-                await startCoordinatorTask.ConfigureAwait(false);
+                    // login
+                    await startCoordinatorTask.ConfigureAwait(false);
+                }
             }
 
             bool isLoggedIn = true;
@@ -474,7 +485,7 @@ namespace SharpRpc
             }
 
             if (invokeConnect)
-                ConnectRoutine();
+                ConnectRoutine(CancellationToken.None);
         }
 
         internal TransportInfo GetTransportInfo()

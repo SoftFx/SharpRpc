@@ -67,6 +67,7 @@ namespace TestClient
 
             runner.AddCases(new SessionDropByServerTest(address, ssl).GetCases(clientName));
             runner.AddCases(new ConnectActionAbortTest(address, ssl).GetCases(clientName));
+            runner.AddCases(new ConnectActionCancelTest(address, ssl).GetCases(clientName));
         }
 
         private static FunctionTestContract_Gen.Client CreateClient(string address, bool ssl)
@@ -1072,6 +1073,11 @@ namespace TestClient
             public string Address { get; }
             public bool Ssl { get; }
 
+            protected FunctionTestContract_Gen.Client CreateClient(string address, bool ssl)
+            {
+                return FunctionTest.CreateClient(address, ssl);
+            }
+
             protected FunctionTestContract_Gen.Client CreateClient()
             {
                 return FunctionTest.CreateClient(Address, Ssl);
@@ -1139,6 +1145,58 @@ namespace TestClient
 
                 if (client.Channel.Fault.Code != RpcRetCode.ChannelClosed)
                     throw new Exception("Unexpected channel fault: " + client.Channel.Fault.Code);
+            }
+        }
+
+        private class ConnectActionCancelTest : ConnectionTest
+        {
+            public ConnectActionCancelTest(string address, bool ssl) : base(address, ssl) { }
+
+            public IEnumerable<TestCase> GetCases(string clientName)
+            {
+                yield return new TestCase(this)
+                    .SetParam("client", clientName)
+                    .SetParam("cancelDelay", TimeSpan.FromSeconds(0));
+
+                yield return new TestCase(this)
+                    .SetParam("client", clientName)
+                    .SetParam("cancelDelay", TimeSpan.FromSeconds(1));
+
+                yield return new TestCase(this)
+                    .SetParam("client", clientName)
+                    .SetParam("cancelDelay", TimeSpan.FromSeconds(2));
+
+                yield return new TestCase(this)
+                    .SetParam("client", clientName)
+                    .SetParam("cancelDelay", TimeSpan.FromSeconds(3));
+
+                yield return new TestCase(this)
+                    .SetParam("client", clientName)
+                    .SetParam("cancelDelay", TimeSpan.FromSeconds(4));
+            }
+
+            public override void RunTest(TestCase tCase)
+            {
+                var cancelDelay = tCase.GetParam<TimeSpan>("cancelDelay");
+                var client = CreateClient(false);
+
+                var cts = new CancellationTokenSource(cancelDelay);
+                var startTask = client.Channel.TryConnectAsync(cts.Token);
+
+                startTask.ToTask().Wait();
+
+                if (client.Channel.Fault.Code != RpcRetCode.OperationCanceled)
+                    throw new Exception("Unexpected channel fault: " + client.Channel.Fault.Code);
+            }
+
+            private FunctionTestContract_Gen.Client CreateClient(bool ssl)
+            {
+                var security = ssl ? new SslSecurity(NullCertValidator) : TcpSecurity.None;
+                var port = 812;
+                var serviceName = ssl ? "func/ssl" : "func";
+                var endpoint = new TcpClientEndpoint(new DnsEndPoint(Address, port + 2000), serviceName, security);
+                var callback = new CallbackHandler();
+                return FunctionTestContract_Gen.CreateClient(endpoint, callback);
             }
         }
 
