@@ -472,25 +472,26 @@ namespace SharpRpc
             }
         }
 
-        public async Task Close()
+        public async Task Close(RpcResult fault)
         {
-            await ClosePipeline().ConfigureAwait(false);
+            await ClosePipeline(fault).ConfigureAwait(false);
             await _feed.WaitTransportFeedToStop().ConfigureAwait(false);
         }
 
-        private Task ClosePipeline()
+        private Task ClosePipeline(RpcResult fault)
         {
             lock (_lockObj)
             {
                 if (!_isClosing)
                 {
                     _isClosing = true;
+                    _fault = fault;
 
                     _keepAliveTimer?.Dispose();
 
                     Monitor.PulseAll(_lockObj);
 
-                    _asyncGate.CancelSysytemItems(_fault);
+                    _asyncGate.CancelAllItems(_fault);
 
                     if (!_isProcessingItem)
                         CompleteClose();

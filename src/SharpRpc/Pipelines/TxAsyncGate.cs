@@ -66,6 +66,13 @@ namespace SharpRpc
                 _systemQueue.Dequeue().OnResult(fault);
         }
 
+        public void CancelAllItems(RpcResult fault)
+        {
+            CancelUserItems(fault);
+            CancelSysytemItems(fault);
+        }
+
+
         public Item Dequeue(bool userMessagesEnabled)
         {
             if (_systemQueue.Count > 0)

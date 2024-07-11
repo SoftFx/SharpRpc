@@ -380,7 +380,7 @@ namespace SharpRpc
                 {
                     Logger.Verbose(Id, "Sopping Tx pipeline...");
 
-                    await _tx.Close().ConfigureAwait(false);
+                    await _tx.Close(_channelFault).ConfigureAwait(false);
 
                     if (_transport != null)
                     {
