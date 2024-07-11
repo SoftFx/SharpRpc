@@ -27,7 +27,7 @@ namespace SharpRpc.MsTest.MockObjects
         public bool ImmediateSerialization => true;
         public Queue<IMessage> MessagesToSend { get; } = new Queue<IMessage>(); 
 
-        public Task Close()
+        public Task Close(RpcResult fault)
         {
             return Task.CompletedTask;
         }
