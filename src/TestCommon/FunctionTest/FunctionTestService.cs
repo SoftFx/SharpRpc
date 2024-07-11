@@ -360,5 +360,34 @@ namespace TestCommon
             Session.BeginClose();
             return FwAdapter.AsyncVoid;
         }
+
+#if NET5_0_OR_GREATER
+        public override ValueTask BrokenRequest(CallContext context, BrokenEntity requets)
+#else
+        public override Task BrokenRequest(CallContext context, BrokenEntity requets)
+#endif
+        {
+            return FwAdapter.AsyncVoid;
+        }
+
+#if NET5_0_OR_GREATER
+        public override ValueTask<BrokenEntity> BrokenResponse(CallContext context)
+#else
+        public override Task<BrokenEntity> BrokenResponse(CallContext context)
+#endif
+        {
+            return FwAdapter.WrappResult(new BrokenEntity { Id = "1", Name = "Name" });
+        }
+
+#if NET5_0_OR_GREATER
+        public override async ValueTask BrokenOutputStream(CallContext context, StreamWriter<BrokenEntity> outputStream)
+#else
+        public override async Task BrokenOutputStream(CallContext context, StreamWriter<BrokenEntity> outputStream)
+#endif
+        {
+            var sendResult = await outputStream.WriteAsync(new BrokenEntity { Id = "1", Name = "Name" });
+            if (sendResult.IsOk)
+                await outputStream.CompleteAsync();
+        }
     }
 }

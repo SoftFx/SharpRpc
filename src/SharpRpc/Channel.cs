@@ -178,14 +178,20 @@ namespace SharpRpc
 
         private void TriggerClose(RpcResult reason, bool isConnectionLost, out Task closeCompletion)
         {
+            bool forceDisconnect = false;
+            bool invokeDisconnect = false;
+
             lock (_stateSyncObj)
             {
                 _closeFlag = true;
 
                 if (State == ChannelState.Online)
                 {
+                    closeCompletion = _disconnectEvent.Task;
                     State = ChannelState.Disconnecting;
                     UpdateFault(reason);
+                    invokeDisconnect = true;
+                    forceDisconnect = isConnectionLost;
                 }
                 else if (State == ChannelState.Connecting)
                 {
@@ -198,7 +204,7 @@ namespace SharpRpc
                 else if (State == ChannelState.Disconnecting)
                 {
                     closeCompletion = _disconnectEvent.Task;
-                    return;
+                    forceDisconnect = isConnectionLost;
                 }
                 else if (State == ChannelState.New)
                 {
@@ -214,9 +220,11 @@ namespace SharpRpc
                 }
             }
 
-            DoDisconnect(isConnectionLost);
+            if (forceDisconnect)
+                DropTransport();
 
-            closeCompletion = _disconnectEvent.Task;
+            if (invokeDisconnect)
+                DoDisconnect();
         }
 
         internal void OnCommunicationError(RpcResult fault)
@@ -323,7 +331,7 @@ namespace SharpRpc
             if (!isLoggedIn)
             {
                 Logger.Warn(Id, "Failed to open a session! Code: {0}", _channelFault.Code);
-                await DisconnectRoutine(isAbortion).ConfigureAwait(false);
+                await DisconnectRoutine().ConfigureAwait(false);
                 lock (StateLockObject)
                     SetClosedState();
                 Logger.Info(Id, "Disconnected. Final state: " + State);
@@ -341,11 +349,7 @@ namespace SharpRpc
         private void OnLogoutTimeout()
         {
             Logger.Warn(Id, "Logout operation timed out!");
-
-            lock (StateLockObject)
-            {
-                _coordinator.AbortCoordination();
-            }
+            DropTransport();
         }
 
         //private Task TriggerCloseComponents(bool isAbortion)
@@ -362,7 +366,7 @@ namespace SharpRpc
         //    }
         //}
 
-        private async Task CloseComponents(bool isAbortion)
+        private async Task CloseComponents()
         {
             Logger.Verbose(Id, "Stopping the dispatcher...");
 
@@ -380,13 +384,8 @@ namespace SharpRpc
 
                     if (_transport != null)
                     {
-                        if (!isAbortion)
-                        {
-                            Logger.Verbose(Id, "Disconnecting the transport...");
-                            await _transport.Shutdown().ConfigureAwait(false);
-                        }
-                        else
-                            DisposeTransport();
+                        Logger.Verbose(Id, "Disconnecting the transport...");
+                        await _transport.Shutdown().ConfigureAwait(false);
                     }
 
                     if (_rx != null)
@@ -407,8 +406,7 @@ namespace SharpRpc
         private void OnCloseComponentsTimeout()
         {
             Logger.Warn(Id, "Close operation timed out!");
-
-            DisposeTransport();
+            DropTransport();
         }
 
         private void DisposeTransport()
@@ -425,7 +423,7 @@ namespace SharpRpc
             _transport?.Dispose();
         }
 
-        private async void DoDisconnect(bool isConnectionLost)
+        private async void DoDisconnect()
         {
             await _connectEvent.Task.ConfigureAwait(false);
 
@@ -433,7 +431,7 @@ namespace SharpRpc
 
             RiseClosingEvent();
 
-            await DisconnectRoutine(isConnectionLost).ConfigureAwait(false);
+            await DisconnectRoutine().ConfigureAwait(false);
 
             lock (_stateSyncObj)
                 SetClosedState();
@@ -447,6 +445,20 @@ namespace SharpRpc
             _disconnectEvent.SetResult(RpcResult.Ok);
         }
 
+        private void DropTransport()
+        {
+            lock (_stateSyncObj)
+            {
+                _coordinator.AbortCoordination();
+                if (_isTransportDisposed)
+                    return;
+                _isTransportDisposed = true;
+            }
+
+            Logger.Verbose(Id, "Disposing the transport...");
+            _transport?.Dispose();
+        }
+
         private void SetClosedState()
         {
             if (_channelFault.Code != RpcRetCode.ChannelClosedByOtherSide
@@ -456,19 +468,14 @@ namespace SharpRpc
                 State = ChannelState.Closed;
         }
 
-        private async Task DisconnectRoutine(bool isAbortion)
+        private async Task DisconnectRoutine()
         {
-            if (!isAbortion)
+            using (var logoutTimeoutSrc = new CancellationTokenSource(Endpoint.LogoutTimeout))
             {
-                using (var logoutTimeoutSrc = new CancellationTokenSource(Endpoint.LogoutTimeout))
-                {
-                    logoutTimeoutSrc.Token.Register(OnLogoutTimeout);
-                    await _coordinator.OnDisconnect().ConfigureAwait(false);
-                    await CloseComponents(false).ConfigureAwait(false);
-                }
+                logoutTimeoutSrc.Token.Register(OnLogoutTimeout);
+                await _coordinator.OnDisconnect().ConfigureAwait(false);
+                await CloseComponents().ConfigureAwait(false);
             }
-            else
-                await CloseComponents(true).ConfigureAwait(false);
         }
 
         private void OnConnectionRequested()
