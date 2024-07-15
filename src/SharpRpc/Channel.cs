@@ -221,7 +221,7 @@ namespace SharpRpc
             }
 
             if (forceDisconnect)
-                DropTransport();
+                AbortConnection();
 
             if (invokeDisconnect)
                 DoDisconnect();
@@ -349,7 +349,7 @@ namespace SharpRpc
         private void OnLogoutTimeout()
         {
             Logger.Warn(Id, "Logout operation timed out!");
-            DropTransport();
+            AbortConnection();
         }
 
         //private Task TriggerCloseComponents(bool isAbortion)
@@ -406,7 +406,7 @@ namespace SharpRpc
         private void OnCloseComponentsTimeout()
         {
             Logger.Warn(Id, "Close operation timed out!");
-            DropTransport();
+            AbortConnection();
         }
 
         private void DisposeTransport()
@@ -445,18 +445,28 @@ namespace SharpRpc
             _disconnectEvent.SetResult(RpcResult.Ok);
         }
 
-        private void DropTransport()
+        // In case of connection loss, timeout, fatal error, or something ungraceful
+        private void AbortConnection()
         {
+            bool callDispose = false;
+
             lock (_stateSyncObj)
             {
                 _coordinator.AbortCoordination();
-                if (_isTransportDisposed)
-                    return;
-                _isTransportDisposed = true;
+                if (!_isTransportDisposed)
+                {
+                    _isTransportDisposed = true;
+                    callDispose = true;
+                }
             }
+            
+            Dispatcher.Abort(_channelFault);
 
-            Logger.Verbose(Id, "Disposing the transport...");
-            _transport?.Dispose();
+            if (callDispose)
+            {
+                Logger.Verbose(Id, "Disposing the transport...");
+                _transport?.Dispose();
+            }
         }
 
         private void SetClosedState()
