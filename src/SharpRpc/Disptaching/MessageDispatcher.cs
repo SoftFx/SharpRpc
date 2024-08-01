@@ -70,9 +70,11 @@ namespace SharpRpc
 
         public void TriggerStop(RpcResult fault) => Stop(fault);
 
-        public abstract Task Stop(RpcResult fault);
+        public abstract Task Stop(RpcResult fault); // graceful close
         public abstract RpcResult Register(IDispatcherOperation operation);
         public abstract void Unregister(IDispatcherOperation operation);
+        public abstract void Abort(RpcResult fault); // In case of connection loss, timeout, or something ungraceful
+
         protected abstract void CancelOutgoingCall(IDispatcherOperation callObj);
         protected abstract void DoCall(IRequestMessage requestMsg, IDispatcherOperation callObj, CancellationToken cToken);
 

@@ -63,9 +63,11 @@ namespace TestClient
             runner.AddCases(new OutputBinStreamTest().GetCases(clientName, client));
             runner.AddCases(new InputStreamCancellationTest().GetCases(clientName, client));
             runner.AddCases(new OutputStreamCancellationTest().GetCases(clientName, client));
+            runner.AddCases(new OutputStreamCancellationWithoutReadingTest().GetCases(clientName, client));
 
             runner.AddCases(new SessionDropByServerTest(address, ssl).GetCases(clientName));
             runner.AddCases(new ConnectActionAbortTest(address, ssl).GetCases(clientName));
+            runner.AddCases(new ConnectActionCancelTest(address, ssl).GetCases(clientName));
         }
 
         private static FunctionTestContract_Gen.Client CreateClient(string address, bool ssl)
@@ -726,7 +728,7 @@ namespace TestClient
 
             public IEnumerable<TestCase> GetCases(string clientDescription, FunctionTestContract_Gen.Client client)
             {
-                foreach (var testCase in GetCases(38, clientDescription, client))
+                foreach (var testCase in GetCases(3837, clientDescription, client))
                     yield return testCase;
 
                 foreach (var testCase in GetCases(54363, clientDescription, client))
@@ -751,7 +753,7 @@ namespace TestClient
                 var readMode = (StreamReadOptions)tCase["readMode"];
                 var client = tCase.GetParam<FunctionTestContract_Gen.Client>("client");
 
-                var fileToDownstream = "19084.jpg"; // Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "TestClient.exe");
+                var fileToDownstream = "19084.jpg";
                 var expectedCrc = CalcFileCrc(fileToDownstream);
                 var streamOptions = new StreamOptions() { WindowSize = windowSize };
                 var call = client.TestOutBinStream(streamOptions, fileToDownstream, StreamTestOptions.None, wirteMode);
@@ -1002,6 +1004,33 @@ namespace TestClient
             }
         }
 
+        private class OutputStreamCancellationWithoutReadingTest : TestBase
+        {
+            public IEnumerable<TestCase> GetCases(string clientDescription, FunctionTestContract_Gen.Client client)
+            {
+                yield return CreateCase(clientDescription, client);
+            }
+
+            private TestCase CreateCase(string clientDescription, FunctionTestContract_Gen.Client client)
+            {
+                return new TestCase(this)
+                    .SetParam("client", clientDescription, client);
+            }
+
+            public override void RunTest(TestCase tCase)
+            {
+                var cancelSrc = new CancellationTokenSource();
+                var options = new StreamOptions() { WindowSize = 10 };
+                var itemCount = 9;
+                var client = tCase.GetParam<FunctionTestContract_Gen.Client>("client");
+                var callObj = client.TestOutStream(options, TimeSpan.Zero, itemCount, StreamTestOptions.InvokeCompletion);
+
+                var e = callObj.OutputStream.GetEnumerator(cancelSrc.Token);
+                if (!e.DisposeAsync().Wait(1000))
+                    throw new Exception("Stream call disposing hangs!");
+            }
+        }
+
         //private class DuplexStreamCancellationTest : TestBase
         //{
         //    public override void RunTest(TestCase tCase, FunctionTestContract_Gen.Client client)
@@ -1044,6 +1073,11 @@ namespace TestClient
             public string Address { get; }
             public bool Ssl { get; }
 
+            protected FunctionTestContract_Gen.Client CreateClient(string address, bool ssl)
+            {
+                return FunctionTest.CreateClient(address, ssl);
+            }
+
             protected FunctionTestContract_Gen.Client CreateClient()
             {
                 return FunctionTest.CreateClient(Address, Ssl);
@@ -1072,7 +1106,7 @@ namespace TestClient
                 var client = CreateClient();
                 client.Channel.DeinitializingSession += (s, a) => Task.Delay(delay);
                 client.Try.DropSession();
-                client.Channel.CloseAsync().Wait();
+                Task.Delay(TimeSpan.FromSeconds(2) + delay).Wait();
 
                 if (delay.TotalMilliseconds == 0)
                 {
@@ -1084,6 +1118,8 @@ namespace TestClient
                     if (client.Channel.Fault.Code != RpcRetCode.ChannelClosedByOtherSide)
                         throw new Exception("Disconnect timeout is not working!");
                 }
+
+                client.Channel.CloseAsync().Wait();
             }
         }
 
@@ -1109,6 +1145,58 @@ namespace TestClient
 
                 if (client.Channel.Fault.Code != RpcRetCode.ChannelClosed)
                     throw new Exception("Unexpected channel fault: " + client.Channel.Fault.Code);
+            }
+        }
+
+        private class ConnectActionCancelTest : ConnectionTest
+        {
+            public ConnectActionCancelTest(string address, bool ssl) : base(address, ssl) { }
+
+            public IEnumerable<TestCase> GetCases(string clientName)
+            {
+                yield return new TestCase(this)
+                    .SetParam("client", clientName)
+                    .SetParam("cancelDelay", TimeSpan.FromSeconds(0));
+
+                yield return new TestCase(this)
+                    .SetParam("client", clientName)
+                    .SetParam("cancelDelay", TimeSpan.FromSeconds(1));
+
+                yield return new TestCase(this)
+                    .SetParam("client", clientName)
+                    .SetParam("cancelDelay", TimeSpan.FromSeconds(2));
+
+                yield return new TestCase(this)
+                    .SetParam("client", clientName)
+                    .SetParam("cancelDelay", TimeSpan.FromSeconds(3));
+
+                yield return new TestCase(this)
+                    .SetParam("client", clientName)
+                    .SetParam("cancelDelay", TimeSpan.FromSeconds(4));
+            }
+
+            public override void RunTest(TestCase tCase)
+            {
+                var cancelDelay = tCase.GetParam<TimeSpan>("cancelDelay");
+                var client = CreateClient(false);
+
+                var cts = new CancellationTokenSource(cancelDelay);
+                var startTask = client.Channel.TryConnectAsync(cts.Token);
+
+                startTask.ToTask().Wait();
+
+                if (client.Channel.Fault.Code != RpcRetCode.OperationCanceled)
+                    throw new Exception("Unexpected channel fault: " + client.Channel.Fault.Code);
+            }
+
+            private FunctionTestContract_Gen.Client CreateClient(bool ssl)
+            {
+                var security = ssl ? new SslSecurity(NullCertValidator) : TcpSecurity.None;
+                var port = 812;
+                var serviceName = ssl ? "func/ssl" : "func";
+                var endpoint = new TcpClientEndpoint(new DnsEndPoint(Address, port + 2000), serviceName, security);
+                var callback = new CallbackHandler();
+                return FunctionTestContract_Gen.CreateClient(endpoint, callback);
             }
         }
 

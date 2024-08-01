@@ -85,6 +85,16 @@ namespace TestCommon
 
         [RpcContract(19, RpcType.Call)]
         void DropSession();
+
+        [RpcContract(20, RpcType.Call)]
+        void BrokenRequest(BrokenEntity requets);
+
+        [RpcContract(21, RpcType.Call)]
+        BrokenEntity BrokenResponse();
+
+        [RpcContract(22, RpcType.Call)]
+        [RpcStreamOutput(typeof(BrokenEntity))]
+        void BrokenOutputStream();
     }
 
     public enum StreamTestOptions
@@ -183,5 +193,14 @@ namespace TestCommon
 
         [Key(3)]
         public List<FooData> Relatives { get; set; }
+    }
+
+    [MessagePackObject]
+    public class BrokenEntity
+    {
+        [Key(1)]
+        public string Id { get; set; }
+
+        public string Name { get; set; }
     }
 }

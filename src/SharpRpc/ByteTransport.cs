@@ -15,14 +15,25 @@ namespace SharpRpc
 {
     public abstract class ByteTransport
     {
+#if !NET5_0_OR_GREATER
+        private bool _disposed = false;
+        private readonly object _disposedSync = new object();
+#endif
+        private readonly string _name;
+        private readonly IRpcLogger _logger;
+
+        public ByteTransport(string parentLogId, IRpcLogger logger)
+        {
+            _name = parentLogId + ".transport";
+            _logger = logger;
+        }
+
 #if NET5_0_OR_GREATER
         public abstract ValueTask Send(ArraySegment<byte> data, CancellationToken cToken);
         public abstract ValueTask<int> Receive(ArraySegment<byte> buffer, CancellationToken cToken);
         public abstract Task Shutdown();
         public abstract void Dispose();
 #else
-        private bool _disposed = false;
-        private readonly object _disposedSync = new object();
 
         public Task Send(ArraySegment<byte> data, CancellationToken cToken)
         {
@@ -76,6 +87,11 @@ namespace SharpRpc
         public abstract void Init(Channel channel);
 
         public abstract TransportInfo GetInfo();
+
+        protected void Warn(string message)
+        {
+            _logger.Warn(_name, message);
+        }
     }
 
     public abstract class TransportInfo

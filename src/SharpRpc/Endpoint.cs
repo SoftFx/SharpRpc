@@ -22,6 +22,7 @@ namespace SharpRpc
         private TimeSpan _rxTimeout = TimeSpan.FromMinutes(1);
         private TimeSpan _loginTimeout = TimeSpan.FromMinutes(1);
         private TimeSpan _logoutTimeout = TimeSpan.FromMinutes(1);
+        private TimeSpan _transportCloseTimeout = TimeSpan.FromMinutes(1);
         private TimeSpan _heartbeatPeriod = TimeSpan.FromSeconds(10);
         private long _maxMessageSize = long.MaxValue;
         //private bool _asyncMessageParse = false;
@@ -145,6 +146,19 @@ namespace SharpRpc
             }
         }
 
+        public TimeSpan TransportShutdownTimeout
+        {
+            get => _transportCloseTimeout;
+            set
+            {
+                lock (LockObject)
+                {
+                    ThrowIfImmutable();
+                    _transportCloseTimeout = value;
+                }
+            }
+        }
+
         public TaskScheduler TaskScheduler
         {
             get => _scheduler;
@@ -176,15 +190,6 @@ namespace SharpRpc
 
         internal abstract IRpcLogger GetLogger();
 
-        //public void EnableKeepAlive(TimeSpan threashold)
-        //{
-        //    lock (LockObject)
-        //    {
-        //        ThrowIfImmutable();
-        //        HeartbeatPeriod = threashold;
-        //    }
-        //}
-
         protected override void ValidateAndInitialize()
         {
             InitTaskScheduler();
@@ -192,13 +197,8 @@ namespace SharpRpc
 
         private void InitTaskScheduler()
         {
-            if (_scheduler != null)
-            {
-                TaskFactory = new TaskFactory(CancellationToken.None, TaskCreationOptions.HideScheduler,
-                    TaskContinuationOptions.HideScheduler, _scheduler);
-            }
-            else
-                TaskFactory = Task.Factory;
+            TaskFactory = new TaskFactory(CancellationToken.None, TaskCreationOptions.HideScheduler,
+                    TaskContinuationOptions.HideScheduler, _scheduler ?? TaskScheduler.Default);
         }
 
         private void CheckGreaterZanZero(long value)

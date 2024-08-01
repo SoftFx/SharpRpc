@@ -73,9 +73,9 @@ namespace SharpRpc
         {
         }
 
-        void ISocketListenerContext.OnNewConnection(ServiceBinding serviceCfg, ByteTransport transport)
+        void ISocketListenerContext.OnNewConnection(string channelId, ServiceBinding serviceCfg, ByteTransport transport)
         {
-            OnNewConnection(serviceCfg, transport);
+            OnNewConnection(channelId, serviceCfg, transport);
         }
     }
 }

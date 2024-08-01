@@ -11,6 +11,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace SharpRpc.MsTest
 {
@@ -22,7 +23,7 @@ namespace SharpRpc.MsTest
         {
             var syncObj = new object();
             var serializer = new BufferBasedMockSerializer();
-            var buffer = new TxBuffer(syncObj, 200);
+            var buffer = new TxBuffer(syncObj, 200, Task.Factory);
             var msg = MockMessage.Generate(100);
 
             var expectedHeader = new byte[] { 1, 0, 103 };
@@ -49,7 +50,7 @@ namespace SharpRpc.MsTest
 
             var syncObj = new object();
             var serializer = new BufferBasedMockSerializer();
-            var buffer = new TxBuffer(syncObj, segmentSize);
+            var buffer = new TxBuffer(syncObj, segmentSize, Task.Factory);
             var msg = MockMessage.Generate(messageSize);
 
             var expectedHeader1 = new byte[] { (byte)MessageFlags.None, 0, (byte)segmentSize };
@@ -84,7 +85,7 @@ namespace SharpRpc.MsTest
             var bodySize2 = messageSize - bodySize1;
 
             var syncObj = new object();
-            var buffer = new TxBuffer(syncObj, segmentSize);
+            var buffer = new TxBuffer(syncObj, segmentSize, Task.Factory);
             var msg = MockPrebuiltMessage.Generate(messageSize);
 
             var expectedHeader1 = new byte[] { (byte)MessageFlags.None, 0, (byte)segmentSize };

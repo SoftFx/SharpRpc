@@ -4,11 +4,13 @@ using System.Linq;
 using System.Net;
 using System.Net.Security;
 using System.Reflection;
+using System.Runtime.Remoting;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
 using SharpRpc;
 using TestCommon;
+using static TestClient.FunctionTest;
 
 namespace TestClient
 {
@@ -33,6 +35,7 @@ namespace TestClient
             Console.WriteLine("4. Stress test");
             Console.WriteLine("5. Load test");
             Console.WriteLine("6. Auth load test");
+            Console.WriteLine("7. Serialization erorr handling tests");
             Console.Write(">");
 
             var choice = Console.ReadLine();
@@ -147,10 +150,12 @@ namespace TestClient
                 AuthLoadTest(address);
                 Console.WriteLine("GC.Collect...");
                 GC.Collect(2, GCCollectionMode.Forced, true);
-               
+
                 Console.WriteLine("Done.");
                 Console.Read();
             }
+            else if (choice == "7")
+                TestSerializationErrorHandling(address);
             else
                 Console.WriteLine("Invalid input.");
         }
@@ -191,6 +196,87 @@ namespace TestClient
                 if (result.Code != RpcRetCode.InvalidCredentials)
                     Console.WriteLine($"assert code={result.Code} ");
             });
+        }
+
+        private static void TestSerializationErrorHandling(string address)
+        {
+            //Console.WriteLine("Broken response:");
+            //TestBrokenResponse(address);
+            //Console.WriteLine("Broken request:");
+            //TestBrokenRequest(address);
+            Console.WriteLine("Broken output item:");
+            TestBrokenResponse(address);
+        }
+
+        private static void TestBrokenResponse(string address)
+        {
+            var client = CreateFunctionTestClient(address, false);
+
+            var resp = client.Try.BrokenResponse();
+
+            Console.WriteLine(resp.Code);
+
+            while (client.Channel.State != ChannelState.Faulted)
+            {
+                Console.WriteLine(client.Channel.State);
+                Task.Delay(1000).Wait();
+            }
+
+            Console.WriteLine(client.Channel.State);
+
+            Console.ReadLine();
+        }
+
+        private static void TestBrokenRequest(string address)
+        {
+            var client = CreateFunctionTestClient(address, false);
+
+            var resp = client.Try.BrokenRequest(new BrokenEntity());
+
+            Console.WriteLine(resp.Code);
+
+            while (client.Channel.State != ChannelState.Faulted)
+            {
+                Console.WriteLine(client.Channel.State);
+                Task.Delay(1000).Wait();
+            }
+
+            Console.WriteLine(client.Channel.State);
+
+            Console.ReadLine();
+        }
+
+        private static void TestBrokenOutputStream(string address)
+        {
+            var client = CreateFunctionTestClient(address, false);
+
+            var resp = client.Try.BrokenResponse();
+
+            Console.WriteLine(resp.Code);
+
+            while (client.Channel.State != ChannelState.Faulted)
+            {
+                Console.WriteLine(client.Channel.State);
+                Task.Delay(1000).Wait();
+            }
+
+            Console.WriteLine(client.Channel.State);
+
+            Console.ReadLine();
+        }
+
+        private static FunctionTestContract_Gen.Client CreateFunctionTestClient(string address, bool ssl)
+        {
+            var security = ssl ? new SslSecurity(NullCertValidator) : TcpSecurity.None;
+            var port = 812;
+            var serviceName = ssl ? "func/ssl" : "func";
+            var endpoint = new TcpClientEndpoint(new DnsEndPoint(address, port), serviceName, security);
+
+            if (ssl)
+                endpoint.Credentials = new BasicCredentials("Admin", "zzzz");
+
+            var callback = new CallbackHandler();
+            return FunctionTestContract_Gen.CreateClient(endpoint, callback);
         }
 
         private static bool NullCertValidator(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)

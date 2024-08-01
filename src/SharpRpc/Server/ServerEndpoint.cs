@@ -30,12 +30,12 @@ namespace SharpRpc
         protected abstract void Start();
         protected abstract Task StopAsync();
 
-        internal void OnNewConnection(ServiceBinding sConfig, ByteTransport newConnection)
+        internal void OnNewConnection(string channelId, ServiceBinding sConfig, ByteTransport newConnection)
         {
-            ClientConnected.Invoke(this, sConfig, newConnection);
+            ClientConnected.Invoke(channelId, this, sConfig, newConnection);
         }
 
-        internal event Action<ServerEndpoint, ServiceBinding, ByteTransport> ClientConnected;
+        internal event Action<string, ServerEndpoint, ServiceBinding, ByteTransport> ClientConnected;
 
         protected override void ValidateAndInitialize()
         {

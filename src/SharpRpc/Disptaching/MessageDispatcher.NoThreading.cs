@@ -7,11 +7,7 @@
 
 using SharpRpc.Disptaching;
 using SharpRpc.Lib;
-using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -24,7 +20,8 @@ namespace SharpRpc
             private readonly object _lockObj = new object();
             private bool _isStarted;
             private bool _isProcessing;
-            private bool _closed;
+            private bool _isClosed;
+            private bool _isEnabled = true;
             private TaskCompletionSource<bool> _startedEvent = new TaskCompletionSource<bool>();
             private TaskCompletionSource<bool> _closeCompletion = new TaskCompletionSource<bool>();
 
@@ -50,29 +47,54 @@ namespace SharpRpc
 
             public override Task Stop(RpcResult fault)
             {
+                List<IDispatcherOperation> operationsToCancel = null;
+
                 lock (_lockObj)
                 {
-                    if (_closed)
-                        return _closeCompletion.Task;
-
-                    _closed = true;
-
                     if (!_isStarted)
                     {
                         _isStarted = true;
                         _startedEvent.SetResult(true);
                     }
 
-                    Core.OnStop(fault);
+                    if (_isEnabled)
+                    {
+                        _isEnabled = false;
+                        operationsToCancel = Core.OnStop(fault);
+                    }
+
+                    if (_isClosed)
+                        return _closeCompletion.Task;
+
+                    _isClosed = true;
 
                     if (!_isProcessing)
                         CompleteClose();
                 }
 
-                Core.CompleteStop();
+                if (operationsToCancel != null)
+                    Core.CancelOperations(operationsToCancel);
 
                 return _closeCompletion.Task;
             }
+
+            public override void Abort(RpcResult fault)
+            {
+                List<IDispatcherOperation> operationsToCancel = null;
+
+                lock (_lockObj)
+                {
+                    if (_isEnabled)
+                    {
+                        _isEnabled = false;
+                        operationsToCancel = Core.OnStop(fault);
+                    }
+                }
+
+                if (operationsToCancel != null)
+                    Core.CancelOperations(operationsToCancel);
+            }
+
 
 #if NET5_0_OR_GREATER
             public override async ValueTask OnMessages()
@@ -84,7 +106,7 @@ namespace SharpRpc
 
                 lock (_lockObj)
                 {
-                    if (_closed)
+                    if (!_isEnabled)
                         return;
 
                     if (!_isStarted)
@@ -100,10 +122,11 @@ namespace SharpRpc
 
                     lock (_lockObj)
                     {
-                        if (_closed)
+                        if (!_isEnabled)
                         {
                             _isProcessing = false;
-                            CompleteClose();
+                            if (_isClosed)
+                                CompleteClose();
                             return;
                         }
                     }
@@ -116,7 +139,7 @@ namespace SharpRpc
                 {
                     _isProcessing = false;
 
-                    if (_closed)
+                    if (_isClosed)
                         CompleteClose();
                 }
             }

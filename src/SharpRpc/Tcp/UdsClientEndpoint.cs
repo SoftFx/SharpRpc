@@ -26,7 +26,7 @@ namespace SharpRpc
             _security = security ?? throw new ArgumentNullException(nameof(security));
         }
 
-        public override async Task<RpcResult<ByteTransport>> ConnectAsync(CancellationToken cToken)
+        public override async Task<RpcResult<ByteTransport>> ConnectAsync(CancellationToken cToken, string channelId)
         {
             try
             { 
@@ -35,14 +35,14 @@ namespace SharpRpc
 
                 await socket.ConnectAsync(_endpoint, cToken).ConfigureAwait(false);
 
-                return new RpcResult<ByteTransport>(await _security.SecureTransport(socket, this, "localhost").ConfigureAwait(false));
+                return new RpcResult<ByteTransport>(await _security.SecureTransport(socket, this, "localhost", channelId, Logger).ConfigureAwait(false));
             }
             catch (Exception ex)
             {
                 var fault = SocketTransport.ToRpcResult(ex);
                 return new RpcResult<ByteTransport>(fault.Code, fault.FaultMessage);
             }
-        }
+        }   
     }
 }
 #endif

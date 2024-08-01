@@ -22,9 +22,9 @@ namespace SharpRpc
         internal abstract void Init();
 
 #if NET5_0_OR_GREATER
-        internal abstract ValueTask<ByteTransport> SecureTransport(SocketTransport unsecureTransport, Endpoint endpoint);
+        internal abstract ValueTask<ByteTransport> SecureTransport(SocketTransport unsecureTransport, Endpoint endpoint, string channelId, IRpcLogger logger);
 #else
-        internal abstract Task<ByteTransport> SecureTransport(SocketTransport unsecureTransport, Endpoint endpoint);
+        internal abstract Task<ByteTransport> SecureTransport(SocketTransport unsecureTransport, Endpoint endpoint, string channelId, IRpcLogger logger);
 #endif
 
         private class NullServerSecurity : TcpServerSecurity
@@ -36,12 +36,12 @@ namespace SharpRpc
             internal override string Name => "None";
 
 #if NET5_0_OR_GREATER
-            internal override ValueTask<ByteTransport> SecureTransport(SocketTransport unsecureTransport, Endpoint endpoint)
+            internal override ValueTask<ByteTransport> SecureTransport(SocketTransport unsecureTransport, Endpoint endpoint, string channelId, IRpcLogger logger)
             {
                 return new ValueTask<ByteTransport>(unsecureTransport);
             }
 #else
-            internal override Task<ByteTransport> SecureTransport(SocketTransport unsecureTransport, Endpoint endpoint)
+            internal override Task<ByteTransport> SecureTransport(SocketTransport unsecureTransport, Endpoint endpoint, string channelId, IRpcLogger logger)
             {
                 return Task.FromResult<ByteTransport>(unsecureTransport);
             }

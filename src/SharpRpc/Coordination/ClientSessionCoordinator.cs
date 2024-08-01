@@ -69,7 +69,7 @@ namespace SharpRpc
             if (hasFailed)
                 _connectWaitHandle.TrySetResult(false);
             else
-                Channel.RiseSessionInitEvent().ContinueWith(OnOpenEventCompleted);
+                Channel.RiseSessionInitEvent().ContinueWith(OnOpenEventCompleted, Channel.Endpoint.TaskFactory.Scheduler);
 
             return RpcResult.Ok;
         }
@@ -139,7 +139,7 @@ namespace SharpRpc
             }
 
             Channel.RiseSessionDeinitEvent(IsCoordinationBroken)
-                .ContinueWith(OnCloseEventCompleted);
+                .ContinueWith(OnCloseEventCompleted, Channel.Endpoint.TaskFactory.Scheduler);
 
             return _disconnectWaitHandle.Task;
         }
@@ -160,6 +160,8 @@ namespace SharpRpc
             {
                 if (State != SessionState.PendingLogout)
                     return new RpcResult(RpcRetCode.UnexpectedMessage, $"Received an unexpected logout message! State='{State}'.");
+
+                State = SessionState.LoggedOut;
             }
 
             _disconnectWaitHandle.TrySetResult(true);

@@ -20,7 +20,6 @@ namespace SharpRpc
         private readonly Dictionary<string, IDispatcherOperation> _operations = new Dictionary<string, IDispatcherOperation>();
         private bool _completed;
         private RpcResult _fault;
-        private List<IDispatcherOperation> _tasksToCancel;
 
         public MessageDispatcherCore(TxPipeline txNode, RpcCallHandler msgHandler, Action<RpcRetCode, string> onErrorAction)
         {
@@ -67,21 +66,22 @@ namespace SharpRpc
                 ProcessOneWayMessage(message);
         }
 
-        public void OnStop(RpcResult fault)
+        public List<IDispatcherOperation> OnStop(RpcResult fault)
         {
             lock (_operations)
             {
                 _completed = true;
                 _fault = fault;
 
-                _tasksToCancel = _operations.Values.ToList();
+                var tasksToCancel = _operations.Values.ToList();
                 _operations.Clear();
+                return tasksToCancel;
             }
         }
 
-        public void CompleteStop()
+        public void CancelOperations(IEnumerable<IDispatcherOperation> operations)
         {
-            foreach (var task in _tasksToCancel)
+            foreach (var task in operations)
                 task.Terminate(_fault);
         }
 
@@ -128,7 +128,7 @@ namespace SharpRpc
                     {
                         if (t.IsFaulted)
                             OnError(RpcRetCode.MessageHandlerCrash, "Message handler threw an exception: " + t.Exception.Message);
-                    });
+                    }, Tx.TaskFactory.Scheduler);
                 }
             }
             catch (Exception ex)

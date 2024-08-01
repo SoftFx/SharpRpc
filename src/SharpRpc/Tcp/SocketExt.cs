@@ -20,7 +20,7 @@ namespace SharpRpc
         public static Task DisconnectAsync(this Socket socket, TaskFactory factory)
         {
             return factory.FromAsync((c, s) => socket.BeginDisconnect(false, c, s),
-                    r => socket.EndDisconnect(r), null);
+                    r => socket.EndDisconnect(r), null, TaskCreationOptions.None);
         }
     }
 }

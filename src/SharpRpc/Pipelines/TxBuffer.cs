@@ -37,14 +37,14 @@ namespace SharpRpc
         private readonly int _segmentSize;
         private readonly int _maxAllocSize;
 
-        public TxBuffer(object lockObj, int segmentSize)
+        public TxBuffer(object lockObj, int segmentSize, TaskFactory tFactory)
         {
             _lockObj = lockObj;
 
             _segmentSize = segmentSize;
             _maxAllocSize = segmentSize - MessageHeader.HeaderSize;
 
-            _dequeueWaitHandle = new SlimAwaitable<ArraySegment<byte>>(lockObj);
+            _dequeueWaitHandle = new SlimAwaitable<ArraySegment<byte>>(lockObj, tFactory);
 
             //if (segmentSize > ushort.MaxValue)
             //    throw new ArgumentException("Segment size must be less than " + ushort.MaxValue + ".");

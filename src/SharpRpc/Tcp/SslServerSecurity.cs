@@ -43,9 +43,9 @@ namespace SharpRpc
         }
 
 #if NET5_0_OR_GREATER
-        internal async override ValueTask<ByteTransport> SecureTransport(SocketTransport unsecureTransport, Endpoint endpoint)
+        internal async override ValueTask<ByteTransport> SecureTransport(SocketTransport unsecureTransport, Endpoint endpoint, string channelId, IRpcLogger logger)
 #else
-        internal async override Task<ByteTransport> SecureTransport(SocketTransport unsecureTransport, Endpoint endpoint)
+        internal async override Task<ByteTransport> SecureTransport(SocketTransport unsecureTransport, Endpoint endpoint, string channelId, IRpcLogger logger)
 #endif
         {
             var netStream = new NetworkStream(unsecureTransport.Socket, true);
@@ -62,7 +62,7 @@ namespace SharpRpc
             await sslStream.AuthenticateAsServerAsync(_cert, false, Protocols, false).ConfigureAwait(false);
 #endif
 
-            return new SslTransport(sslStream, unsecureTransport.Socket);
+            return new SslTransport(sslStream, unsecureTransport.Socket, channelId, logger);
         }
 
         private X509Certificate2 LoadCertificate()

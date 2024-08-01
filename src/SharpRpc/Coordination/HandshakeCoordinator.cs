@@ -103,13 +103,15 @@ namespace SharpRpc
             }
         }
 
-        public async Task<RpcResult> DoClientSideHandshake(ByteTransport transport, string hostName, string serviceName)
+        public async Task<RpcResult> DoClientSideHandshake(ByteTransport transport, CancellationToken cancelToken, string hostName, string serviceName)
         {
             hostName = hostName?.Trim().ToLowerInvariant();
             serviceName = serviceName?.Trim().ToLowerInvariant();
 
             using (var timeoutSrc = new CancellationTokenSource(_timeout))
             {
+                cancelToken.Register(timeoutSrc.Cancel);
+
                 var request = new HandshakeRequest();
                 request.RpcVersion = new ShortVersion(0, 0);
                 request.ServiceName = serviceName;

@@ -22,7 +22,8 @@ namespace SharpRpc
         private readonly TaskFactory _taskFactory;
         //private readonly bool _isServer;
         
-        public SocketTransport(Socket socket, TaskFactory taskQueue)
+        public SocketTransport(Socket socket, TaskFactory taskQueue, string channelId, IRpcLogger logger)
+            : base(channelId, logger)
         {
             _socket = socket;
             _taskFactory = taskQueue;
@@ -105,9 +106,9 @@ namespace SharpRpc
             {
                 await _socket.DisconnectAsync(_taskFactory).ConfigureAwait(false);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // TO DO : log
+                Warn("Socket disconnect operation failed! " + ex.Message);
             }
         }
 
@@ -117,7 +118,14 @@ namespace SharpRpc
         protected override void DisposeInternal()
 #endif
         {
-            _socket.Dispose();
+            try
+            {
+                _socket.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Warn("Socket dispose operation failed! " + ex.Message);
+            }
         }
 
         public override TransportInfo GetInfo() => CreateInfobject(_socket);

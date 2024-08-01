@@ -13,8 +13,6 @@ namespace SharpRpc
 {
     public class ConsoleLogger : IRpcLogger
     {
-        private bool _printStack;
-
         public ConsoleLogger()
         {
         }
@@ -23,6 +21,7 @@ namespace SharpRpc
         public bool IsInfoEnabled { get; set; } = true;
         public bool IsMessageLoggingEnabled { get; set; } = false;
         public bool IsAuxMessageLoggingEnabled { get; set; } = false;
+        public bool PrintStackTrace { get; set; }
 
         public void Info(string component, string msg)
         {
@@ -37,14 +36,14 @@ namespace SharpRpc
         public void Warn(string component, string msg, Exception ex)
         {
             Console.WriteLine(component + " " + msg);
-            if (ex != null && _printStack)
+            if (ex != null && PrintStackTrace)
                 Console.WriteLine(ex.ToString());
         }
 
         public void Error(string component, string msg, Exception ex)
         {
             Console.Error.WriteLine(component + " " + msg);
-            if (ex != null && _printStack)
+            if (ex != null && PrintStackTrace)
                 Console.WriteLine(ex.ToString());
         }
     }

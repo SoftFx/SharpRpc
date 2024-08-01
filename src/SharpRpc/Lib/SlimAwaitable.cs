@@ -112,6 +112,7 @@ namespace SharpRpc.Lib
         private T _result;
         private bool _isCompleted;
         private Action _callback;
+        private Task _notifyTask;
 #if DEBUG
         private int _callbackCount;
 #endif
@@ -166,9 +167,12 @@ namespace SharpRpc.Lib
             if (callbackCopy != null)
             {
                 if (notifyViaThreadPool)
-                    _tFactory.StartNew(callbackCopy);
+                    _notifyTask = _tFactory.StartNew(callbackCopy);
                 else
+                {
+                    _notifyTask = null;
                     callbackCopy();
+                }
             }
         }
 
