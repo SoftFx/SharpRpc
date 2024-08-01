@@ -29,9 +29,7 @@ namespace SharpRpc
         private readonly int _bufferSizeThreshold;
         private readonly TxAsyncGate _asyncGate = new TxAsyncGate();
         private readonly TaskCompletionSource<object> _completedEvent = new TaskCompletionSource<object>();
-        private DateTime _lastTxTime = DateTime.MinValue;
-        private readonly TimeSpan _idleThreshold;
-        private readonly Timer _keepAliveTimer;
+        private readonly Timer _heartbeatTimer;
         private readonly ISystemMessage _keepAliveMessage;
         private readonly Action<RpcResult> _commErrorHandler;
         private readonly Action _connectionRequestHandler;
@@ -59,11 +57,9 @@ namespace SharpRpc
 
             _logger = config.GetLogger();
 
-            if (config.IsKeepAliveEnabled)
+            if (config.IsHeartbeatEnabled)
             {
-                _keepAliveTimer = new Timer(OnKeepAliveTimerTick, null, 100, 100);
-                _buffer.OnDequeue += RefreshLastTxTime;
-                _idleThreshold = config.KeepAliveThreshold;
+                _heartbeatTimer = new Timer(OnKeepAliveTimerTick, null, config.HeartbeatPeriod, config.HeartbeatPeriod);
                 _keepAliveMessage = descriptor.SystemMessages.CreateHeartBeatMessage();
             }
         }
@@ -490,7 +486,7 @@ namespace SharpRpc
                 {
                     _isClosing = true;
 
-                    _keepAliveTimer?.Dispose();
+                    _heartbeatTimer?.Dispose();
 
                     Monitor.PulseAll(_lockObj);
 
@@ -518,18 +514,7 @@ namespace SharpRpc
 
         private void OnKeepAliveTimerTick(object state)
         {
-            lock (_lockObj)
-            {
-                if (DateTime.UtcNow - _lastTxTime <= _idleThreshold)
-                    return;
-            }
-
             SendOrForget(_keepAliveMessage);
-        }
-
-        private void RefreshLastTxTime()
-        {
-            _lastTxTime = DateTime.UtcNow;
         }
 
         private void _buffer_SpaceFreed(TxBuffer sender)

@@ -31,6 +31,8 @@ namespace SharpRpc
         private readonly TaskFactory _taskFactory;
         private readonly IRpcLogger _logger;
         private readonly string _channelId;
+        private readonly Timer _watchdogTimer;
+        private readonly TimeSpan _rxTimeout;
 
         public RxPipeline(string channelId, ByteTransport transport, Endpoint config, IRpcSerializer serializer, MessageDispatcher messageConsumer, SessionCoordinator coordinator)
         {
@@ -42,6 +44,8 @@ namespace SharpRpc
             _parser.MaxMessageSize = config.MaxMessageSize;
             _logger = config.GetLogger();
             _channelId = channelId;
+            _rxTimeout = config.ReceiveTimeout;
+            _watchdogTimer = new Timer(OnWatchdogTick);
         }
 
         protected MessageDispatcher MessageConsumer => _msgDispatcher;
@@ -66,6 +70,7 @@ namespace SharpRpc
 
         protected Task StopTransportRx()
         {
+            DisposeWatchdogTimer();
             _rxCancelSrc.Cancel();
             return _rxLoop;
         }
@@ -81,6 +86,8 @@ namespace SharpRpc
                 try
                 {
                     var buffer = AllocateRxBuffer();
+
+                    ResetWatchdogTimer();
 
                     byteCount = await _transport.Receive(buffer, _rxCancelSrc.Token).ConfigureAwait(false);
 
@@ -221,6 +228,22 @@ namespace SharpRpc
             }
         }
 
+        private void ResetWatchdogTimer()
+        {
+            if (_rxTimeout >= TimeSpan.Zero)
+                _watchdogTimer.Change(_rxTimeout, Timeout.InfiniteTimeSpan);
+        }
+
+        private void DisposeWatchdogTimer()
+        {
+            _watchdogTimer.Dispose();
+        }
+
+        private void OnWatchdogTick(object state)
+        {
+            SignalCommunicationError(new RpcResult(RpcRetCode.ConnectionTimeout, "No data is received from the transport connection within the specified timeout. This indicates connection loss."));
+        }
+
 #if NET5_0_OR_GREATER
         protected ValueTask OnMessagesArrived()
 #else
@@ -256,7 +279,6 @@ namespace SharpRpc
 
             return RpcResult.Ok;
         }
-
 
 #if PF_COUNTERS
         private long _bufferTotalBytes;

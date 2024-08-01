@@ -22,6 +22,7 @@ namespace SharpRpc
         private TimeSpan _rxTimeout = TimeSpan.FromMinutes(1);
         private TimeSpan _loginTimeout = TimeSpan.FromMinutes(1);
         private TimeSpan _logoutTimeout = TimeSpan.FromMinutes(1);
+        private TimeSpan _heartbeatPeriod = TimeSpan.FromSeconds(10);
         private long _maxMessageSize = long.MaxValue;
         //private bool _asyncMessageParse = false;
         private TaskScheduler _scheduler = null;
@@ -100,7 +101,12 @@ namespace SharpRpc
             }
         }
 
-        public TimeSpan TransportTimeout
+        /// <summary>
+        /// Specifys maximum wait time for receive operation. If no messages are received within the specified timeout,
+        /// the connection is considered to be lost. Use this property together with HeartbeatPeriod to establish proper
+        /// connection loss detection. Specify TimeSpan.Zero to disable receive timeout.
+        /// </summary>
+        public TimeSpan ReceiveTimeout
         {
             get => _rxTimeout;
             set
@@ -152,20 +158,32 @@ namespace SharpRpc
             }
         }
 
-        internal bool IsKeepAliveEnabled => KeepAliveThreshold.Ticks > 0;
-        internal TimeSpan KeepAliveThreshold { get; private set; }
+        internal TimeSpan HeartbeatPeriod
+        {
+            get => _heartbeatPeriod;
+            set
+            {
+                lock (LockObject)
+                {
+                    ThrowIfImmutable();
+                    _heartbeatPeriod = value;
+                }
+            }
+        }
+
+        internal bool IsHeartbeatEnabled => HeartbeatPeriod > TimeSpan.Zero;
         internal TaskFactory TaskFactory { get; private set; }
 
         internal abstract IRpcLogger GetLogger();
 
-        public void EnableKeepAlive(TimeSpan threashold)
-        {
-            lock (LockObject)
-            {
-                ThrowIfImmutable();
-                KeepAliveThreshold = threashold;
-            }
-        }
+        //public void EnableKeepAlive(TimeSpan threashold)
+        //{
+        //    lock (LockObject)
+        //    {
+        //        ThrowIfImmutable();
+        //        HeartbeatPeriod = threashold;
+        //    }
+        //}
 
         protected override void ValidateAndInitialize()
         {
