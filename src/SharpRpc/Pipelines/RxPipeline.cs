@@ -18,7 +18,7 @@ using System.Threading.Tasks;
 
 namespace SharpRpc
 {
-    internal abstract partial class RxPipeline
+    internal abstract partial class RxPipeline : IDisposable
     {
         private readonly MessageParser _parser = new MessageParser();
         private readonly RxMessageReader _reader = new RxMessageReader();
@@ -70,9 +70,13 @@ namespace SharpRpc
 
         protected Task StopTransportRx()
         {
-            DisposeWatchdogTimer();
             _rxCancelSrc.Cancel();
             return _rxLoop;
+        }
+
+        public void Dispose()
+        {
+            DisposeWatchdogTimer();
         }
 
         private async Task RxLoop()

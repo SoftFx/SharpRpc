@@ -392,6 +392,7 @@ namespace SharpRpc
                     {
                         Logger.Verbose(Id, "Sopping Rx pipeline ...");
                         await _rx.Close().ConfigureAwait(false);
+                        _rx.Dispose();
                     }
                 }
                 catch (Exception ex)
