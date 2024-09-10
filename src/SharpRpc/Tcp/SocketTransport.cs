@@ -47,13 +47,13 @@ namespace SharpRpc
             return new ValueTask(_socket.SendAsync(data, SocketFlags.None));
         }
 #else
-        protected override Task<int> ReceiveInternal(ArraySegment<byte> buffer, CancellationToken cToken)
+        public override Task<int> Receive(ArraySegment<byte> buffer, CancellationToken cToken)
         {
             //return _stream.ReadAsync(buffer.Array, buffer.Offset, buffer.Count, cToken);
             return _socket.ReceiveAsync(buffer, SocketFlags.None);
         }
 
-        protected override Task SendInternal (ArraySegment<byte> data, CancellationToken cToken)
+        public override Task Send (ArraySegment<byte> data, CancellationToken cToken)
         {
             //return _stream.WriteAsync(data.Array, data.Offset, data.Count, cToken);
             return _socket.SendAsync(data, SocketFlags.None);
@@ -96,11 +96,7 @@ namespace SharpRpc
             return new RpcResult(RpcRetCode.OtherConnectionError, "An unexpected exception is occurred in TcpTransport: " + ex.Message);
         }
 
-#if NET5_0_OR_GREATER
-        public override async Task Shutdown()
-#else
         protected override async Task ShutdownInternal()
-#endif
         {
             try
             {
@@ -112,11 +108,7 @@ namespace SharpRpc
             }
         }
 
-#if NET5_0_OR_GREATER
-        public override void Dispose()
-#else
         protected override void DisposeInternal()
-#endif
         {
             try
             {

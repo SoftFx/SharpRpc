@@ -19,7 +19,7 @@ namespace SharpRpc
         private Authenticator _authPlugin;
         private readonly SessionContext _sharedContextObj;
         private TaskCompletionSource<bool> _connectWaitHandle;
-        private TaskCompletionSource<bool> _disconnectWaitHandle;
+        private TaskCompletionSource<TransportCloseSide> _disconnectWaitHandle;
         private bool _isLogoutReceived;
 
         public ServerSessionCoordinator(SessionContext sharedContext)
@@ -169,14 +169,14 @@ namespace SharpRpc
             return new RpcResult(RpcRetCode.UnexpectedMessage, $"Received an unexpected logout request message! Logout requests are not supported by the server side!'.");
         }
 
-        public override Task OnDisconnect()
+        public override Task<TransportCloseSide> OnDisconnect()
         {
             bool isLogoutRequestRequired;
 
             lock (LockObj)
             {
                 if (State != SessionState.LoggedIn)
-                    return Task.CompletedTask;
+                    return Task.FromResult(TransportCloseSide.Both);
 
                 if (_isLogoutReceived || IsCoordinationBroken)
                 {
@@ -189,7 +189,7 @@ namespace SharpRpc
                     isLogoutRequestRequired = true;
                 }
 
-                _disconnectWaitHandle = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                _disconnectWaitHandle = new TaskCompletionSource<TransportCloseSide>(TaskCreationOptions.RunContinuationsAsynchronously);
             }
 
             if (isLogoutRequestRequired)
@@ -207,7 +207,7 @@ namespace SharpRpc
             if (State == SessionState.PendingLogin)
                 _connectWaitHandle.TrySetResult(false);
             else if (State == SessionState.PendingLogout)
-                _disconnectWaitHandle.TrySetResult(false);
+                _disconnectWaitHandle.TrySetResult(TransportCloseSide.Both);
         }
 
         private void RiseClosingEvent(bool isLostConnection)
@@ -224,7 +224,7 @@ namespace SharpRpc
 
                 if (IsCoordinationBroken)
                 {
-                    _disconnectWaitHandle.TrySetResult(false);
+                    _disconnectWaitHandle.TrySetResult(TransportCloseSide.Both);
                     return;
                 }
             }
@@ -244,7 +244,7 @@ namespace SharpRpc
             lock (LockObj)
                 State = SessionState.LoggedOut;
 
-            _disconnectWaitHandle.TrySetResult(result.IsOk);
+            _disconnectWaitHandle.TrySetResult(result.IsOk ? TransportCloseSide.Server : TransportCloseSide.Both);
         }
 
         private void ForceLogout()
@@ -257,7 +257,7 @@ namespace SharpRpc
                 State = SessionState.LoggedOut;
             }
 
-            _disconnectWaitHandle.TrySetResult(false);
+            _disconnectWaitHandle.TrySetResult(TransportCloseSide.Both);
         }
 
         //protected override Task RiseClosingEvent(bool isFaulted)

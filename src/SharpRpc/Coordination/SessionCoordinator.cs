@@ -14,6 +14,12 @@ using System.Threading.Tasks;
 
 namespace SharpRpc
 {
+    internal enum TransportCloseSide : byte
+    {
+        Server, // only server should close transport
+        Both    // both sides should close transport
+    }
+
     internal abstract class SessionCoordinator
     {
         protected object LockObj { get; private set; }
@@ -31,7 +37,7 @@ namespace SharpRpc
         public bool IsCoordinationBroken { get; protected set; }
 
         public abstract Task<bool> OnConnect(CancellationToken timeoutToken);
-        public abstract Task OnDisconnect();
+        public abstract Task<TransportCloseSide> OnDisconnect();
         public abstract void AbortCoordination();
 
         protected abstract RpcResult OnLoginMessage(ILoginMessage loginMsg);
