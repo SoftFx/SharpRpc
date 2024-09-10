@@ -8,6 +8,7 @@
 using SharpRpc.Tcp;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net.Security;
 using System.Net.Sockets;
@@ -48,12 +49,12 @@ namespace SharpRpc
             return _stream.WriteAsync(data);
         }
 #else
-        protected override Task<int> ReceiveInternal(ArraySegment<byte> buffer, CancellationToken cToken)
+        public override Task<int> Receive(ArraySegment<byte> buffer, CancellationToken cToken)
         {
             return _stream.ReadAsync(buffer.Array, buffer.Offset, buffer.Count);
         }
 
-        protected override Task SendInternal(ArraySegment<byte> data, CancellationToken cToken)
+        public override Task Send(ArraySegment<byte> data, CancellationToken cToken)
         {
             return _stream.WriteAsync(data.Array, data.Offset, data.Count, cToken);
         }
@@ -64,8 +65,8 @@ namespace SharpRpc
             return SocketTransport.ToRpcResult(ex);
         }
 
-#if NET5_0_OR_GREATER
-        public override async Task Shutdown()
+#if NETSTANDARD
+        protected override Task ShutdownInternal()
 #else
         protected override async Task ShutdownInternal()
 #endif
@@ -80,17 +81,23 @@ namespace SharpRpc
             }
             catch (Exception ex)
             {
-                _logger.Error(GetName(), "Shutdown() failed: " + ex.Message);
+                _logger.Error(GetName(), "ShutdownInternal() failed: " + ex.Message);
             }
+#if NETSTANDARD
+            return Task.CompletedTask;
+#endif
         }
 
-#if NET5_0_OR_GREATER
-        public override void Dispose()
-#else
         protected override void DisposeInternal()
-#endif
         {
-            _stream.Dispose();
+            try
+            {
+                _stream.Dispose();
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(GetName(), "DisposeInternal() failed: " + ex.Message);
+            }
         }
 
         public override TransportInfo GetInfo()

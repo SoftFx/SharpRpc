@@ -146,7 +146,7 @@ namespace SharpRpc.Tcp
 
             try
             {
-                transport.Dispose();
+                await transport.DisposeAsync().ConfigureAwait(false);
             }
             catch { }
         }

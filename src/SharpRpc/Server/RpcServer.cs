@@ -143,7 +143,7 @@ namespace SharpRpc
             await Task.WhenAll(closeTasks).ConfigureAwait(false);
         }
 
-        private void Endpoint_ClientConnected(string channelId, ServerEndpoint sender, ServiceBinding binding, ByteTransport transport)
+        private async void Endpoint_ClientConnected(string channelId, ServerEndpoint sender, ServiceBinding binding, ByteTransport transport)
         {
             bool abortConnection = false;
 
@@ -163,7 +163,7 @@ namespace SharpRpc
 
             if (abortConnection)
             {
-                transport.Dispose();
+                await transport.DisposeAsync().ConfigureAwait(false);
                 Logger.Info(Name, "Incoming connection was aborted!");
             }
         }

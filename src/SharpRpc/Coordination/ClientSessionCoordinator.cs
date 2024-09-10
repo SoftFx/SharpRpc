@@ -19,7 +19,7 @@ namespace SharpRpc
     internal class ClientSessionCoordinator : SessionCoordinator
     {
         private TaskCompletionSource<bool> _connectWaitHandle;
-        private TaskCompletionSource<bool> _disconnectWaitHandle;
+        private TaskCompletionSource<TransportCloseSide> _disconnectWaitHandle;
         private Credentials _creds;
 
         protected override void OnInit()
@@ -127,15 +127,15 @@ namespace SharpRpc
             _connectWaitHandle.TrySetResult(false);
         }
 
-        public override Task OnDisconnect()
+        public override Task<TransportCloseSide> OnDisconnect()
         {
             lock (LockObj)
             {
                 if (State != SessionState.LoggedIn)
-                    return Task.CompletedTask;
+                    return Task.FromResult(TransportCloseSide.Both);
 
                 State = SessionState.CloseEvent;
-                _disconnectWaitHandle = new TaskCompletionSource<bool>();
+                _disconnectWaitHandle = new TaskCompletionSource<TransportCloseSide>();
             }
 
             Channel.RiseSessionDeinitEvent(IsCoordinationBroken)
@@ -151,7 +151,7 @@ namespace SharpRpc
             if (State == SessionState.PendingLogin)
                 _connectWaitHandle.TrySetResult(false);
             else if (State == SessionState.PendingLogout)
-                _disconnectWaitHandle.TrySetResult(false);
+                _disconnectWaitHandle.TrySetResult(TransportCloseSide.Both);
         }
 
         protected override RpcResult OnLogoutMessage(ILogoutMessage logoutMsg)
@@ -164,7 +164,7 @@ namespace SharpRpc
                 State = SessionState.LoggedOut;
             }
 
-            _disconnectWaitHandle.TrySetResult(true);
+            _disconnectWaitHandle.TrySetResult(TransportCloseSide.Server);
             return RpcResult.Ok;
         }
 
@@ -183,7 +183,7 @@ namespace SharpRpc
                 State = SessionState.PendingLogout;
                 if (IsCoordinationBroken)
                 {
-                    _disconnectWaitHandle.TrySetResult(false);
+                    _disconnectWaitHandle.TrySetResult(TransportCloseSide.Both);
                     return;
                 }
             }

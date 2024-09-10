@@ -11,14 +11,15 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
+
 namespace SharpRpc
 {
     public abstract class ByteTransport
     {
-#if !NET5_0_OR_GREATER
-        private bool _disposed = false;
         private readonly object _disposedSync = new object();
-#endif
+        private TransportCloseState _closeState = TransportCloseState.Online;
+        private Task _shutdownTask;
+
         private readonly string _name;
         private readonly IRpcLogger _logger;
 
@@ -27,60 +28,13 @@ namespace SharpRpc
             _name = parentLogId + ".transport";
             _logger = logger;
         }
-
 #if NET5_0_OR_GREATER
         public abstract ValueTask Send(ArraySegment<byte> data, CancellationToken cToken);
         public abstract ValueTask<int> Receive(ArraySegment<byte> buffer, CancellationToken cToken);
-        public abstract Task Shutdown();
-        public abstract void Dispose();
 #else
 
-        public Task Send(ArraySegment<byte> data, CancellationToken cToken)
-        {
-            Task result = null;
-            lock (_disposedSync)
-            {
-                if (_disposed || cToken.IsCancellationRequested)
-                    result = Task.CompletedTask;
-                else
-                    result = SendInternal(data, cToken);
-            }
-            return result;
-        }
-
-        public Task<int> Receive(ArraySegment<byte> buffer, CancellationToken cToken)
-        {
-            Task<int> result = null;
-            lock (_disposedSync)
-            {
-                if (_disposed || cToken.IsCancellationRequested)
-                    result = Task.FromResult(0);
-                else
-                    result = ReceiveInternal(buffer, cToken);
-            }
-            return result;
-        }
-
-        public Task Shutdown()
-        {
-            lock (_disposedSync)
-                _disposed = true;
-
-            return ShutdownInternal();
-        }
-
-        public void Dispose()
-        {
-            lock (_disposedSync)
-                _disposed = true;
-
-            DisposeInternal();
-        }
-
-        protected abstract Task SendInternal(ArraySegment<byte> data, CancellationToken cToken);
-        protected abstract Task<int> ReceiveInternal(ArraySegment<byte> buffer, CancellationToken cToken);
-        protected abstract Task ShutdownInternal();
-        protected abstract void DisposeInternal();
+        public abstract Task Send(ArraySegment<byte> data, CancellationToken cToken);
+        public abstract Task<int> Receive(ArraySegment<byte> buffer, CancellationToken cToken);
 #endif
         public abstract RpcResult TranslateException(Exception ex);
 
@@ -91,6 +45,45 @@ namespace SharpRpc
         protected void Warn(string message)
         {
             _logger.Warn(_name, message);
+        }
+
+
+        public async Task Shutdown()
+        {
+            lock (_disposedSync)
+            {
+                if (_closeState != TransportCloseState.Online)
+                    return;
+                _closeState = TransportCloseState.Shutdown;
+                _shutdownTask = ShutdownInternal();
+            }
+
+            await _shutdownTask.ConfigureAwait(false);
+        }
+
+        public async Task DisposeAsync()
+        {
+            Task taskToWait;
+            lock (_disposedSync)
+            {
+                if (_closeState == TransportCloseState.Dispose)
+                    return;
+                _closeState = TransportCloseState.Dispose;
+                taskToWait = _shutdownTask ?? Task.CompletedTask;
+            }
+
+            await taskToWait.ConfigureAwait(false);
+            DisposeInternal();
+        }
+
+        protected abstract Task ShutdownInternal();
+        protected abstract void DisposeInternal();
+
+        protected enum TransportCloseState : byte
+        {
+            Online,
+            Shutdown,
+            Dispose
         }
     }
 

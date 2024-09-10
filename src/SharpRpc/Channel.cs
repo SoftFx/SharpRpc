@@ -35,7 +35,6 @@ namespace SharpRpc
         private SessionCoordinator _coordinator;
         private bool _closeFlag;
         private bool _isServerSide;
-        private bool _isTransportDisposed;
 
         private static int idSeed;
 
@@ -366,7 +365,7 @@ namespace SharpRpc
         //    }
         //}
 
-        private async Task CloseComponents()
+        private async Task CloseComponents(bool shutdownTransport)
         {
             Logger.Verbose(Id, "Stopping the dispatcher...");
 
@@ -378,11 +377,11 @@ namespace SharpRpc
 
                 try
                 {
-                    Logger.Verbose(Id, "Sopping Tx pipeline...");
+                    Logger.Verbose(Id, "Stopping Tx pipeline...");
 
                     await _tx.Close(_channelFault).ConfigureAwait(false);
 
-                    if (_transport != null)
+                    if (_transport != null && shutdownTransport)
                     {
                         Logger.Verbose(Id, "Disconnecting the transport...");
                         await _transport.Shutdown().ConfigureAwait(false);
@@ -390,8 +389,9 @@ namespace SharpRpc
 
                     if (_rx != null)
                     {
-                        Logger.Verbose(Id, "Sopping Rx pipeline ...");
+                        Logger.Verbose(Id, "Stopping Rx pipeline ...");
                         await _rx.Close().ConfigureAwait(false);
+                        _rx.Dispose();
                     }
                 }
                 catch (Exception ex)
@@ -399,7 +399,7 @@ namespace SharpRpc
                     Logger.Error(Id, "CloseComponents() failed!", ex);
                 }
 
-                DisposeTransport();
+                await DisposeTransportAsync().ConfigureAwait(false);
             }
         }
 
@@ -409,18 +409,10 @@ namespace SharpRpc
             AbortConnection();
         }
 
-        private void DisposeTransport()
+        private Task DisposeTransportAsync()
         {
-            lock (StateLockObject)
-            {
-                if (_isTransportDisposed)
-                    return;
-
-                _isTransportDisposed = true;
-            }
-
             Logger.Verbose(Id, "Disposing the transport...");
-            _transport?.Dispose();
+            return _transport?.DisposeAsync();
         }
 
         private async void DoDisconnect()
@@ -448,25 +440,13 @@ namespace SharpRpc
         // In case of connection loss, timeout, fatal error, or something ungraceful
         private void AbortConnection()
         {
-            bool callDispose = false;
-
             lock (_stateSyncObj)
             {
                 _coordinator.AbortCoordination();
-                if (!_isTransportDisposed)
-                {
-                    _isTransportDisposed = true;
-                    callDispose = true;
-                }
             }
             
             Dispatcher.Abort(_channelFault);
-
-            if (callDispose)
-            {
-                Logger.Verbose(Id, "Disposing the transport...");
-                _transport?.Dispose();
-            }
+            _ = DisposeTransportAsync();
         }
 
         private void SetClosedState()
@@ -483,8 +463,8 @@ namespace SharpRpc
             using (var logoutTimeoutSrc = new CancellationTokenSource(Endpoint.LogoutTimeout))
             {
                 logoutTimeoutSrc.Token.Register(OnLogoutTimeout);
-                await _coordinator.OnDisconnect().ConfigureAwait(false);
-                await CloseComponents().ConfigureAwait(false);
+                var transportCloseSide = await _coordinator.OnDisconnect().ConfigureAwait(false);
+                await CloseComponents(_isServerSide || transportCloseSide == TransportCloseSide.Both).ConfigureAwait(false);
             }
         }
 
