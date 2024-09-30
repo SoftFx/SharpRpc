@@ -168,7 +168,7 @@ namespace SharpRpc.Builder
                 .AddMembers(asyncFacade, tryFacade, asyncTryFacade);
         }
 
-        public MethodDeclarationSyntax GenerateFactoryMethod()
+        public MethodDeclarationSyntax GenerateFactoryMethodPrivate()
         {
             var addHandlerParam = !_isCallback && _contract.HasCallbacks;
 
@@ -183,14 +183,51 @@ namespace SharpRpc.Builder
 
             var returnStatement = SF.ReturnStatement(clientCreateExpression);
 
+            var paramList = new List<ParameterSyntax>
+            {
+                SH.Parameter("endpoint", Names.RpcClientEndpointBaseClass.Full),
+                SH.Parameter("serializer", Names.RpcSerializerInterface.Full),
+            };
+
+            if (addHandlerParam)
+            {
+                var handlerType = SH.ShortTypeName(_contract.CallbackServiceStubClassName);
+                paramList.Add(SH.Parameter("callbackHandler", handlerType));
+            }
+
+            return SF.MethodDeclaration(SF.ParseTypeName(_contract.ClientStubClassName.Short), Names.FacadeCreateClientMethod)
+                .AddModifiers(SF.Token(SyntaxKind.PrivateKeyword), SF.Token(SyntaxKind.StaticKeyword))
+                .AddParameterListParameters(paramList.ToArray())
+                .WithBody(SF.Block(descriptorVarStatement, returnStatement));
+        }
+
+        public MethodDeclarationSyntax GenerateFactoryMethodPublic(ParameterSyntax serializerParam, StatementSyntax serializerAdapterVarStatement, ArgumentSyntax serializerAdapterArg)
+        {
+            var addHandlerParam = !_isCallback && _contract.HasCallbacks;
+
+            //var serializerAdapterCreateClause = SH.InvocationExpression(Names.FacadeSerializerAdapterFactoryMethod,
+            //    SF.Argument(SF.IdentifierName("serializer")));
+            //var serializerAdapterVarStatement = SH.LocalVarDeclaration("serializerAdapter", serializerAdapterCreateClause);
+
+            var createClientArguments = new List<ArgumentSyntax>
+            {
+                SH.IdentifierArgument("endpoint"),
+                serializerAdapterArg,
+                //SH.IdentifierArgument("serializerAdapter"),
+            };
+            if (addHandlerParam)
+                createClientArguments.Add(SH.IdentifierArgument("callbackHandler"));
+
+            var retStatement = SF.ReturnStatement(
+                SH.InvocationExpression(Names.FacadeCreateClientMethod, createClientArguments.ToArray()));
+
             var endpointParam = SH.Parameter("endpoint", Names.RpcClientEndpointBaseClass.Full);
 
-            var serializerDefValue = SH.EnumValue(Names.SerializerChoiceEnum.Full, _contract.GetDefaultSerializerChoice());
-            var serializerParam = SH.Parameter("serializer", Names.SerializerChoiceEnum.Full)
-                .WithDefault(SF.EqualsValueClause(serializerDefValue));
+            //var serializerDefValue = SH.EnumValue(Names.SerializerChoiceEnum.Full, _contract.GetDefaultSerializerChoice());
+            //var serializerParam = SH.Parameter("serializer", Names.SerializerChoiceEnum.Full)
+            //    .WithDefault(SF.EqualsValueClause(serializerDefValue));
 
-            var paramList = new List<ParameterSyntax>();
-            paramList.Add(endpointParam);
+            var paramList = new List<ParameterSyntax> { endpointParam };
 
             if (addHandlerParam)
             {
@@ -200,10 +237,23 @@ namespace SharpRpc.Builder
 
             paramList.Add(serializerParam);
 
-            return SF.MethodDeclaration(SF.ParseTypeName(_contract.ClientStubClassName.Short), "CreateClient")
+            return SF.MethodDeclaration(SF.ParseTypeName(_contract.ClientStubClassName.Short), Names.FacadeCreateClientMethod)
                 .AddModifiers(SF.Token(SyntaxKind.PublicKeyword), SF.Token(SyntaxKind.StaticKeyword))
                 .AddParameterListParameters(paramList.ToArray())
-                .WithBody(SF.Block(descriptorVarStatement, returnStatement));
+                .WithBody(SF.Block(serializerAdapterVarStatement, retStatement));
+        }
+
+        public MethodDeclarationSyntax GenerateFactoryMethodPublic()
+        {
+            var serializerDefValue = SH.EnumValue(Names.SerializerChoiceEnum.Full, _contract.GetDefaultSerializerChoice());
+            var serializerParam = SH.Parameter("serializer", Names.SerializerChoiceEnum.Full)
+                .WithDefault(SF.EqualsValueClause(serializerDefValue));
+
+            var serializerAdapterCreateClause = SH.InvocationExpression(Names.FacadeSerializerAdapterFactoryMethod,
+                SF.Argument(SF.IdentifierName("serializer")));
+            var serializerAdapterVarStatement = SH.LocalVarDeclaration("serializerAdapter", serializerAdapterCreateClause);
+
+            return GenerateFactoryMethodPublic(serializerParam, serializerAdapterVarStatement, SH.IdentifierArgument("serializerAdapter"));
         }
 
         private MethodDeclarationSyntax[] GenerateCallMethods(TypeString clientStubTypeName, bool isAsync, bool isTry, bool skipStreamCalls, MetadataDiagnostics diagnostics)
@@ -238,7 +288,7 @@ namespace SharpRpc.Builder
                     }
                     else if (addCall)
                         methods.Add(GenerateCall(callDec, isAsync, isTry));
-                }                
+                }
             }
 
             return methods.ToArray();

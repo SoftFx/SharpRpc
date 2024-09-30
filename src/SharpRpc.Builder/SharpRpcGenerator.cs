@@ -13,9 +13,7 @@ using SharpRpc.Builder.Metadata;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Text;
 using SF = Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
@@ -111,16 +109,19 @@ namespace SharpRpc.Builder
                 .GenerateSerializationAdapters(contractInfo, context)
                 .ToArray();
 
-            var clientFactoryMethod = clientBuilder.GenerateFactoryMethod();
             var sAdapterFactoryMethod = SerializerFixture.GenerateSerializerFactory(contractInfo);
             var descriptorFactoryMethod = GenerateDescriptorFactoryMethod(contractInfo);
-            var serviceFactoryMethod = serverBuilder.GenerateServiceDescriptorFactory();
+
+            var clientFactoryMethods = GenerateClientFactoryMethods(contractInfo, clientBuilder).ToArray();
+            var serviceFactoryMethods = GenerateServiceFactoryMethods(contractInfo, serverBuilder).ToArray();
 
             var contractGenClass = SF.ClassDeclaration(contractGenClassName.Short)
                .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
-               .AddMembers(clientFactoryMethod, serviceFactoryMethod, sAdapterFactoryMethod, descriptorFactoryMethod)
-               .AddMembers(clientBuilder.GenerateCode(diagnostics), serverBuilder.GenerateServiceBase(), serverBuilder.GenerateHandler())
+               .AddMembers(clientFactoryMethods)
+               .AddMembers(serviceFactoryMethods)
+               .AddMembers(descriptorFactoryMethod, sAdapterFactoryMethod)
                .AddMembers(sAdapterClasses)
+               .AddMembers(clientBuilder.GenerateCode(diagnostics), serverBuilder.GenerateServiceBase(), serverBuilder.GenerateHandler())
                .AddMembers(messageBuindleClass);
 
             if (hasCallbacks)
@@ -398,18 +399,14 @@ namespace SharpRpc.Builder
                 SyntaxHelper.ShortTypeName(contractInfo.MessageFactoryClassName))
                 .WithoutArguments();
 
-            var serializerCreateClause = SyntaxHelper.InvocationExpression(Names.FacadeSerializerAdapterFactoryMethod,
-                SF.Argument(SF.IdentifierName("serializer")));
-            var serializerVarStatement = SyntaxHelper.LocalVarDeclaration("sAdapter", serializerCreateClause);
-
             var retStatement = SF.ReturnStatement(
                 SF.ObjectCreationExpression(SyntaxHelper.FullTypeName(Names.ContractDescriptorClass))
-                .AddArgumentListArguments(SyntaxHelper.IdentifierArgument("sAdapter"), SF.Argument(msgFactoryCreationExp)));
+                .AddArgumentListArguments(SyntaxHelper.IdentifierArgument("serializer"), SF.Argument(msgFactoryCreationExp)));
 
             return SF.MethodDeclaration(SyntaxHelper.FullTypeName(Names.ContractDescriptorClass), Names.FacadeCreateDescriptorMethod)
                 .AddModifiers(SF.Token(SyntaxKind.PrivateKeyword), SF.Token(SyntaxKind.StaticKeyword))
-                .AddParameterListParameters(SyntaxHelper.Parameter("serializer", Names.SerializerChoiceEnum.Full))
-                .AddBodyStatements(serializerVarStatement, retStatement);
+                .AddParameterListParameters(SyntaxHelper.Parameter("serializer", Names.RpcSerializerInterface.Full))
+                .AddBodyStatements(retStatement);
         }
 
         //private IEnumerable<PropertyDeclarationSyntax> GenerateDescriptorProperties(ContractDeclaration contractInfo)
@@ -432,6 +429,34 @@ namespace SharpRpc.Builder
         //            .AddAutoGetter();
         //    }
         //}
+
+        private IEnumerable<MemberDeclarationSyntax> GenerateClientFactoryMethods(ContractDeclaration contractInfo, TxStubBuilder clientBuilder)
+        {
+            yield return clientBuilder.GenerateFactoryMethodPublic();
+
+            foreach(var serializerDec in contractInfo.Serializers)
+            {
+                var factoryMethod = serializerDec.Builder.GenerateCreateClientFactoryMethod(serializerDec.AdapterClassName, clientBuilder);
+                if (factoryMethod != null)
+                    yield return factoryMethod;
+            }
+
+            yield return clientBuilder.GenerateFactoryMethodPrivate();
+        }
+
+        private IEnumerable<MemberDeclarationSyntax> GenerateServiceFactoryMethods(ContractDeclaration contractInfo, RxStubBuilder serverBuilder)
+        {
+            yield return serverBuilder.GenerateServiceDescriptorFactoryPublic();
+
+            foreach (var serializerDec in contractInfo.Serializers)
+            {
+                var factoryMethod = serializerDec.Builder.GenerateCreateServerFactoryMethod(serializerDec.AdapterClassName, serverBuilder);
+                if (factoryMethod != null)
+                    yield return factoryMethod;
+            }
+
+            yield return serverBuilder.GenerateServiceDescriptorFactoryPrivate();
+        }
 
         private class SyntaxReceiver : ISyntaxReceiver
         {

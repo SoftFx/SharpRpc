@@ -4,7 +4,8 @@
     <TargetFrameworks>net6.0;net472</TargetFrameworks>
     <Configurations>Debug;Release;ReleasePfCounters</Configurations>
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
-    <CompilerGeneratedFilesOutputPath>Generated</CompilerGeneratedFilesOutputPath>
+    <GeneratedFolder>Generated</GeneratedFolder>
+    <CompilerGeneratedFilesOutputPath>$(GeneratedFolder)\$(TargetFramework)</CompilerGeneratedFilesOutputPath>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -39,7 +40,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Remove="$(CompilerGeneratedFilesOutputPath)/**/*.cs" />
+    <Compile Remove="$(GeneratedFolder)/**/*.cs" />
   </ItemGroup>
 
   <ItemGroup>

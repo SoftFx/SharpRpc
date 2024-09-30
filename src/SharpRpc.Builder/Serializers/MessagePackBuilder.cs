@@ -25,6 +25,9 @@ namespace SharpRpc.Builder
         public readonly string UnionAttributeClassName = "MessagePack.UnionAttribute";
         public readonly string SerializerMethod = "MessagePack.MessagePackSerializer.Serialize";
         public readonly string DeserializerMethod = "MessagePack.MessagePackSerializer.Deserialize";
+        public readonly string SerializerOptionsClassName = "MessagePack.MessagePackSerializerOptions";
+        public readonly string SerializerOptionsStandardName = "MessagePack.MessagePackSerializerOptions.Standard";
+        public readonly string SerializerOptionsPropertyName = "Options";
 
         public override string Name => "MessagePack";
 
@@ -85,9 +88,35 @@ namespace SharpRpc.Builder
         {
             var compatibility = new ContractCompatibility(context);
 
+            const string optionsParamName = "options";
+
+            var optionsProperty = SF.PropertyDeclaration(SF.IdentifierName(SerializerOptionsClassName), SerializerOptionsPropertyName)
+                .AddModifiers(SH.PublicToken())
+                .AddAutoGetter();
+
+            var optionsParam = SH.Parameter(optionsParamName, SerializerOptionsClassName);
+
+            var optionsAssignment = SH.AssignmentStatement(SF.IdentifierName(SerializerOptionsPropertyName), SF.IdentifierName(optionsParamName));
+
+            var parameterConstructor = SF.ConstructorDeclaration(serilizerClassName.Short)
+                .AddParameterListParameters(optionsParam)
+                .AddModifiers(SH.PublicToken())
+                .WithBody(SH.MethodBody(optionsAssignment));
+
+            // Relying on mutable static options is not recommended
+            // https://github.com/MessagePack-CSharp/MessagePack-CSharp/blob/master/doc/analyzers/MsgPack001.md
+            var defaultConstructorInitializer = SF.ConstructorInitializer(SyntaxKind.ThisConstructorInitializer)
+                .AddArgumentListArguments(SH.IdentifierArgument(SerializerOptionsStandardName));
+
+            var defaultConstructor = SF.ConstructorDeclaration(serilizerClassName.Short)
+                .AddModifiers(SH.PublicToken())
+                .WithInitializer(defaultConstructorInitializer)
+                .WithBody(SH.MethodBody());
+
             return SF.ClassDeclaration(serilizerClassName.Short)
                 .AddModifiers(SF.Token(SyntaxKind.PrivateKeyword))
                 .AddBaseListTypes(SF.SimpleBaseType(SF.ParseTypeName(Names.RpcSerializerInterface.Full)))
+                .AddMembers(defaultConstructor, parameterConstructor, optionsProperty)
                 .AddMembers(GenerateSerializeMehtod(compatibility, baseMessageClassName))
                 .AddMembers(GenerateDeserializeMehtod(compatibility, baseMessageClassName));
         }
@@ -101,7 +130,7 @@ namespace SharpRpc.Builder
             var messageBaseCast = SF.CastExpression(SF.ParseName(baseMessageClassName.Full), SF.IdentifierName("message"));
 
             var serilizerCall = SF.InvocationExpression(SH.GenericType(SerializerMethod, baseMessageClassName.Full),
-                SH.CallArguments(SF.Argument(writerBufferProperty), SF.Argument(messageBaseCast)));
+                SH.CallArguments(SF.Argument(writerBufferProperty), SF.Argument(messageBaseCast), SH.IdentifierArgument(SerializerOptionsPropertyName)));
 
             return SF.MethodDeclaration(SH.VoidToken(), Names.RpcSerializeMethod)
                 .AddParameterListParameters(messageParam, messageWriterParam)
@@ -116,7 +145,7 @@ namespace SharpRpc.Builder
             var readerBufferProperty = SH.MemberOfIdentifier("reader", compatibility.IsNet5 ?  Names.ReaderBufferProperty : Names.ReaderStreamProperty);
 
             var serilizerCall = SF.InvocationExpression(SH.GenericType(DeserializerMethod, baseMessageClassName.Full),
-                SH.CallArguments(SF.Argument(readerBufferProperty)));
+                SH.CallArguments(SF.Argument(readerBufferProperty), SH.IdentifierArgument(SerializerOptionsPropertyName)));
 
             var retStatement = SF.ReturnStatement(serilizerCall);
 
@@ -126,5 +155,26 @@ namespace SharpRpc.Builder
                 .WithBody(SH.MethodBody(retStatement));
         }
 
+        internal override MethodDeclarationSyntax GenerateCreateClientFactoryMethod(TypeString serilizerClassName, TxStubBuilder clientBuilder)
+        {
+            var serializerParam = SH.Parameter("options", SerializerOptionsClassName);
+
+            var serializerAdapterCreateClause = SF.ObjectCreationExpression(SF.IdentifierName(serilizerClassName.Short))
+                .AddArgumentListArguments(SH.IdentifierArgument("options"));
+            var serializerAdapterVarStatement = SH.LocalVarDeclaration("serializerAdapter", serializerAdapterCreateClause);
+
+            return clientBuilder.GenerateFactoryMethodPublic(serializerParam, serializerAdapterVarStatement, SH.IdentifierArgument("serializerAdapter"));
+        }
+
+        internal override MethodDeclarationSyntax GenerateCreateServerFactoryMethod(TypeString serilizerClassName, RxStubBuilder serverBuilder)
+        {
+            var serializerParam = SH.Parameter("options", SerializerOptionsClassName);
+
+            var serializerAdapterCreateClause = SF.ObjectCreationExpression(SF.IdentifierName(serilizerClassName.Short))
+                .AddArgumentListArguments(SH.IdentifierArgument("options"));
+            var serializerAdapterVarStatement = SH.LocalVarDeclaration("serializerAdapter", serializerAdapterCreateClause);
+
+            return serverBuilder.GenerateServiceDescriptorFactoryPublic(serializerParam, serializerAdapterVarStatement, SH.IdentifierArgument("serializerAdapter"));
+        }
     }
 }
