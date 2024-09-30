@@ -105,6 +105,8 @@ namespace SharpRpc.Builder
 
         public static readonly string FacadeSerializerAdapterFactoryMethod = "CreateSerializationAdapter";
         public static readonly string FacadeCreateDescriptorMethod = "CreateDescriptor";
+        public static readonly string FacadeCreateClientMethod = "CreateClient";
+        public static readonly string FacadeCreateServiceMethod = "CreateServiceDescriptor";
         public static readonly string ServiceOnRegularFaultMethod = "OnRegularFault";
         public static readonly string ServiceOnUnexpectedFaultMethod = "OnUnexpectedFault";
         public static readonly string ServiceOnCustomFaultMethod = "OnCustomFault";

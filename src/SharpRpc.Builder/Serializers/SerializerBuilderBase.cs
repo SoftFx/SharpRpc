@@ -22,5 +22,9 @@ namespace SharpRpc.Builder
         public abstract void BuildUpClasses(List<ClassBuildNode> classNodes);
 
         public abstract ClassDeclarationSyntax GenerateSerializerAdapter(TypeString serilizerClassName, TypeString baseMessageClassName, GeneratorExecutionContext context);
+
+        internal abstract MethodDeclarationSyntax GenerateCreateClientFactoryMethod(TypeString serilizerClassName, TxStubBuilder clientBuilder);
+
+        internal abstract MethodDeclarationSyntax GenerateCreateServerFactoryMethod(TypeString serilizerClassName, RxStubBuilder serverBuilder);
     }
 }

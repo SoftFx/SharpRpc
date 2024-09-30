@@ -89,13 +89,13 @@ namespace SharpRpc.Builder
             return handlerClass;
         }
 
-        public MethodDeclarationSyntax GenerateServiceDescriptorFactory()
+        public MethodDeclarationSyntax GenerateServiceDescriptorFactoryPrivate()
         {
             //var msgFactoryVarStatement = SH.LocalVarDeclaration("sFactory",
             //    SF.ObjectCreationExpression(SH.ShortTypeName(_contract.MessageFactoryClassName))
             //    .WithoutArguments());
 
-            var contractDescriptorVarStatement = SH.LocalVarDeclaration("contract",
+            var descriptorVarStatement = SH.LocalVarDeclaration("descriptor",
                 SH.InvocationExpression(Names.FacadeCreateDescriptorMethod, SH.IdentifierArgument("serializer")));
 
             var serviceFactoryFunc = SH.GenericType("System.Func", _contract.ServiceStubClassName.Short);
@@ -110,17 +110,51 @@ namespace SharpRpc.Builder
             var retStatement = SF.ReturnStatement(
                 SF.ObjectCreationExpression(SH.FullTypeName(Names.ServiceDescriptorClass))
                 .AddArgumentListArguments(
-                    SH.IdentifierArgument("contract"),
+                    SH.IdentifierArgument("descriptor"),
                     SF.Argument(handlerCreationLambda)));
 
+            var serializerParam = SH.Parameter("serializer", Names.RpcSerializerInterface.Full);
+
+            return SF.MethodDeclaration(SH.FullTypeName(Names.ServiceDescriptorClass), Names.FacadeCreateServiceMethod)
+                .AddModifiers(SF.Token(SyntaxKind.PrivateKeyword), SF.Token(SyntaxKind.StaticKeyword))
+                .AddParameterListParameters(serviceFactoryParam, serializerParam)
+                .WithBody(SF.Block(descriptorVarStatement, retStatement));
+        }
+
+        public MethodDeclarationSyntax GenerateServiceDescriptorFactoryPublic(ParameterSyntax serializerParam, StatementSyntax serializerAdapterVarStatement, ArgumentSyntax serializerAdapterArg)
+        {
+            //var serializerAdapterCreateClause = SH.InvocationExpression(Names.FacadeSerializerAdapterFactoryMethod,
+            //    SF.Argument(SF.IdentifierName("serializer")));
+            //var serializerAdapterVarStatement = SH.LocalVarDeclaration("serializerAdapter", serializerAdapterCreateClause);
+
+            var serviceFactoryFunc = SH.GenericType("System.Func", _contract.ServiceStubClassName.Short);
+            var serviceFactoryParam = SH.Parameter("serviceImplFactory", serviceFactoryFunc);
+
+            var retStatement = SF.ReturnStatement(
+                SH.InvocationExpression(Names.FacadeCreateServiceMethod,
+                    SH.IdentifierArgument("serviceImplFactory"), serializerAdapterArg));
+
+            //var serializerDefValue = SH.EnumValue(Names.SerializerChoiceEnum.Full, _contract.GetDefaultSerializerChoice());
+            //var serializerParam = SH.Parameter("serializer", Names.SerializerChoiceEnum.Full)
+            //    .WithDefault(SF.EqualsValueClause(serializerDefValue));
+
+            return SF.MethodDeclaration(SH.FullTypeName(Names.ServiceDescriptorClass), Names.FacadeCreateServiceMethod)
+                .AddModifiers(SF.Token(SyntaxKind.PublicKeyword), SF.Token(SyntaxKind.StaticKeyword))
+                .AddParameterListParameters(serviceFactoryParam, serializerParam)
+                .WithBody(SF.Block(serializerAdapterVarStatement, retStatement));
+        }
+
+        public MethodDeclarationSyntax GenerateServiceDescriptorFactoryPublic()
+        {
             var serializerDefValue = SH.EnumValue(Names.SerializerChoiceEnum.Full, _contract.GetDefaultSerializerChoice());
             var serializerParam = SH.Parameter("serializer", Names.SerializerChoiceEnum.Full)
                 .WithDefault(SF.EqualsValueClause(serializerDefValue));
 
-            return SF.MethodDeclaration(SH.FullTypeName(Names.ServiceDescriptorClass), "CreateServiceDescriptor")
-                .AddModifiers(SF.Token(SyntaxKind.PublicKeyword), SF.Token(SyntaxKind.StaticKeyword))
-                .AddParameterListParameters(serviceFactoryParam, serializerParam)
-                .WithBody(SF.Block(contractDescriptorVarStatement, retStatement));
+            var serializerAdapterCreateClause = SH.InvocationExpression(Names.FacadeSerializerAdapterFactoryMethod,
+                SH.IdentifierArgument("serializer"));
+            var serializerAdapterVarStatement = SH.LocalVarDeclaration("serializerAdapter", serializerAdapterCreateClause);
+
+            return GenerateServiceDescriptorFactoryPublic(serializerParam, serializerAdapterVarStatement, SH.IdentifierArgument("serializerAdapter"));
         }
 
         private MethodDeclarationSyntax[] GenerateStubMethods()

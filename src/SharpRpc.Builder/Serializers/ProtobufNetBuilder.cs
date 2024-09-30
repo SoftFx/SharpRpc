@@ -47,5 +47,15 @@ namespace SharpRpc.Builder
         {
             throw new NotImplementedException();
         }
+
+        internal override MethodDeclarationSyntax GenerateCreateClientFactoryMethod(TypeString serilizerClassName, TxStubBuilder clientBuilder)
+        {
+            return null;
+        }
+
+        internal override MethodDeclarationSyntax GenerateCreateServerFactoryMethod(TypeString serilizerClassName, RxStubBuilder serverBuilder)
+        {
+            return null;
+        }
     }
 }
