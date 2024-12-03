@@ -109,9 +109,8 @@ namespace SharpRpc
             serviceName = serviceName?.Trim().ToLowerInvariant();
 
             using (var timeoutSrc = new CancellationTokenSource(_timeout))
+            using (cancelToken.Register(timeoutSrc.Cancel))
             {
-                cancelToken.Register(timeoutSrc.Cancel);
-
                 var request = new HandshakeRequest();
                 request.RpcVersion = new ShortVersion(0, 0);
                 request.ServiceName = serviceName;
