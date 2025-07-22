@@ -30,7 +30,11 @@ namespace SharpRpc
             _findVal = findValue;
         }
 
+#if NET5_0_OR_GREATER
+        public override X509Certificate2 GetCertificate(string hostName)
+#else
         public override X509Certificate2 GetCertificate()
+#endif
         {
             try
             {

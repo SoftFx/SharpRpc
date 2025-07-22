@@ -13,7 +13,11 @@ namespace SharpRpc
 {
     public abstract class CertificateSource
     {
+#if NET5_0_OR_GREATER
+        public abstract X509Certificate2 GetCertificate(string hostName);
+#else
         public abstract X509Certificate2 GetCertificate();
+#endif
 
         public class File : CertificateSource
         {
@@ -23,11 +27,17 @@ namespace SharpRpc
             {
                 _cert = cert;
             }
-
+#if NET5_0_OR_GREATER
+            public override X509Certificate2 GetCertificate(string hostName)
+            {
+                return _cert;
+            }
+#else
             public override X509Certificate2 GetCertificate()
             {
                 return _cert;
             }
+#endif
         }
     }
 

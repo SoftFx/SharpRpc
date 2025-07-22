@@ -19,7 +19,6 @@ namespace SharpRpc
         public static TcpServerSecurity None { get; } = new NullServerSecurity();
 
         internal abstract string Name { get; }
-        internal abstract void Init();
 
 #if NET5_0_OR_GREATER
         internal abstract ValueTask<ByteTransport> SecureTransport(SocketTransport unsecureTransport, Endpoint endpoint, string channelId, IRpcLogger logger);
@@ -29,10 +28,6 @@ namespace SharpRpc
 
         private class NullServerSecurity : TcpServerSecurity
         {
-            internal override void Init()
-            {
-            }
-
             internal override string Name => "None";
 
 #if NET5_0_OR_GREATER

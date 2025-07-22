@@ -20,27 +20,20 @@ namespace SharpRpc
     public class SslServerSecurity : TcpServerSecurity
     {
         private CertificateSource _certSrc;
-        private X509Certificate2 _cert;
 
         public SslServerSecurity(X509Certificate2 serverCertificate)
+            : this(new CertificateSource.File(serverCertificate ?? throw new ArgumentNullException(nameof(serverCertificate))))
         {
-            _certSrc = new CertificateSource.File(serverCertificate ?? throw new ArgumentNullException(nameof(serverCertificate)));
         }
 
-        public SslServerSecurity(StoredCertificate serverCertificate)
+        public SslServerSecurity(CertificateSource certSrc)
         {
-            _certSrc = serverCertificate ?? throw new ArgumentNullException(nameof(serverCertificate));
+            _certSrc = certSrc ?? throw new ArgumentNullException(nameof(certSrc));
         }
 
         public SslProtocols Protocols { get; set; } = SslProtocols.None;
 
         internal override string Name => "SSL";
-
-        internal override void Init()
-        {
-            if (_cert == null)
-                _cert = LoadCertificate();
-        }
 
 #if NET5_0_OR_GREATER
         internal async override ValueTask<ByteTransport> SecureTransport(SocketTransport unsecureTransport, Endpoint endpoint, string channelId, IRpcLogger logger)
@@ -53,32 +46,16 @@ namespace SharpRpc
 
 #if NET5_0_OR_GREATER
             var sslOptions = new SslServerAuthenticationOptions();
-            sslOptions.ServerCertificate = _cert;
+            sslOptions.ServerCertificateSelectionCallback = (sender, host) => _certSrc.GetCertificate(host);
             sslOptions.ClientCertificateRequired = false;
             sslOptions.EnabledSslProtocols = Protocols;
 
             await sslStream.AuthenticateAsServerAsync(sslOptions).ConfigureAwait(false);
 #else
-            await sslStream.AuthenticateAsServerAsync(_cert, false, Protocols, false).ConfigureAwait(false);
+            await sslStream.AuthenticateAsServerAsync(_certSrc.GetCertificate(), false, Protocols, false).ConfigureAwait(false);
 #endif
 
             return new SslTransport(sslStream, unsecureTransport.Socket, channelId, logger);
-        }
-
-        private X509Certificate2 LoadCertificate()
-        {
-            try
-            {
-                return _certSrc.GetCertificate();
-            }
-            catch (CertLoadError)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                throw new Exception("Failed to load certificate: " + ex.Message, ex);
-            }
         }
     }
 }
