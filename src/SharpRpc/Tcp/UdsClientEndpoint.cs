@@ -6,6 +6,7 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 #if NET5_0_OR_GREATER
+using SharpRpc.Lib;
 using System;
 using System.Net.Sockets;
 using System.Threading;
@@ -28,17 +29,22 @@ namespace SharpRpc
 
         public override async Task<RpcResult<ByteTransport>> ConnectAsync(CancellationToken cToken, string channelId)
         {
+            Socket socket = null;
             try
             { 
-                var socket = new Socket(_endpoint.AddressFamily,
+                socket = new Socket(_endpoint.AddressFamily,
                     SocketType.Stream, ProtocolType.IP);
 
                 await socket.ConnectAsync(_endpoint, cToken).ConfigureAwait(false);
 
-                return new RpcResult<ByteTransport>(await _security.SecureTransport(socket, this, "localhost", channelId, Logger).ConfigureAwait(false));
+                using var timeoutSrc = new TimeoutCancelTokenSrc(HandshakeTimeout, cToken);
+                var secureTransport = await _security.SecureTransport(socket, this, "localhost", channelId, Logger, timeoutSrc.Token).ConfigureAwait(false);
+
+                return new RpcResult<ByteTransport>(secureTransport);
             }
             catch (Exception ex)
             {
+                CloseSocket(socket);
                 var fault = SocketTransport.ToRpcResult(ex);
                 return new RpcResult<ByteTransport>(fault.Code, fault.FaultMessage);
             }

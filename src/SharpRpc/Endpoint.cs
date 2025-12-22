@@ -17,6 +17,8 @@ namespace SharpRpc
 {
     public abstract class Endpoint : ConfigElement
     {
+        internal static readonly TimeSpan HandshakeTimeout = TimeSpan.FromSeconds(10);
+
         private int _rxSegmentSize = ushort.MaxValue * 1;
         private int _txSegmentSize = ushort.MaxValue * 1;
         private TimeSpan _rxTimeout = TimeSpan.FromMinutes(1);

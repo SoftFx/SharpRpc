@@ -6,6 +6,7 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 using SharpRpc.Coordination;
+using SharpRpc.Lib;
 using SharpRpc.Server;
 using System;
 using System.Collections.Generic;
@@ -17,14 +18,16 @@ using System.Threading.Tasks;
 
 namespace SharpRpc
 {
-    internal class HandshakeCoordinator
+    internal class HandshakeCoordinator : IDisposable
     {
         private readonly HandshakeEncoder _msgEncoder;
-        private readonly TimeSpan _timeout;
+        private readonly TimeoutCancelTokenSrc _timeoutSrc;
 
-        public HandshakeCoordinator(int bufferSize, TimeSpan handshakeTimeout)
+        public CancellationToken CancelToken => _timeoutSrc.Token;
+
+        public HandshakeCoordinator(int bufferSize, TimeSpan handshakeTimeout, CancellationToken externalToken)
         {
-            _timeout = handshakeTimeout;
+            _timeoutSrc = new TimeoutCancelTokenSrc(handshakeTimeout, externalToken);
             //var maxDomainFieldSize = 2 + HandshakeRequest.MaxDomainChars * 4; //  LEN + UTF8
             //var maxServiceNameFieldSize = 2 + HandshakeRequest.MaxServiceNameChars * 4; // LEN + UTF8
             //var optionsFieldSize = 2; // ushort enum
@@ -38,9 +41,15 @@ namespace SharpRpc
             _msgEncoder = new HandshakeEncoder(bufferSize);
         }
 
+        public void Dispose()
+        {
+            _timeoutSrc.Dispose();
+        }
+
         public async Task<HandshakeResult> DoServerSideHandshake(ByteTransport transport, ServiceRegistry services, Log parentLog)
         {
-            using (var timeoutSrc = new CancellationTokenSource(_timeout))
+            var timeoutSrc = _timeoutSrc;
+            //using (var timeoutSrc = new CancellationTokenSource(_timeout))
             {
                 var rxResult = await TryReceiveRequest(transport, timeoutSrc.Token).ConfigureAwait(false);
 
@@ -103,13 +112,14 @@ namespace SharpRpc
             }
         }
 
-        public async Task<RpcResult> DoClientSideHandshake(ByteTransport transport, CancellationToken cancelToken, string hostName, string serviceName)
+        public async Task<RpcResult> DoClientSideHandshake(ByteTransport transport, string hostName, string serviceName)
         {
             hostName = hostName?.Trim().ToLowerInvariant();
             serviceName = serviceName?.Trim().ToLowerInvariant();
 
-            using (var timeoutSrc = new CancellationTokenSource(_timeout))
-            using (cancelToken.Register(timeoutSrc.Cancel))
+            var timeoutSrc = _timeoutSrc;
+            //using (var timeoutSrc = new CancellationTokenSource(_timeout))
+            //using (cancelToken.Register(timeoutSrc.Cancel))
             {
                 var request = new HandshakeRequest();
                 request.RpcVersion = new ShortVersion(0, 0);

@@ -7,6 +7,7 @@
 
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Net;
 using System.Reflection;
 using System.Security.Cryptography.X509Certificates;
@@ -69,7 +70,10 @@ namespace TestServer
             server.AddEndpoint(tcpEndpoint);
 
 #if NET5_0_OR_GREATER
-            var udsEndpoint = new UdsServerEndpoint("c:\\temp\\shrpc.benchmark.uds");
+            var tempDir = Path.Join(Path.GetTempPath(), "SharpRpc");
+            if (!Directory.Exists(tempDir))
+                Directory.CreateDirectory(tempDir);
+            var udsEndpoint = new UdsServerEndpoint(Path.Join(tempDir, "shrpc.benchmark.uds"));
             udsEndpoint.BindService(serviceDescriptor)
                 .SetAuthenticator(new BasicAuthenticator(new AuthValidator()));
             BenchmarkContractCfg.ConfigureEndpoint(udsEndpoint);

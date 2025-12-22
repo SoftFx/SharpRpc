@@ -5,6 +5,7 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+using SharpRpc.Lib;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -13,6 +14,7 @@ using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace SharpRpc
@@ -36,9 +38,9 @@ namespace SharpRpc
         internal override string Name => "SSL";
 
 #if NET5_0_OR_GREATER
-        internal async override ValueTask<ByteTransport> SecureTransport(SocketTransport unsecureTransport, Endpoint endpoint, string channelId, IRpcLogger logger)
+        internal async override ValueTask<ByteTransport> SecureTransport(SocketTransport unsecureTransport, Endpoint endpoint, string channelId, IRpcLogger logger, CancellationToken cToken)
 #else
-        internal async override Task<ByteTransport> SecureTransport(SocketTransport unsecureTransport, Endpoint endpoint, string channelId, IRpcLogger logger)
+        internal async override Task<ByteTransport> SecureTransport(SocketTransport unsecureTransport, Endpoint endpoint, string channelId, IRpcLogger logger, CancellationToken cToken)
 #endif
         {
             var netStream = new NetworkStream(unsecureTransport.Socket, true);
@@ -50,9 +52,9 @@ namespace SharpRpc
             sslOptions.ClientCertificateRequired = false;
             sslOptions.EnabledSslProtocols = Protocols;
 
-            await sslStream.AuthenticateAsServerAsync(sslOptions).ConfigureAwait(false);
+            await sslStream.AuthenticateAsServerAsync(sslOptions, cToken).ConfigureAwait(false);
 #else
-            await sslStream.AuthenticateAsServerAsync(_certSrc.GetCertificate(), false, Protocols, false).ConfigureAwait(false);
+            await sslStream.AuthenticateAsServerAsync(_certSrc.GetCertificate(), false, Protocols, false).WithCancelToken(cToken).ConfigureAwait(false);
 #endif
 
             return new SslTransport(sslStream, unsecureTransport.Socket, channelId, logger);

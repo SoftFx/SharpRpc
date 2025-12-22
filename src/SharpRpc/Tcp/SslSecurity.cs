@@ -5,6 +5,7 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+using SharpRpc.Lib;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -13,6 +14,7 @@ using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace SharpRpc
@@ -30,9 +32,9 @@ namespace SharpRpc
         public bool EnableRevocationCheck { get; set; } = true;
 
 #if NET5_0_OR_GREATER
-        internal async override ValueTask<ByteTransport> SecureTransport(Socket socket, Endpoint endpoint, string targetHost, string channelId, IRpcLogger logger)
+        internal async override ValueTask<ByteTransport> SecureTransport(Socket socket, Endpoint endpoint, string targetHost, string channelId, IRpcLogger logger, CancellationToken cToken)
 #else
-        internal async override Task<ByteTransport> SecureTransport(Socket socket, Endpoint endpoint, string targetHost, string channelId, IRpcLogger logger)
+        internal async override Task<ByteTransport> SecureTransport(Socket socket, Endpoint endpoint, string targetHost, string channelId, IRpcLogger logger, CancellationToken cToken)
 #endif
         {
             var netStream = new NetworkStream(socket, true);
@@ -40,7 +42,20 @@ namespace SharpRpc
 
             try
             {
-                await sslStream.AuthenticateAsClientAsync(targetHost, null, Protocols, EnableRevocationCheck).ConfigureAwait(false);
+#if NET5_0_OR_GREATER
+                var sslOptions = new SslClientAuthenticationOptions()
+                {
+                    TargetHost = targetHost,
+                    ClientCertificates = null,
+                    EnabledSslProtocols = Protocols,
+                    CertificateRevocationCheckMode = EnableRevocationCheck ? X509RevocationMode.Online : X509RevocationMode.NoCheck,
+                    EncryptionPolicy = EncryptionPolicy.RequireEncryption,
+                };
+
+                await sslStream.AuthenticateAsClientAsync(sslOptions, cToken).ConfigureAwait(false);
+#else
+                await sslStream.AuthenticateAsClientAsync(targetHost, null, Protocols, EnableRevocationCheck).WithCancelToken(cToken).ConfigureAwait(false);
+#endif
             }
             catch (AuthenticationException aex)
             {

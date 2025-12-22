@@ -41,17 +41,17 @@ namespace SharpRpc
 #if NET5_0_OR_GREATER
         public override ValueTask<int> Receive(ArraySegment<byte> buffer, CancellationToken cToken)
         {
-            return _stream.ReadAsync(buffer);
+            return _stream.ReadAsync(buffer, cToken);
         }
 
         public override ValueTask Send(ArraySegment<byte> data, CancellationToken cToken)
         {
-            return _stream.WriteAsync(data);
+            return _stream.WriteAsync(data, cToken);
         }
 #else
         public override Task<int> Receive(ArraySegment<byte> buffer, CancellationToken cToken)
         {
-            return _stream.ReadAsync(buffer.Array, buffer.Offset, buffer.Count);
+            return _stream.ReadAsync(buffer.Array, buffer.Offset, buffer.Count, cToken);
         }
 
         public override Task Send(ArraySegment<byte> data, CancellationToken cToken)

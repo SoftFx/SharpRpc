@@ -10,6 +10,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net.Sockets;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace SharpRpc
@@ -21,9 +22,9 @@ namespace SharpRpc
         internal abstract string Name { get; }
 
 #if NET5_0_OR_GREATER
-        internal abstract ValueTask<ByteTransport> SecureTransport(SocketTransport unsecureTransport, Endpoint endpoint, string channelId, IRpcLogger logger);
+        internal abstract ValueTask<ByteTransport> SecureTransport(SocketTransport unsecureTransport, Endpoint endpoint, string channelId, IRpcLogger logger, CancellationToken cToken);
 #else
-        internal abstract Task<ByteTransport> SecureTransport(SocketTransport unsecureTransport, Endpoint endpoint, string channelId, IRpcLogger logger);
+        internal abstract Task<ByteTransport> SecureTransport(SocketTransport unsecureTransport, Endpoint endpoint, string channelId, IRpcLogger logger, CancellationToken cToken);
 #endif
 
         private class NullServerSecurity : TcpServerSecurity
@@ -31,12 +32,12 @@ namespace SharpRpc
             internal override string Name => "None";
 
 #if NET5_0_OR_GREATER
-            internal override ValueTask<ByteTransport> SecureTransport(SocketTransport unsecureTransport, Endpoint endpoint, string channelId, IRpcLogger logger)
+            internal override ValueTask<ByteTransport> SecureTransport(SocketTransport unsecureTransport, Endpoint endpoint, string channelId, IRpcLogger logger, CancellationToken cToken)
             {
                 return new ValueTask<ByteTransport>(unsecureTransport);
             }
 #else
-            internal override Task<ByteTransport> SecureTransport(SocketTransport unsecureTransport, Endpoint endpoint, string channelId, IRpcLogger logger)
+            internal override Task<ByteTransport> SecureTransport(SocketTransport unsecureTransport, Endpoint endpoint, string channelId, IRpcLogger logger, CancellationToken cToken)
             {
                 return Task.FromResult<ByteTransport>(unsecureTransport);
             }

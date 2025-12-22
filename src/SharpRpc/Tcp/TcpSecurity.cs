@@ -11,6 +11,7 @@ using System.Linq;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace SharpRpc
@@ -20,19 +21,19 @@ namespace SharpRpc
         public static TcpSecurity None { get; } = new NullSecurity();
 
 #if NET5_0_OR_GREATER
-        internal abstract ValueTask<ByteTransport> SecureTransport(Socket socket, Endpoint endpoint, string targetHost, string channelId, IRpcLogger logger);
+        internal abstract ValueTask<ByteTransport> SecureTransport(Socket socket, Endpoint endpoint, string targetHost, string channelId, IRpcLogger logger, CancellationToken cToken);
 #else
-        internal abstract Task<ByteTransport> SecureTransport(Socket socket, Endpoint endpoint, string targetHost, string channelId, IRpcLogger logger);
+        internal abstract Task<ByteTransport> SecureTransport(Socket socket, Endpoint endpoint, string targetHost, string channelId, IRpcLogger logger, CancellationToken cToken);
 #endif
         private class NullSecurity : TcpSecurity
         {
 #if NET5_0_OR_GREATER
-            internal override ValueTask<ByteTransport> SecureTransport(Socket socket, Endpoint endpoint, string targetHost, string channelId, IRpcLogger logger)
+            internal override ValueTask<ByteTransport> SecureTransport(Socket socket, Endpoint endpoint, string targetHost, string channelId, IRpcLogger logger, CancellationToken cToken)
             {
                 return new ValueTask<ByteTransport>(new SocketTransport(socket, endpoint.TaskFactory, channelId, logger));
             }
 #else
-            internal override Task<ByteTransport> SecureTransport(Socket socket, Endpoint endpoint, string targetHost, string channelId, IRpcLogger logger)
+            internal override Task<ByteTransport> SecureTransport(Socket socket, Endpoint endpoint, string targetHost, string channelId, IRpcLogger logger, CancellationToken cToken)
             {
                 return Task.FromResult<ByteTransport>(new SocketTransport(socket, endpoint.TaskFactory, channelId, logger));
             }

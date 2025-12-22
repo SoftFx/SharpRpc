@@ -62,10 +62,11 @@ namespace SharpRpc
             //IPAddress ipAddress = ipHostInfo.AddressList[0];
             //var targetEndpoint = new IPEndPoint(ipAddress, _endpoint.Port);
 
+            Socket socket = null;
             try
             {
                 // Create a TCP/IP socket.  
-                var socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
+                socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
 
                 // connect
 #if NET5_0_OR_GREATER
@@ -78,19 +79,25 @@ namespace SharpRpc
 #endif
 
                     // handshake
-                    var handshaker = new HandshakeCoordinator(1024 * 10, TimeSpan.FromSeconds(10));
+                    using var handshaker = new HandshakeCoordinator(1024 * 10, HandshakeTimeout, cancelToken);
                     var unsecuredTransport = new SocketTransport(socket, TaskFactory, channelId, Logger);
-                    var hsResult = await handshaker.DoClientSideHandshake(unsecuredTransport, cancelToken, _endpoint.Host, _serviceName).ConfigureAwait(false);
+                    var hsResult = await handshaker.DoClientSideHandshake(unsecuredTransport, _endpoint.Host, _serviceName).ConfigureAwait(false);
 
                     if (!hsResult.IsOk)
+                    {
+                        await CloseTransport(unsecuredTransport).ConfigureAwait(false);
                         return hsResult;
+                    }
 
                     // secure
-                    return new RpcResult<ByteTransport>(await _security.SecureTransport(socket, this, _endpoint.Host, channelId, Logger).ConfigureAwait(false));
+                    var secureTransport = await _security.SecureTransport(socket, this, _endpoint.Host, channelId, Logger, handshaker.CancelToken).ConfigureAwait(false);
+
+                    return new RpcResult<ByteTransport>(secureTransport);
                 }
             }
             catch (Exception ex)
             {
+                CloseSocket(socket);
                 var fault = SocketTransport.ToRpcResult(ex);
                 return new RpcResult<ByteTransport>(fault.Code, fault.FaultMessage);
             }

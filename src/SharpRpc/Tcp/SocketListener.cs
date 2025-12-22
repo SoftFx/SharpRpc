@@ -28,6 +28,7 @@ namespace SharpRpc.Tcp
         private readonly ISocketListenerContext _context;
         private readonly ServiceRegistry _services;
         private ActionBlock<Socket> _sessionInitBlock;
+        private CancellationTokenSource _sessionInitCancelSrc;
 
         public SocketListener(Socket socket, ServerEndpoint endpoint, ISocketListenerContext conext, ServiceRegistry services)
         {
@@ -43,6 +44,7 @@ namespace SharpRpc.Tcp
 
         public void Start(EndPoint socketEndpoint)
         {
+            _sessionInitCancelSrc = new CancellationTokenSource();
             _sessionInitBlock = new ActionBlock<Socket>(InitSession, new ExecutionDataflowBlockOptions() { MaxDegreeOfParallelism = 10, BoundedCapacity = 10 });
 
             _socket.Bind(socketEndpoint);
@@ -58,6 +60,7 @@ namespace SharpRpc.Tcp
             await _listenerTask.ConfigureAwait(false);
 
             _sessionInitBlock.Complete();
+            _sessionInitCancelSrc.Cancel();
             await _sessionInitBlock.Completion.ConfigureAwait(false);
         }
 
@@ -96,15 +99,13 @@ namespace SharpRpc.Tcp
 
         private async Task InitSession(Socket socket)
         {
-            var handshaker = new HandshakeCoordinator(1024 * 10, TimeSpan.FromSeconds(10));
-
             SocketTransport unsecuredTransport = null;
-
             try
             {
                 var newChannelId = Channel.GenerateId();
 
                 // do handshake
+                using var handshaker = new HandshakeCoordinator(1024 * 10, Endpoint.HandshakeTimeout, _sessionInitCancelSrc.Token);
                 unsecuredTransport = new SocketTransport(socket, _endpoint.TaskFactory, newChannelId, Logger);
                 var handshakeResult = await handshaker.DoServerSideHandshake(unsecuredTransport, _services, new Log(_logId, Logger)).ConfigureAwait(false);
 
@@ -120,7 +121,7 @@ namespace SharpRpc.Tcp
                     Logger.Verbose(_logId, "Handshake completed.");
 
                 // secure
-                var transport = await serviceConfig.Security.SecureTransport(unsecuredTransport, _endpoint, newChannelId, Logger).ConfigureAwait(false);
+                var transport = await serviceConfig.Security.SecureTransport(unsecuredTransport, _endpoint, newChannelId, Logger, handshaker.CancelToken).ConfigureAwait(false);
 
                 // open new session
                 _context.OnNewConnection(newChannelId, serviceConfig, transport);

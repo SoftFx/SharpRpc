@@ -3,8 +3,8 @@ using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Net.Security;
+using System.Net.Sockets;
 using System.Reflection;
-using System.Runtime.Remoting;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
@@ -18,7 +18,7 @@ namespace TestClient
     {
         static void Main(string[] args)
         {
-            //var address = "c:\\temp\\shrpc.benchmark.uds"
+            //var address = Path.Join(Path.GetTempPath(), "SharpRpc", "shrpc.benchmark.uds");
             var address = args.FirstOrDefault() ?? "localhost";
 
             Console.Title = "#RPC Client";
@@ -36,6 +36,8 @@ namespace TestClient
             Console.WriteLine("5. Load test");
             Console.WriteLine("6. Auth load test");
             Console.WriteLine("7. Serialization erorr handling tests");
+            Console.WriteLine("8. Idle socket timeout test");
+            Console.WriteLine("9. Invalid ssl config test (.Net Framework)");
             Console.Write(">");
 
             var choice = Console.ReadLine();
@@ -156,6 +158,10 @@ namespace TestClient
             }
             else if (choice == "7")
                 TestSerializationErrorHandling(address);
+            else if (choice == "8")
+                TestIdleSocketTimeout(address);
+            else if (choice == "9")
+                TestInvalidSslConfig(address);
             else
                 Console.WriteLine("Invalid input.");
         }
@@ -282,6 +288,78 @@ namespace TestClient
         private static bool NullCertValidator(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
         {
             return true;
+        }
+
+        private static void TestIdleSocketTimeout(string address)
+        {
+            /* TP-7352
+             * Dumps from prod server show that some sessions are stuck waiting for handshake and prevent server from stopping.
+             * Stacktrace:
+             * [Async] SharpRpc.Extensions.TryReceiveExact(SharpRpc.ByteTransport, byte[], int, System.Threading.CancellationToken)
+             * [Async] SharpRpc.HandshakeCoordinator.TryReceiveRequest(SharpRpc.ByteTransport, System.Threading.CancellationToken)
+             * [Async] SharpRpc.HandshakeCoordinator.DoServerSideHandshake(SharpRpc.ByteTransport, SharpRpc.Server.ServiceRegistry, SharpRpc.Log)
+             * [Async] SharpRpc.Tcp.SocketListener.InitSession(System.Net.Sockets.Socket)
+             * [Async] System.Threading.Tasks.Dataflow.ActionBlock<System.Net.Sockets.Socket>.ProcessMessageWithTask.AnonymousMethod__8_0(System.Threading.Tasks.Task, object)
+             *
+             * Code below achieves same stacktrace on server side, but it is not actual repro since exact client steps are unknown.
+             * Expected server behavior: session init should timeout.
+             */
+            var ipAddress = Dns.GetHostAddresses(address).FirstOrDefault();
+            var socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
+            socket.Connect(ipAddress, 812);
+
+            Console.WriteLine("Press Enter to close socket...");
+            Console.ReadLine();
+        }
+
+        private static void TestInvalidSslConfig(string address)
+        {
+            /* TP-7165
+             * REQUIRES changes in ClientEndpoint.CloseSocket() to check
+             *
+             * When .NET Framework lib is started in C++ host process .NET Runtime is initialized incorrectly.
+             * Assembly.GetEntryAssmbly() is null, AppDomain can't read TargetFrameworkName from entry assembly TargetFrameworkAttribute.
+             * Actual .NET Runtime version 4.8.1, Complime target - 4.7.2, but Effective target framework behavior is around 4.5.
+             * All compatibility switches are pushed back as much as possible.
+             *
+             * This leads to changes in SslStream behavior. https://learn.microsoft.com/en-us/dotnet/framework/network-programming/tls
+             * In context of server this causes SslStream.AuthenticateAsServerAsync() to hang until socket is closed.
+             * Expected server behavior: ssl handshake should have a timeout.
+             * Server stacktrace:
+             * [Async] System.Net.Security.SslStream.FillHandshakeBufferAsync.__InternalFillHandshakeBufferAsync|189_0<System.Net.Security.AsyncReadWriteAdapter>(System.Net.Security.AsyncReadWriteAdapter, System.Threading.Tasks.ValueTask<int>, int)
+             * [Async] System.Net.Security.SslStream.ReceiveBlobAsync<System.Net.Security.AsyncReadWriteAdapter>(System.Net.Security.AsyncReadWriteAdapter)
+             * [Async] System.Net.Security.SslStream.ForceAuthenticationAsync<System.Net.Security.AsyncReadWriteAdapter>(System.Net.Security.AsyncReadWriteAdapter, bool, byte[], bool)
+             * [Async] SharpRpc.SslServerSecurity.SecureTransport(SharpRpc.SocketTransport, SharpRpc.Endpoint, string, SharpRpc.IRpcLogger)
+             * [Async] SharpRpc.Tcp.SocketListener.InitSession(System.Net.Sockets.Socket)
+             * [Async] System.Threading.Tasks.Dataflow.ActionBlock<System.Net.Sockets.Socket>.ProcessMessageWithTask.AnonymousMethod__8_0(System.Threading.Tasks.Task, object)
+             *
+             * Client side error:
+             * RetCode: OtherConnectionError
+             * Error: An unexpected exception is occurred in TcpTransport: The specified value is not valid in the 'SslProtocolType' enumeration.
+             * Parameter name: sslProtocolType
+             */
+            AppContext.SetSwitch("Switch.System.Net.DontEnableSchUseStrongCrypto", true);
+            AppContext.SetSwitch("Switch.System.Net.DontEnableSystemDefaultTlsVersions", true);
+            var security = new SslSecurity(NullCertValidator);
+
+            // Different error, but leads to InitSession hang as with AppContext switches.
+            //var security = new SslSecurity(NullCertValidator) { Protocols = System.Security.Authentication.SslProtocols.Ssl3 };
+
+            var port = 812;
+            var serviceName = "func/ssl";
+            var endpoint = new TcpClientEndpoint(new DnsEndPoint(address, port), serviceName, security);
+            endpoint.Credentials = new BasicCredentials("Admin", "zzzz");
+
+            var callback = new CallbackHandler();
+            var client = FunctionTestContract_Gen.CreateClient(endpoint, callback);
+
+            var res = client.Try.TestCall1(10, "11");
+            Console.WriteLine($"RetCode: {res.Code}");
+            if (!res.IsOk)
+                Console.WriteLine($"Error: {res.FaultMessage}");
+
+            Console.WriteLine("Press Enter to close connection...");
+            Console.ReadLine();
         }
     }
 }

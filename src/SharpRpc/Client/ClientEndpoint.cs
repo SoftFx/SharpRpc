@@ -7,6 +7,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -46,6 +47,40 @@ namespace SharpRpc
                     _logger = value ?? NullLogger.Instance;
                 }
             }
+        }
+
+        protected async Task CloseTransport(ByteTransport transport)
+        {
+            try
+            {
+                await transport.Shutdown().ConfigureAwait(false);
+            }
+            catch { }
+
+            try
+            {
+                await transport.DisposeAsync().ConfigureAwait(false);
+            }
+            catch { }
+        }
+
+        protected void CloseSocket(Socket socket)
+        {
+            //return;// debug server timeout
+            if (socket == null)
+                return;
+
+            try
+            {
+                socket.Close();
+            }
+            catch { }
+
+            try
+            {
+                socket.Dispose();
+            }
+            catch { }
         }
     }
 }
