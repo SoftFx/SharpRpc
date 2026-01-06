@@ -283,7 +283,7 @@ namespace SharpRpc
                     State = ChannelState.Faulted;
                 Logger.Warn(Id, "Failed to establish transport connection! Code: {0}", _channelFault.Code);
                 _connectEvent.SetResult(_channelFault);
-                await _dispatcher.Stop(_channelFault).ConfigureAwait(false);
+                await CloseComponents(false).ConfigureAwait(false);
                 RiseFailedToOpenEvent(_channelFault);
                 return;
             }
@@ -367,19 +367,25 @@ namespace SharpRpc
 
         private async Task CloseComponents(bool shutdownTransport)
         {
-            Logger.Verbose(Id, "Stopping the dispatcher...");
+            Logger.Verbose(Id, "Closing channel components...");
 
             using (var closeTimeoutSrc = new CancellationTokenSource(Endpoint.TransportShutdownTimeout))
             {
                 closeTimeoutSrc.Token.Register(OnCloseComponentsTimeout);
 
-                await _dispatcher.Stop(_channelFault).ConfigureAwait(false);
+                if (_dispatcher != null)
+                {
+                    Logger.Verbose(Id, "Stopping the dispatcher...");
+                    await _dispatcher.Stop(_channelFault).ConfigureAwait(false);
+                }
 
                 try
                 {
-                    Logger.Verbose(Id, "Stopping Tx pipeline...");
-
-                    await _tx.Close(_channelFault).ConfigureAwait(false);
+                    if (_tx != null)
+                    {
+                        Logger.Verbose(Id, "Stopping Tx pipeline...");
+                        await _tx.Close(_channelFault).ConfigureAwait(false);
+                    }
 
                     if (_transport != null && shutdownTransport)
                     {
@@ -412,7 +418,7 @@ namespace SharpRpc
         private Task DisposeTransportAsync()
         {
             Logger.Verbose(Id, "Disposing the transport...");
-            return _transport?.DisposeAsync();
+            return _transport?.DisposeAsync() ?? Task.CompletedTask;
         }
 
         private async void DoDisconnect()

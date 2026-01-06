@@ -38,6 +38,7 @@ namespace TestClient
             Console.WriteLine("7. Serialization erorr handling tests");
             Console.WriteLine("8. Idle socket timeout test");
             Console.WriteLine("9. Invalid ssl config test (.Net Framework)");
+            Console.WriteLine("10. Client connect error leak");
             Console.Write(">");
 
             var choice = Console.ReadLine();
@@ -162,6 +163,8 @@ namespace TestClient
                 TestIdleSocketTimeout(address);
             else if (choice == "9")
                 TestInvalidSslConfig(address);
+            else if (choice == "10")
+                TestClientConnectErrorLeak(address);
             else
                 Console.WriteLine("Invalid input.");
         }
@@ -360,6 +363,56 @@ namespace TestClient
 
             Console.WriteLine("Press Enter to close connection...");
             Console.ReadLine();
+        }
+
+        private static void TestClientConnectErrorLeak(string address)
+        {
+            /* TP-7375
+             * Client doesn't release all resources on connection errors. Which causes a memory leak.
+             * Most simple cases are unknown DNS and server offline.
+             * Checking for leaks involves taking VS heap snapshot
+             */
+            // Comment to use default server address
+            address = "test-35aaa858c68f49fea4c3144778aa4b67.net";//non existing domain
+
+            // run once to init statics and reduce heap diff.
+            TestClientConnectErrorLeak_ClientWorker(address, "warmup").Wait();
+
+            for (var i = 0; i < 3; i++)
+                GC.Collect(2, GCCollectionMode.Forced, true, true);
+
+            Console.WriteLine();
+            Console.WriteLine("GC.Collect() completed. Take 1st heap shapshot and press Enter...");
+            Console.ReadLine();
+
+            var connectCnt = 5;
+            for (var i = 0; i < connectCnt; i++)
+                TestClientConnectErrorLeak_ClientWorker(address, (i + 1).ToString()).Wait();
+
+            for (var i = 0; i < 3; i++)
+                GC.Collect(2, GCCollectionMode.Forced, true, true);
+
+            Console.WriteLine();
+            Console.WriteLine("GC.Collect() completed. Take 2nd heap shapshot and press Enter...");
+            Console.ReadLine();
+        }
+
+        private static async Task TestClientConnectErrorLeak_ClientWorker(string address, string logPrefix)
+        {
+            var port = 812;
+            var serviceName = "func/ssl";
+            var security = new SslSecurity(NullCertValidator);
+            var endpoint = new TcpClientEndpoint(new DnsEndPoint(address, port), serviceName, security);
+            endpoint.Credentials = new BasicCredentials("Admin", "zzzz");
+
+            var callback = new CallbackHandler();
+            var client = FunctionTestContract_Gen.CreateClient(endpoint, callback);
+
+            Console.WriteLine($"[{logPrefix}] Connecting...");
+            var res = await client.Channel.TryConnectAsync();
+            Console.WriteLine($"[{logPrefix}] Connect res: {res.Code} ({res.FaultMessage})");
+
+            await client.Channel.CloseAsync();
         }
     }
 }
