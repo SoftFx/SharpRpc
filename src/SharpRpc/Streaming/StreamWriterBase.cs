@@ -153,8 +153,16 @@ namespace SharpRpc
                     throw new InvalidOperationException("Cancellation has been already enabled!");
 
                 _isCancellationEnabled = true;
-                _cancelReg = cancelToken.Register(Cancel);
+                _cancelReg = cancelToken.Register(CancellationCallback);
             }
+        }
+
+        private void CancellationCallback()
+        {
+            // _cancelReg.Dispose() will wait for this callback to complete.
+            // There is a known race condition on Channel.Close() which can cause deadlock if CancelTokenSrc.Cancel() is called in RpcCallHandler.OnClose().
+            // CancelTokenSrc.Cancel() calls all callbacks sychronously, waiting for _lockObj on caller thread can introduce new deadlock scenarios.
+            _ = Task.Run(Cancel);
         }
 
 #if NET5_0_OR_GREATER
