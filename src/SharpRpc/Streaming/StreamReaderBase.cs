@@ -506,6 +506,8 @@ namespace SharpRpc
             {
                 var eventCpy = _itemWaitSrc;
                 _itemWaitSrc = null;
+                if (eventCpy == null)
+                    return;
 
                 if (_completed)
                 {
@@ -584,6 +586,8 @@ namespace SharpRpc
             {
                 var eventCpy = _itemWaitSrc;
                 _itemWaitSrc = null;
+                if (eventCpy == null)
+                    return;
 
                 eventCpy.SetResult(_resultToFire);
             }
