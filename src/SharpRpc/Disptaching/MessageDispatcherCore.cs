@@ -138,7 +138,13 @@ namespace SharpRpc
             }
         }
 
-        private async void ProcessRequest(IRequestMessage request)
+        private void ProcessRequest(IRequestMessage request)
+        {
+            ProcessRequestAsync(request)
+                .OnFaulted(ex => OnError(RpcRetCode.MessageHandlerCrash, $"Request handler threw an exception: {ex.Message}"));
+        }
+
+        private async Task ProcessRequestAsync(IRequestMessage request)
         {
             //var context = new ServiceCallContext(request, Dispatcher);
             var respToSend = await MessageHandler.ProcessRequest(request).ConfigureAwait(false);

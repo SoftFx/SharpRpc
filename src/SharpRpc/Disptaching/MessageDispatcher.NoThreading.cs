@@ -144,7 +144,7 @@ namespace SharpRpc
                 }
             }
 
-            protected override async void DoCall(IRequestMessage requestMsg, IDispatcherOperation callTask, CancellationToken cToken)
+            protected override async Task DoCallAsync(IRequestMessage requestMsg, IDispatcherOperation callTask, CancellationToken cToken)
             {
                 var callId = GenerateOperationId(); // Guid.NewGuid().ToString();
 

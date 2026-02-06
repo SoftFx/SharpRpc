@@ -76,7 +76,7 @@ namespace SharpRpc
         public abstract void Abort(RpcResult fault); // In case of connection loss, timeout, or something ungraceful
 
         protected abstract void CancelOutgoingCall(IDispatcherOperation callObj);
-        protected abstract void DoCall(IRequestMessage requestMsg, IDispatcherOperation callObj, CancellationToken cToken);
+        protected abstract Task DoCallAsync(IRequestMessage requestMsg, IDispatcherOperation callObj, CancellationToken cToken);
 
         public string GenerateOperationId()
         {
@@ -118,6 +118,16 @@ namespace SharpRpc
             var task = new MessageDispatcherCore.TryCallTask<TResp, TReturn>(requestMsg);
             DoCall(requestMsg, task, cToken);
             return task.Task;
+        }
+
+        protected void DoCall(IRequestMessage requestMsg, IDispatcherOperation callTask, CancellationToken cToken)
+        {
+            DoCallAsync(requestMsg, callTask, cToken)
+                .OnFaulted(ex =>
+                {
+                    callTask.OnFault(new RpcResult(RpcRetCode.UnknownError, "An unexpected error in message dispatcher.", ex.Message));
+                    Logger.Error(Channel.Id, "DoCall() failed!", ex);
+                });
         }
     }
 

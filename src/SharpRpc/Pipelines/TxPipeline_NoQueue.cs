@@ -303,10 +303,21 @@ namespace SharpRpc
 
         private async void RequestConnection()
         {
-            // exit lock
-            await TaskFactory.Dive();
+            try
+            {
+                // exit lock
+                await TaskFactory.Dive();
 
-            _connectionRequestHandler();
+                _connectionRequestHandler();
+            }
+            catch (RpcException rex)
+            {
+                OnTxError(rex.ToRpcResult());
+            }
+            catch (Exception ex)
+            {
+                OnTxError(new RpcResult(RpcRetCode.OtherConnectionError, ex.JoinAllMessages()));
+            }
         }
 
         private RpcResult WriteMessageToBuffer(IMessage msg)

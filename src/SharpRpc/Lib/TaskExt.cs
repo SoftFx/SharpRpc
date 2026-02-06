@@ -5,10 +5,11 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace SharpRpc.Lib
+namespace SharpRpc
 {
     internal static class TaskExt
     {
@@ -37,6 +38,19 @@ namespace SharpRpc.Lib
         {
             static Task<T> BypassTask(Task<T> t) => t;
             return task.ContinueWith(BypassTask, cToken).Unwrap();
+        }
+
+        public static Task OnFaulted(this Task task, Action<Exception> action)
+        {
+            return task.ContinueWith(t =>
+            {
+                var taskEx = t.Exception;
+                Exception ex = taskEx;
+                if (taskEx?.InnerExceptions != null && taskEx.InnerExceptions.Count == 1)
+                    ex = taskEx.InnerExceptions[0];
+
+                action(ex);
+            }, TaskContinuationOptions.OnlyOnFaulted);
         }
     }
 }

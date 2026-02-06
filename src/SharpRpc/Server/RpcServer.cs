@@ -143,7 +143,10 @@ namespace SharpRpc
             await Task.WhenAll(closeTasks).ConfigureAwait(false);
         }
 
-        private async void Endpoint_ClientConnected(string channelId, ServerEndpoint sender, ServiceBinding binding, ByteTransport transport)
+        private void Endpoint_ClientConnected(string channelId, ServerEndpoint sender, ServiceBinding binding, ByteTransport transport)
+            => Endpoint_ClientConnectedAsync(channelId, sender, binding, transport).LogFault(Logger, Name);
+
+        private async Task Endpoint_ClientConnectedAsync(string channelId, ServerEndpoint sender, ServiceBinding binding, ByteTransport transport)
         {
             bool abortConnection = false;
 

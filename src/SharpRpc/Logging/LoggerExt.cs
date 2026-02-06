@@ -6,8 +6,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 using System;
-using System.Collections.Generic;
-using System.Text;
+using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
 
 namespace SharpRpc
 {
@@ -36,6 +36,12 @@ namespace SharpRpc
         public static void Error(this IRpcLogger logger, string component, Exception ex, string msg)
         {
             logger.Error(component, msg, ex);
+        }
+
+
+        public static Task LogFault(this Task task, IRpcLogger logger, string component, [CallerMemberName] string methodName = null)
+        {
+            return task.OnFaulted(ex => logger.Error(component, $"{methodName}() failed!", ex));
         }
     }
 

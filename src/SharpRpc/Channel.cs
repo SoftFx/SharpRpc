@@ -245,7 +245,9 @@ namespace SharpRpc
                 _channelFault = fault;
         }
 
-        private async void ConnectRoutine(CancellationToken cancelToken)
+        private void ConnectRoutine(CancellationToken cancelToken) => ConnectRoutineAsync(cancelToken).LogFault(Logger, Id);
+
+        private async Task ConnectRoutineAsync(CancellationToken cancelToken)
         {
             if (!_isServerSide)
             {
@@ -421,7 +423,9 @@ namespace SharpRpc
             return _transport?.DisposeAsync() ?? Task.CompletedTask;
         }
 
-        private async void DoDisconnect()
+        private void DoDisconnect() => DoDisconnectAsync().LogFault(Logger, Id);
+
+        private async Task DoDisconnectAsync()
         {
             await _connectEvent.Task.ConfigureAwait(false);
 

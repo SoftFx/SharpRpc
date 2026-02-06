@@ -98,7 +98,7 @@ namespace SharpRpc
         //                return stopTask;
         //            }
 
-        //            protected override async void DoCall(IRequestMessage requestMsg, MessageDispatcherCore.IInteropOperation callTask, CancellationToken cToken)
+        //            protected override async Task DoCallAsync(IRequestMessage requestMsg, MessageDispatcherCore.IInteropOperation callTask, CancellationToken cToken)
         //            {
         //                var callId = GenerateOperationId(); // Guid.NewGuid().ToString();
 
