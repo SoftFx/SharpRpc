@@ -39,6 +39,7 @@ namespace TestClient
             Console.WriteLine("8. Idle socket timeout test");
             Console.WriteLine("9. Invalid ssl config test (.Net Framework)");
             Console.WriteLine("10. Client connect error leak");
+            Console.WriteLine("11. Async IO leak repro (.Net Framework)");
             Console.Write(">");
 
             var choice = Console.ReadLine();
@@ -165,6 +166,8 @@ namespace TestClient
                 TestInvalidSslConfig(address);
             else if (choice == "10")
                 TestClientConnectErrorLeak(address);
+            else if (choice == "11")
+                TestNetFxAsyncIOLeak.Run(address);
             else
                 Console.WriteLine("Invalid input.");
         }
@@ -274,7 +277,7 @@ namespace TestClient
             Console.ReadLine();
         }
 
-        private static FunctionTestContract_Gen.Client CreateFunctionTestClient(string address, bool ssl)
+        internal static FunctionTestContract_Gen.Client CreateFunctionTestClient(string address, bool ssl)
         {
             var security = ssl ? new SslSecurity(NullCertValidator) : TcpSecurity.None;
             var port = 812;

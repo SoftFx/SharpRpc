@@ -5,11 +5,9 @@
 // Public License, v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-using SharpRpc.Lib;
 using SharpRpc.Tcp;
 using System;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
@@ -21,6 +19,7 @@ namespace SharpRpc
     {
         private readonly Socket _socket;
         private readonly TaskFactory _taskFactory;
+        private readonly SocketAsyncMethods _asyncMethods;
         //private readonly bool _isServer;
 
         public SocketTransport(Socket socket, TaskFactory taskQueue, string channelId, IRpcLogger logger)
@@ -28,6 +27,7 @@ namespace SharpRpc
         {
             _socket = socket;
             _taskFactory = taskQueue;
+            _asyncMethods = new SocketAsyncMethods(false);
         }
 
         internal Socket Socket => _socket;
@@ -50,14 +50,29 @@ namespace SharpRpc
 #else
         public override Task<int> Receive(ArraySegment<byte> buffer, CancellationToken cToken)
         {
-            //return _stream.ReadAsync(buffer.Array, buffer.Offset, buffer.Count, cToken);
-            return _socket.ReceiveAsync(buffer, SocketFlags.None).WithCancelToken(cToken);
+            // ReceiveAsync on .Net Framework has 2 problems:
+            // 1. It keeps pinned user buffers between calls in cached SocketAsyncEventArgs.
+            // 2. Cached SocketAsyncEventArgs are never disposed.
+            //return _socket.ReceiveAsync(buffer, SocketFlags.None).WithCancelToken(cToken);
+            return _asyncMethods.ReceiveAsync(_socket, buffer, SocketFlags.None, cToken);
+
+            //return SocketAsyncMethods.ReceiveAsyncApm(_socket, buffer, SocketFlags.None, cToken);
+        }
+
+        private static IAsyncResult BeginReceiveWrapper(Socket socket, ArraySegment<byte> buffer, AsyncCallback callback, object state)
+        {
+            return socket.BeginReceive(buffer.Array, buffer.Offset, buffer.Count, SocketFlags.None, callback, state);
         }
 
         public override Task Send (ArraySegment<byte> data, CancellationToken cToken)
         {
-            //return _stream.WriteAsync(data.Array, data.Offset, data.Count, cToken);
-            return _socket.SendAsync(data, SocketFlags.None).WithCancelToken(cToken);
+            // SendAsync on .Net Framework has 2 problems:
+            // 1. It keeps pinned user buffers between calls in cached SocketAsyncEventArgs.
+            // 2. Cached SocketAsyncEventArgs are never disposed.
+            //return _socket.SendAsync(data, SocketFlags.None).WithCancelToken(cToken);
+            return _asyncMethods.SendAsync(_socket, data, SocketFlags.None, cToken);
+
+            //return SocketAsyncMethods.SendAsyncApm(_socket, data, SocketFlags.None, cToken);
         }
 #endif
 
@@ -114,6 +129,7 @@ namespace SharpRpc
             try
             {
                 _socket.Dispose();
+                _asyncMethods.Dispose();
             }
             catch (Exception ex)
             {
