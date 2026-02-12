@@ -51,6 +51,7 @@ namespace SharpRpc
 
         protected async Task CloseTransport(ByteTransport transport)
         {
+            //return;// debug server timeout
             try
             {
                 await transport.Shutdown().ConfigureAwait(false);

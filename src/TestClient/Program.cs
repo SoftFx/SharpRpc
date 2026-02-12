@@ -321,7 +321,7 @@ namespace TestClient
         private static void TestInvalidSslConfig(string address)
         {
             /* TP-7165
-             * REQUIRES changes in ClientEndpoint.CloseSocket() to check
+             * REQUIRES changes in ClientEndpoint.CloseTransport() to check
              *
              * When .NET Framework lib is started in C++ host process .NET Runtime is initialized incorrectly.
              * Assembly.GetEntryAssmbly() is null, AppDomain can't read TargetFrameworkName from entry assembly TargetFrameworkAttribute.
