@@ -105,7 +105,7 @@ namespace SharpRpc.Tcp
                 var newChannelId = Channel.GenerateId();
 
                 // do handshake
-                using var handshaker = new HandshakeCoordinator(1024 * 10, Endpoint.HandshakeTimeout, _sessionInitCancelSrc.Token);
+                using var handshaker = new HandshakeCoordinator(Endpoint.HandshakeTimeout, _sessionInitCancelSrc.Token);
                 unsecuredTransport = new SocketTransport(socket, _endpoint.TaskFactory, newChannelId, Logger);
                 var handshakeResult = await handshaker.DoServerSideHandshake(unsecuredTransport, _services, new Log(_logId, Logger)).ConfigureAwait(false);
 

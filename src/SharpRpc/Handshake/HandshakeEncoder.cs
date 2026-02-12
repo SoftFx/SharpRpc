@@ -18,9 +18,9 @@ namespace SharpRpc
     {
         //private readonly byte[] _bytes;
 
-        public HandshakeEncoder(int maxSize)
+        public HandshakeEncoder(byte[] buffer)
         {
-            Buffer = new byte[maxSize];
+            Buffer = buffer;
         }
 
         public int Position { get; private set; }

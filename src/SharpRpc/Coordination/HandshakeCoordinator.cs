@@ -9,10 +9,7 @@ using SharpRpc.Coordination;
 using SharpRpc.Lib;
 using SharpRpc.Server;
 using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
+using System.Buffers;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -20,12 +17,17 @@ namespace SharpRpc
 {
     internal class HandshakeCoordinator : IDisposable
     {
+        private const int HandshakeBufferSize = 8 * 1024;
+        // Using dedicated pool instead of shared in case there are unknown issues with network code
+        private static readonly ArrayPool<byte> _handshakeBufferPool = ArrayPool<byte>.Create();
+
         private readonly HandshakeEncoder _msgEncoder;
         private readonly TimeoutCancelTokenSrc _timeoutSrc;
+        private readonly byte[] _rentedBuffer;
 
         public CancellationToken CancelToken => _timeoutSrc.Token;
 
-        public HandshakeCoordinator(int bufferSize, TimeSpan handshakeTimeout, CancellationToken externalToken)
+        public HandshakeCoordinator(TimeSpan handshakeTimeout, CancellationToken externalToken)
         {
             _timeoutSrc = new TimeoutCancelTokenSrc(handshakeTimeout, externalToken);
             //var maxDomainFieldSize = 2 + HandshakeRequest.MaxDomainChars * 4; //  LEN + UTF8
@@ -38,12 +40,14 @@ namespace SharpRpc
             //if (bufferSize < possibleHandshakeSize)
             //    bufferSize = possibleHandshakeSize;
 
-            _msgEncoder = new HandshakeEncoder(bufferSize);
+            _rentedBuffer = _handshakeBufferPool.Rent(HandshakeBufferSize);
+            _msgEncoder = new HandshakeEncoder(_rentedBuffer);
         }
 
         public void Dispose()
         {
             _timeoutSrc.Dispose();
+            _handshakeBufferPool.Return(_rentedBuffer);
         }
 
         public async Task<HandshakeResult> DoServerSideHandshake(ByteTransport transport, ServiceRegistry services, Log parentLog)

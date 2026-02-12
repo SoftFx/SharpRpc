@@ -80,7 +80,7 @@ namespace SharpRpc
 #endif
 
                     // handshake
-                    using var handshaker = new HandshakeCoordinator(1024 * 10, HandshakeTimeout, cancelToken);
+                    using var handshaker = new HandshakeCoordinator(HandshakeTimeout, cancelToken);
                     unsecuredTransport = new SocketTransport(socket, TaskFactory, channelId, Logger);
                     var hsResult = await handshaker.DoClientSideHandshake(unsecuredTransport, _endpoint.Host, _serviceName).ConfigureAwait(false);
 
