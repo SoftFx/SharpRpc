@@ -22,6 +22,8 @@ namespace SharpRpc
         private readonly SocketAsyncMethods _asyncMethods;
         //private readonly bool _isServer;
 
+        private bool _socketDetached;
+
         public SocketTransport(Socket socket, TaskFactory taskQueue, string channelId, IRpcLogger logger)
             : base(channelId, logger)
         {
@@ -31,6 +33,8 @@ namespace SharpRpc
         }
 
         internal Socket Socket => _socket;
+
+        internal void DetachSocket() => _socketDetached = true;
 
         public override void Init(Channel channel)
         {
@@ -57,11 +61,6 @@ namespace SharpRpc
             return _asyncMethods.ReceiveAsync(_socket, buffer, SocketFlags.None, cToken);
 
             //return SocketAsyncMethods.ReceiveAsyncApm(_socket, buffer, SocketFlags.None, cToken);
-        }
-
-        private static IAsyncResult BeginReceiveWrapper(Socket socket, ArraySegment<byte> buffer, AsyncCallback callback, object state)
-        {
-            return socket.BeginReceive(buffer.Array, buffer.Offset, buffer.Count, SocketFlags.None, callback, state);
         }
 
         public override Task Send (ArraySegment<byte> data, CancellationToken cToken)
@@ -116,7 +115,8 @@ namespace SharpRpc
         {
             try
             {
-                await _socket.DisconnectAsync(_taskFactory).ConfigureAwait(false);
+                if (!_socketDetached)
+                    await _socket.DisconnectAsync(_taskFactory).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -128,7 +128,8 @@ namespace SharpRpc
         {
             try
             {
-                _socket.Dispose();
+                if (!_socketDetached)
+                    _socket.Dispose();
                 _asyncMethods.Dispose();
             }
             catch (Exception ex)

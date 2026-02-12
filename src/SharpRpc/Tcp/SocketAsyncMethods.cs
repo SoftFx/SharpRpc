@@ -39,6 +39,9 @@ namespace SharpRpc.Tcp
 
         public void Dispose()
         {
+            if (_disposed)
+                return;
+
             _disposed = true;
             Interlocked.Exchange(ref _receiveArgs, null)?.Dispose();
             Interlocked.Exchange(ref _sendArgs, null)?.Dispose();
@@ -96,8 +99,6 @@ namespace SharpRpc.Tcp
 
         private void ReturnCachedArgs(ReusableSocketAsyncEventArgs args, AsyncArgsCacheSlot cacheSlot)
         {
-            if (args == null)
-                return;
             if (_disposed || cacheSlot == AsyncArgsCacheSlot.SingleUse)
             {
                 args.Dispose();

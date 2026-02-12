@@ -63,6 +63,7 @@ namespace SharpRpc
             //var targetEndpoint = new IPEndPoint(ipAddress, _endpoint.Port);
 
             Socket socket = null;
+            SocketTransport unsecuredTransport = null;
             try
             {
                 // Create a TCP/IP socket.  
@@ -80,7 +81,7 @@ namespace SharpRpc
 
                     // handshake
                     using var handshaker = new HandshakeCoordinator(1024 * 10, HandshakeTimeout, cancelToken);
-                    var unsecuredTransport = new SocketTransport(socket, TaskFactory, channelId, Logger);
+                    unsecuredTransport = new SocketTransport(socket, TaskFactory, channelId, Logger);
                     var hsResult = await handshaker.DoClientSideHandshake(unsecuredTransport, _endpoint.Host, _serviceName).ConfigureAwait(false);
 
                     if (!hsResult.IsOk)
@@ -91,13 +92,24 @@ namespace SharpRpc
 
                     // secure
                     var secureTransport = await _security.SecureTransport(socket, this, _endpoint.Host, channelId, Logger, handshaker.CancelToken).ConfigureAwait(false);
+                    if (secureTransport != unsecuredTransport)
+                    {
+                        // Release resources used by leftover transport
+                        unsecuredTransport.DetachSocket();
+                        await CloseTransport(unsecuredTransport).ConfigureAwait(false);
+                        unsecuredTransport = null;
+                    }
 
                     return new RpcResult<ByteTransport>(secureTransport);
                 }
             }
             catch (Exception ex)
             {
-                CloseSocket(socket);
+                if (unsecuredTransport != null)
+                    await CloseTransport(unsecuredTransport).ConfigureAwait(false);
+                else
+                    CloseSocket(socket);
+
                 var fault = SocketTransport.ToRpcResult(ex);
                 return new RpcResult<ByteTransport>(fault.Code, fault.FaultMessage);
             }

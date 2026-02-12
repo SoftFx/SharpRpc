@@ -122,6 +122,13 @@ namespace SharpRpc.Tcp
 
                 // secure
                 var transport = await serviceConfig.Security.SecureTransport(unsecuredTransport, _endpoint, newChannelId, Logger, handshaker.CancelToken).ConfigureAwait(false);
+                if (transport != unsecuredTransport)
+                {
+                    // Release resources used by leftover transport
+                    unsecuredTransport.DetachSocket();
+                    await CloseTransport(unsecuredTransport).ConfigureAwait(false);
+                    unsecuredTransport = null;
+                }
 
                 // open new session
                 _context.OnNewConnection(newChannelId, serviceConfig, transport);
