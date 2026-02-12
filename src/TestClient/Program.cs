@@ -402,14 +402,7 @@ namespace TestClient
 
         private static async Task TestClientConnectErrorLeak_ClientWorker(string address, string logPrefix)
         {
-            var port = 812;
-            var serviceName = "func/ssl";
-            var security = new SslSecurity(NullCertValidator);
-            var endpoint = new TcpClientEndpoint(new DnsEndPoint(address, port), serviceName, security);
-            endpoint.Credentials = new BasicCredentials("Admin", "zzzz");
-
-            var callback = new CallbackHandler();
-            var client = FunctionTestContract_Gen.CreateClient(endpoint, callback);
+            var client = CreateFunctionTestClient(address, true);
 
             Console.WriteLine($"[{logPrefix}] Connecting...");
             var res = await client.Channel.TryConnectAsync();
