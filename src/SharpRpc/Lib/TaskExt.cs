@@ -24,6 +24,24 @@ namespace SharpRpc
 
             return new ValueTask(valueTask.AsTask());
         }
+#else
+        public static async Task WaitAsync(this Task task, TimeSpan timeout)
+        {
+            using (var timeoutSrc = new CancellationTokenSource(timeout))
+            {
+                var timeoutTask = Task.Delay(Timeout.Infinite, timeoutSrc.Token);
+                var finished = await Task.WhenAny(task, timeoutTask).ConfigureAwait(false);
+
+                if (finished == task)
+                {
+                    timeoutSrc.Cancel();
+                    await task.ConfigureAwait(false);
+                }
+                else
+                    throw new TimeoutException();
+            }
+        }
+
 #endif
 
         /// <summary>Doesn't actually cancels the task. Just wraps provided task into new one with cancellation token.</summary>

@@ -9,6 +9,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace SharpRpc
@@ -18,7 +19,7 @@ namespace SharpRpc
         public class NoThreading : RxPipeline
         {
             private readonly RxBuffer _buffer;
-            private volatile bool _isClosed;
+            private int _isClosed; // 0 = open, 1 = closed; flipped atomically in Close()
 
             public NoThreading(string channelId, ByteTransport transport, Endpoint config, IRpcSerializer serializer, MessageDispatcher messageConsumer, SessionCoordinator coordinator)
                 : base(channelId, transport, config, serializer, messageConsumer, coordinator)
@@ -47,7 +48,7 @@ namespace SharpRpc
             protected async override Task<bool> OnBytesArrived(int count)
 #endif
             {
-                if (_isClosed)
+                if (Volatile.Read(ref _isClosed) != 0)
                     return false;
 
                 var rxData = _buffer.CommitDataRx(count);
@@ -72,9 +73,14 @@ namespace SharpRpc
 
             public override Task Close()
             {
-                _isClosed = true;
+                // Flip the closed flag exactly once (lock-free test-and-set). Whichever caller
+                // wins cancels the read loop; both the winner and any racing caller (e.g. an
+                // aborter running concurrently with a graceful close) return the same loop task,
+                // so the in-flight Receive() is always awaited before the transport is disposed.
+                if (Interlocked.Exchange(ref _isClosed, 1) == 0)
+                    return StopTransportRx();
 
-                return StopTransportRx();
+                return _rxLoop;
             }
         }
     }

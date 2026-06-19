@@ -454,9 +454,44 @@ namespace SharpRpc
             {
                 _coordinator.AbortCoordination();
             }
-            
+
             Dispatcher.Abort(_channelFault);
-            _ = DisposeTransportAsync();
+            _ = AbortTransportAsync().LogFault(Logger, Id);
+        }
+
+        // The Rx read loop must be stopped and awaited before the transport (SslStream) is disposed.
+        // Disposing the transport while a Receive() (SslStream.ReadAsync) is still in flight frees the
+        // native security context under an active read and causes an AccessViolationException on the
+        // IOCP completion thread. _rx.Close() cancels the rx token and awaits the read loop, so the
+        // in-flight read has observably returned before DisposeTransportAsync() runs.
+        //
+        // The wait is bounded by TransportShutdownTimeout: on platforms where an in-flight socket read
+        // cannot be cancelled by token, disposing the transport is what unblocks it, so we must not
+        // wait for the loop forever (that would deadlock the teardown). After the timeout we proceed to
+        // disposal regardless, which forces the stuck read to complete - matching the legacy abort
+        // behavior, while the common (cancellable) path still stops the read cleanly before disposal.
+        private async Task AbortTransportAsync()
+        {
+            try
+            {
+                if (_rx != null)
+                {
+                    try
+                    {
+                        await _rx.Close().WaitAsync(Endpoint.TransportShutdownTimeout).ConfigureAwait(false);
+                    }
+                    catch (TimeoutException)
+                    {
+                        Logger.Warn(Id, "AbortTransportAsync(): the Rx pipeline did not stop within the shutdown timeout; forcing transport disposal.");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(Id, "AbortTransportAsync(): stopping the Rx pipeline failed.", ex);
+            }
+
+            await DisposeTransportAsync().ConfigureAwait(false);
         }
 
         private void SetClosedState()
