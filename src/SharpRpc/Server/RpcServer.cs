@@ -173,7 +173,7 @@ namespace SharpRpc
 
         private void Session_Closed(Channel channel, RpcResult fault)
         {
-            lock (_sessions)
+            lock (_stateLock)
             {
                 _sessions.Remove(channel.Id);
             }

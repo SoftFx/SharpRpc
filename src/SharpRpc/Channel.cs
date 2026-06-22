@@ -337,6 +337,11 @@ namespace SharpRpc
                     SetClosedState();
                 Logger.Info(Id, "Disconnected. Final state: " + State);
                 _connectEvent.SetResult(_channelFault);
+                // A channel that fails to open (e.g. rejected/timed-out login) never reaches Online and
+                // therefore never goes through DoDisconnect, so InternalClosed must be raised here as well.
+                // Otherwise server-side listeners that track sessions by InternalClosed (RpcServer._sessions)
+                // would never remove this channel, leaking it for every failed login.
+                InternalClosed?.Invoke(this, _channelFault);
                 RiseFailedToOpenEvent(_channelFault);
             }
             else
