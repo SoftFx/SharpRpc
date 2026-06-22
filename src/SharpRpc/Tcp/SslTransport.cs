@@ -22,8 +22,6 @@ namespace SharpRpc
     {
         private readonly SslStream _stream;
         private readonly Socket _socket;
-        private IRpcLogger _logger;
-        private string _channelId;
 
         public SslTransport(SslStream stream, Socket socket, string channelId, IRpcLogger logger)
             : base(channelId, logger)
@@ -34,8 +32,6 @@ namespace SharpRpc
 
         public override void Init(Channel channel)
         {
-            _logger = channel.Logger;
-            _channelId = channel.Id;
         }
 
 #if NET5_0_OR_GREATER
@@ -67,47 +63,66 @@ namespace SharpRpc
 
 #if NETSTANDARD
         protected override Task ShutdownInternal()
+        {
+            // netstandard2.0 SslStream has no ShutdownAsync. The previous implementation called
+            // _stream.Close() here, but Shutdown() runs before the rx loop is stopped, so closing
+            // (disposing) the SslStream while a ReadAsync is still in flight triggers the same
+            // AccessViolationException described in DisposeInternal(). There is no graceful TLS
+            // close_notify available on this target anyway, so defer all teardown to DisposeInternal(),
+            // which disposes the socket first and is therefore safe with a read in flight.
+            return Task.CompletedTask;
+        }
 #else
         protected override async Task ShutdownInternal()
-#endif
         {
             try
             {
-#if NETSTANDARD
-               _stream.Close();
-#else
                 await _stream.ShutdownAsync().ConfigureAwait(false);
-#endif
             }
             catch (Exception ex)
             {
-                _logger.Error(GetName(), "ShutdownInternal() failed: " + ex.Message);
+                Warn("ShutdownInternal() failed: " + ex.Message);
             }
-#if NETSTANDARD
-            return Task.CompletedTask;
-#endif
         }
+#endif
 
         protected override void DisposeInternal()
         {
+            // The underlying socket MUST be torn down before the SslStream.
+            //
+            // SslStream.ReadAsync does not abort the underlying socket read when its cancellation token
+            // fires: cancelling the rx token unblocks the awaiting RxLoop (OperationCanceledException) and
+            // the rx pipeline reports itself closed, but the native receive that SslStream issued into its
+            // internal (pooled) buffer is still pending in the OS. Disposing the SslStream at that point
+            // frees that buffer / native security state while the kernel still owns a pointer to it, so when
+            // the read later completes on an IOCP thread it writes into freed memory -> AccessViolationException.
+            //
+            // Disposing the socket first aborts the pending receive at the OS level (it completes with
+            // OperationAborted and copies no data); only then is it safe to dispose the SslStream.
+            // Socket.Dispose() is idempotent, so the SslStream disposing its owned NetworkStream/socket
+            // afterwards is harmless.
+            try
+            {
+                _socket.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Warn("DisposeInternal() failed to dispose the socket: " + ex.Message);
+            }
+
             try
             {
                 _stream.Dispose();
             }
             catch (Exception ex)
             {
-                _logger.Error(GetName(), "DisposeInternal() failed: " + ex.Message);
+                Warn("DisposeInternal() failed: " + ex.Message);
             }
         }
 
         public override TransportInfo GetInfo()
         {
             return SocketTransport.CreateInfobject(_socket);
-        }
-
-        private string GetName()
-        {
-            return $"{_channelId}-SslTransport";
         }
     }
 }
