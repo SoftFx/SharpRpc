@@ -30,7 +30,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="MessagePack" Version="2.5.124" />
+    <PackageReference Include="MessagePack" Version="2.5.302" />
     <PackageReference Include="protobuf-net" Version="3.0.73" />
   </ItemGroup>
 
