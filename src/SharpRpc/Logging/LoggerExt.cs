@@ -39,6 +39,11 @@ namespace SharpRpc
         }
 
 
+        public static void LogFault(this IRpcLogger logger, string component, Exception ex, [CallerMemberName] string methodName = null)
+        {
+            logger.Error(component, $"{methodName}() failed!", ex);
+        }
+
         public static Task LogFault(this Task task, IRpcLogger logger, string component, [CallerMemberName] string methodName = null)
         {
             return task.OnFaulted(ex => logger.Error(component, $"{methodName}() failed!", ex));

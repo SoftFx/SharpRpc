@@ -108,23 +108,30 @@ namespace SharpRpc
                 }
             }
 
-            _connectWaitHandle.SetResult(loggedIn);
+            _connectWaitHandle.TrySetResult(loggedIn);
         }
 
         private void OnLoginTimeout()
         {
-            lock (LockObj)
+            try
             {
-                if (State != SessionState.PendingLogin)
-                    return;
+                lock (LockObj)
+                {
+                    if (State != SessionState.PendingLogin)
+                        return;
 
-                State = SessionState.LoginFailed;
-                IsCoordinationBroken = true;
-                Channel.UpdateFault(new RpcResult(RpcRetCode.LoginTimeout, "Login operation timed out!"));
+                    State = SessionState.LoginFailed;
+                    IsCoordinationBroken = true;
+                    Channel.UpdateFault(new RpcResult(RpcRetCode.LoginTimeout, "Login operation timed out!"));
+                }
+
+                Channel.Logger.Warn(Channel.Id, "Login operation timed out!");
+                _connectWaitHandle.TrySetResult(false);
             }
-
-            Channel.Logger.Warn(Channel.Id, "Login operation timed out!");
-            _connectWaitHandle.TrySetResult(false);
+            catch (Exception ex)
+            {
+                Channel.Logger.LogFault(Channel.Id, ex);
+            }
         }
 
         public override Task<TransportCloseSide> OnDisconnect()

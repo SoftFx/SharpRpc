@@ -516,7 +516,14 @@ namespace SharpRpc
 
         private void OnKeepAliveTimerTick(object state)
         {
-            SendOrForget(_keepAliveMessage);
+            try
+            {
+                SendOrForget(_keepAliveMessage);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogFault(ChannelId, ex);
+            }
         }
 
         private void _buffer_SpaceFreed(TxBuffer sender)

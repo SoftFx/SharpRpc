@@ -71,18 +71,25 @@ namespace SharpRpc
 
         private void OnLoginTimeout()
         {
-            lock (LockObj)
+            try
             {
-                if (State != SessionState.PendingLogin)
-                    return;
+                lock (LockObj)
+                {
+                    if (State != SessionState.PendingLogin)
+                        return;
 
-                State = SessionState.LoginFailed;
-                IsCoordinationBroken = true;
-                Channel.UpdateFault(new RpcResult(RpcRetCode.LoginTimeout, "Timeout has been reached while waiting for the login message!"));
+                    State = SessionState.LoginFailed;
+                    IsCoordinationBroken = true;
+                    Channel.UpdateFault(new RpcResult(RpcRetCode.LoginTimeout, "Timeout has been reached while waiting for the login message!"));
+                }
+
+                Channel.Logger.Warn(Channel.Id, "Timeout has been reached while waiting for the login message!");
+                _connectWaitHandle.TrySetResult(false);
             }
-
-            Channel.Logger.Warn(Channel.Id, "Timeout has been reached while waiting for the login message!");
-            _connectWaitHandle.SetResult(false);
+            catch (Exception ex)
+            {
+                Channel.Logger.LogFault(Channel.Id, ex);
+            }
         }
 
         private void OnAuthResult(Task<string> authTask)
@@ -119,7 +126,7 @@ namespace SharpRpc
             }
 
             SendLoginResponse(authError);
-            _connectWaitHandle.SetResult(authError == null);
+            _connectWaitHandle.TrySetResult(authError == null);
         }
 
         private void SendLoginResponse(string authError)

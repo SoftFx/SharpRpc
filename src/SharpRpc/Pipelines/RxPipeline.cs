@@ -245,7 +245,14 @@ namespace SharpRpc
 
         private void OnWatchdogTick(object state)
         {
-            SignalCommunicationError(new RpcResult(RpcRetCode.ConnectionTimeout, "No data is received from the transport connection within the specified timeout. This indicates connection loss."));
+            try
+            {
+                SignalCommunicationError(new RpcResult(RpcRetCode.ConnectionTimeout, "No data is received from the transport connection within the specified timeout. This indicates connection loss."));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogFault(_channelId, ex);
+            }
         }
 
 #if NET5_0_OR_GREATER

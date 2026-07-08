@@ -255,14 +255,7 @@ namespace SharpRpc
 
                 RiseOpeningEvent();
 
-                Action userCancelAction = () =>
-                {
-                    lock (_stateSyncObj)
-                        UpdateFault(new RpcResult(RpcRetCode.OperationCanceled, "The connect operation was canceled."));
-                    _connectCancellationSrc.Cancel();
-                };
-
-                using (cancelToken.Register(userCancelAction))
+                using (cancelToken.Register(OnUserTokenCancelled))
                 {
                     try
                     {
@@ -352,10 +345,31 @@ namespace SharpRpc
             }
         }
 
+        private void OnUserTokenCancelled()
+        {
+            try
+            {
+                lock (_stateSyncObj)
+                    UpdateFault(new RpcResult(RpcRetCode.OperationCanceled, "The connect operation was canceled."));
+                _connectCancellationSrc.Cancel();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogFault(Id, ex);
+            }
+        }
+
         private void OnLogoutTimeout()
         {
-            Logger.Warn(Id, "Logout operation timed out!");
-            AbortConnection();
+            try
+            {
+                Logger.Warn(Id, "Logout operation timed out!");
+                AbortConnection();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogFault(Id, ex);
+            }
         }
 
         //private Task TriggerCloseComponents(bool isAbortion)
@@ -418,8 +432,15 @@ namespace SharpRpc
 
         private void OnCloseComponentsTimeout()
         {
-            Logger.Warn(Id, "Close operation timed out!");
-            AbortConnection();
+            try
+            {
+                Logger.Warn(Id, "Close operation timed out!");
+                AbortConnection();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogFault(Id, ex);
+            }
         }
 
         private Task DisposeTransportAsync()

@@ -74,7 +74,7 @@ namespace SharpRpc
                 await socket.ConnectAsync(_endpoint, cancelToken).ConfigureAwait(false);
                 {
 #else
-                using (cancelToken.Register(() => socket.Close()))
+                using (cancelToken.Register(() => CloseSocket(socket)))
                 {
                     await socket.ConnectAsync(_endpoint).ConfigureAwait(false);
 #endif
