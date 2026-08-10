@@ -35,6 +35,22 @@ namespace SharpRpc
 
         public SslProtocols Protocols { get; set; } = SslProtocols.None;
 
+        /// <summary>
+        /// Enables mutual TLS: the server requests a certificate from the client during the handshake.
+        /// Default value: false (a client certificate is not requested; a certificate configured on the
+        /// client side is never transmitted).
+        /// </summary>
+        public bool RequireClientCertificate { get; set; }
+
+        /// <summary>
+        /// Custom validation of the client certificate (e.g. against a thumbprint whitelist).
+        /// The callback may be invoked with a null certificate (SslPolicyErrors.RemoteCertificateNotAvailable)
+        /// when the client does not present one, even if RequireClientCertificate is true - it must return
+        /// false in that case to reject such connections.
+        /// Default value: null (default SslStream validation is used).
+        /// </summary>
+        public RemoteCertificateValidationCallback ClientCertificateValidator { get; set; }
+
         internal override string Name => "SSL";
 
 #if NET5_0_OR_GREATER
@@ -44,18 +60,36 @@ namespace SharpRpc
 #endif
         {
             var netStream = new NetworkStream(unsecureTransport.Socket, true);
-            var sslStream = new SslStream(netStream, false);
+            var sslStream = new SslStream(netStream, false, ClientCertificateValidator, null);
 
+            try
+            {
 #if NET5_0_OR_GREATER
-            var sslOptions = new SslServerAuthenticationOptions();
-            sslOptions.ServerCertificateSelectionCallback = (sender, host) => _certSrc.GetCertificate(host);
-            sslOptions.ClientCertificateRequired = false;
-            sslOptions.EnabledSslProtocols = Protocols;
+                var sslOptions = new SslServerAuthenticationOptions();
+                sslOptions.ServerCertificateSelectionCallback = (sender, host) => _certSrc.GetCertificate(host);
+                sslOptions.ClientCertificateRequired = RequireClientCertificate;
+                sslOptions.EnabledSslProtocols = Protocols;
 
-            await sslStream.AuthenticateAsServerAsync(sslOptions, cToken).ConfigureAwait(false);
+                await sslStream.AuthenticateAsServerAsync(sslOptions, cToken).ConfigureAwait(false);
 #else
-            await sslStream.AuthenticateAsServerAsync(_certSrc.GetCertificate(), false, Protocols, false).WithCancelToken(cToken).ConfigureAwait(false);
+                await sslStream.AuthenticateAsServerAsync(_certSrc.GetCertificate(), RequireClientCertificate, Protocols, false).WithCancelToken(cToken).ConfigureAwait(false);
 #endif
+            }
+            catch (Exception ex)
+            {
+                // The socket must be disposed before the SslStream: it aborts any receive the
+                // SslStream still has pending, so disposing the stream cannot trigger the
+                // AccessViolationException described in SslTransport.DisposeInternal().
+                // Disposing the stream also releases its pooled buffers, which would otherwise
+                // be orphaned on every failed handshake.
+                try { unsecureTransport.Socket.Dispose(); } catch { }
+                try { sslStream.Dispose(); } catch { }
+
+                if (ex is AuthenticationException aex)
+                    throw new RpcException(aex.Message, RpcRetCode.InvalidCredentials, aex);
+
+                throw;
+            }
 
             return new SslTransport(sslStream, unsecureTransport.Socket, channelId, logger);
         }

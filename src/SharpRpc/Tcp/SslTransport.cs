@@ -10,8 +10,10 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -22,12 +24,19 @@ namespace SharpRpc
     {
         private readonly SslStream _stream;
         private readonly Socket _socket;
+        private readonly X509Certificate2 _remoteCertificate;
 
         public SslTransport(SslStream stream, Socket socket, string channelId, IRpcLogger logger)
             : base(channelId, logger)
         {
             _stream = stream;
             _socket = socket;
+
+            // SslStream disposes its RemoteCertificate together with the stream; keep an independent
+            // copy so it can outlive the connection in session/transport info.
+            var remoteCert = stream.RemoteCertificate;
+            if (remoteCert != null)
+                _remoteCertificate = new X509Certificate2(remoteCert);
         }
 
         public override void Init(Channel channel)
@@ -122,7 +131,7 @@ namespace SharpRpc
 
         public override TransportInfo GetInfo()
         {
-            return SocketTransport.CreateInfobject(_socket);
+            return new SslConnectionInfo(_socket.RemoteEndPoint as IPEndPoint, _socket.LocalEndPoint as IPEndPoint, _remoteCertificate);
         }
     }
 }
