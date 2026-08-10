@@ -1,10 +1,10 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net6.0;net472;netstandard2.0</TargetFrameworks>
+    <TargetFrameworks>net8.0;net472;netstandard2.0</TargetFrameworks>
     <Configurations>Debug;Release;ReleasePfCounters;ReleaseIde</Configurations>
     <LangVersion>8</LangVersion>
-    <Version>1.9.22</Version>
+    <Version>1.10.0</Version>
     <Company>Soft-Fx</Company>
     <Authors>Andrei Hilevich</Authors>
     <PackageId>SharpRpc.Core</PackageId>
@@ -38,7 +38,7 @@
     <Optimize>true</Optimize>
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(Framework)'!='net6.0'">
+  <ItemGroup Condition="'$(TargetFramework)'!='net8.0'">
     <PackageReference Include="System.Buffers" Version="4.5.1" />
   </ItemGroup>
 
