@@ -45,11 +45,15 @@ jobs:
         dotnet pack src/SharpRpc/SharpRpc.csproj --configuration Release --no-build --output ./nupkgs
         dotnet pack src/SharpRpc.Builder/SharpRpc.Builder.csproj --configuration Release --no-build --output ./nupkgs
 
+    # Exchanges the job's GitHub OIDC token for a short-lived nuget.org API key.
+    # Requires a Trusted Publishing policy on nuget.org (owner: SoftFx,
+    # repo: SharpRpc, workflow: nuget_publish.yml, environment: Nuget)
+    # owned by the nuget.org user in vars.NUGET_USER.
     - name: NuGet login (Trusted Publishing)
       id: login
       uses: NuGet/login@v1
       with:
-        user: SoftFx
+        user: ${{ vars.NUGET_USER }}
 
     - name: Push
       run: dotnet nuget push ./nupkgs/*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --skip-duplicate
